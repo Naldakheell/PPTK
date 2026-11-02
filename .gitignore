@@ -6,3 +6,9 @@ src/~$*
 .c*
 build-tools*
 *sync.ffs_db*
+.build/
+.swiftpm/
+.vs/
+*.user
+*.suo
+~$*
