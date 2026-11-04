@@ -9,11 +9,15 @@ internal sealed class Snapshot
 
     public Surface Surface { get; }
     public string Detail { get; }
+    public int Pane { get; }
+    public int Selection { get; }
 
-    public Snapshot(Surface surface, string detail)
+    public Snapshot(Surface surface, string detail, int pane = 0, int selection = 0)
     {
         Surface = surface;
         Detail = detail;
+        Pane = pane;
+        Selection = selection;
     }
 }
 
@@ -185,7 +189,7 @@ internal sealed class PowerPointSession : IDisposable
 
             int pane = (int)_app.ActiveWindow.ActivePane.ViewType;
             Surface surface = ShortcutGate.Classify(false, pane, selected, true);
-            PublishObserved(new Snapshot(surface, Detail(pane, selected)), runFinished: false, selectionEvent: true);
+            PublishObserved(new Snapshot(surface, Detail(pane, selected), pane, selected), runFinished: false, selectionEvent: true);
         }
         catch (Exception ex) when (ex is COMException or InvalidComObjectException or System.Reflection.TargetException)
         {
@@ -235,7 +239,7 @@ internal sealed class PowerPointSession : IDisposable
             int pane = (int)window.ActivePane.ViewType;
             int selected = (int)window.Selection.Type;
             Surface surface = ShortcutGate.Classify(false, pane, selected, true);
-            return new Snapshot(surface, Detail(pane, selected));
+            return new Snapshot(surface, Detail(pane, selected), pane, selected);
         }
         catch (Exception ex) when (ex is COMException or InvalidComObjectException or System.Reflection.TargetException)
         {
@@ -261,7 +265,7 @@ internal sealed class PowerPointSession : IDisposable
             runFinished,
             selectionEvent);
         _hold = result.Hold;
-        Current = new Snapshot(result.Surface, result.Detail);
+        Current = new Snapshot(result.Surface, result.Detail, observed.Pane, observed.Selection);
     }
 
     static string Detail(int pane, int selection) =>

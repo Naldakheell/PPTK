@@ -8,7 +8,7 @@ Option Explicit
 ' formatting are local helpers so the text module is not imported.
 ' Ctrl+Shift+] and Ctrl+Shift+[ move the selection one z-order step.
 ' I opens the Windows Insert Icon command. IconsPane is not used.
-' Later tokens, including library and email, are ignored.
+' \ saves the selected slides as a new PPTX. Library and email are ignored.
 
 Private Const PPTK_TAG As String = "PPTK_SHORTCUT"
 Private Const PPTK_W_STANDARD As Single = 150
@@ -94,6 +94,8 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
             PPTK_ExecuteMso "ObjectBringForward"
         Case "CTRL SHIFT ["
             PPTK_ExecuteMso "ObjectSendBackward"
+        Case "\"
+            PPTK_SaveSelectedSlides
         Case Else
     End Select
 End Sub
@@ -436,4 +438,281 @@ Private Sub PPTK_ZeroMarginsShape(ByVal target As Shape)
         target.TextFrame.MarginTop = 0
     End If
 Clean:
+End Sub
+
+Private Sub PPTK_SaveSelectedSlides()
+    Dim sourceWindow As DocumentWindow
+    Dim source As Presentation
+    Dim selected As SlideRange
+    Dim indexes() As Long
+    Dim dialog As FileDialog
+    Dim suggested As String
+    Dim destination As String
+    Dim tempPath As String
+    Dim copyPres As Presentation
+    Dim previousAlerts As PpAlertLevel
+    Dim capturedSaved As Boolean
+    Dim haveSaved As Boolean
+    Dim alertsChanged As Boolean
+    Dim accepted As Boolean
+    Dim failure As Long
+
+    On Error GoTo Failed
+    If Application.Presentations.Count < 1 Then Exit Sub
+    Set sourceWindow = ActiveWindow
+    If sourceWindow Is Nothing Then Exit Sub
+    If sourceWindow.Selection.Type <> ppSelectionSlides Then Exit Sub
+    Set selected = sourceWindow.Selection.SlideRange
+    If selected Is Nothing Then Exit Sub
+    If selected.Count < 1 Then Exit Sub
+    Set source = sourceWindow.Presentation
+    If source Is Nothing Then Exit Sub
+
+    PPTK_CollectSlideIndexes selected, indexes
+    suggested = PPTK_SuggestedPath(source, indexes)
+    Set dialog = Application.FileDialog(msoFileDialogSaveAs)
+    dialog.InitialFileName = suggested
+    If dialog.Show <> -1 Then Exit Sub
+    accepted = True
+    destination = PPTK_ForcePptx(CStr(dialog.SelectedItems(1)))
+    If Len(destination) = 0 Then Exit Sub
+    If PPTK_SameFile(source, destination) Then
+        MsgBox "Choose a different file. The open presentation was not changed.", vbExclamation
+        Exit Sub
+    End If
+
+    tempPath = PPTK_TempCopyPath()
+    If StrComp(tempPath, destination, vbTextCompare) = 0 Then Err.Raise 5
+    PPTK_DeleteIfExists tempPath
+    capturedSaved = source.Saved
+    haveSaved = True
+    previousAlerts = Application.DisplayAlerts
+    source.SaveCopyAs tempPath, ppSaveAsOpenXMLPresentation
+    source.Saved = capturedSaved
+    Set copyPres = Presentations.Open(tempPath, msoFalse, msoFalse, msoFalse)
+    If copyPres Is Nothing Then Err.Raise 5
+    If Not PPTK_IsTempName(copyPres.Name) Then Err.Raise 5
+    If StrComp(copyPres.FullName, source.FullName, vbTextCompare) = 0 Then Err.Raise 5
+
+    Application.DisplayAlerts = ppAlertsNone
+    alertsChanged = True
+    PPTK_KeepSlideIndexes copyPres, indexes
+    Application.DisplayAlerts = previousAlerts
+    alertsChanged = False
+    ' SaveAs releases the temporary file while this presentation stays open.
+    copyPres.SaveAs destination, ppSaveAsOpenXMLPresentation
+    If Not PPTK_FileExists(destination) Then Err.Raise 5
+    PPTK_DeleteIfExists tempPath
+    copyPres.Saved = True
+    copyPres.Close
+    Set copyPres = Nothing
+    PPTK_DeleteIfExists tempPath
+    PPTK_RestoreSelection sourceWindow, source, indexes
+    Exit Sub
+
+Failed:
+    failure = Err.Number
+    On Error Resume Next
+    If alertsChanged Then Application.DisplayAlerts = previousAlerts
+    If haveSaved Then source.Saved = capturedSaved
+    If Not copyPres Is Nothing Then
+        If PPTK_IsTempName(copyPres.Name) Or StrComp(copyPres.FullName, destination, vbTextCompare) = 0 Then
+            copyPres.Saved = True
+            copyPres.Close
+        End If
+        Set copyPres = Nothing
+    End If
+    PPTK_DeleteIfExists tempPath
+    If failure <> 1004 And failure <> 4198 And failure <> 18 Then
+        MsgBox "Could not save the selected slides. The open presentation was not changed.", vbExclamation
+    End If
+End Sub
+
+Private Sub PPTK_CollectSlideIndexes(ByVal selected As SlideRange, ByRef indexes() As Long)
+    Dim index As Long
+    ReDim indexes(1 To selected.Count)
+    For index = 1 To selected.Count
+        indexes(index) = selected(index).SlideIndex
+    Next index
+    PPTK_SortUnique indexes
+End Sub
+
+Private Sub PPTK_SortUnique(ByRef values() As Long)
+    Dim leftIndex As Long
+    Dim rightIndex As Long
+    Dim hold As Long
+    Dim writeAt As Long
+    For leftIndex = LBound(values) To UBound(values) - 1
+        For rightIndex = leftIndex + 1 To UBound(values)
+            If values(rightIndex) < values(leftIndex) Then
+                hold = values(leftIndex)
+                values(leftIndex) = values(rightIndex)
+                values(rightIndex) = hold
+            End If
+        Next rightIndex
+    Next leftIndex
+    writeAt = LBound(values)
+    For rightIndex = LBound(values) + 1 To UBound(values)
+        If values(rightIndex) <> values(writeAt) Then
+            writeAt = writeAt + 1
+            values(writeAt) = values(rightIndex)
+        End If
+    Next rightIndex
+    If writeAt < UBound(values) Then ReDim Preserve values(LBound(values) To writeAt)
+End Sub
+
+Private Sub PPTK_KeepSlideIndexes(ByVal copyPres As Presentation, ByRef indexes() As Long)
+    Dim keep() As Boolean
+    Dim index As Long
+    Dim kept As Long
+    If Not PPTK_IsTempName(copyPres.Name) Then Err.Raise 5
+    ReDim keep(1 To copyPres.Slides.Count)
+    For index = LBound(indexes) To UBound(indexes)
+        If indexes(index) < 1 Or indexes(index) > copyPres.Slides.Count Then Err.Raise 5
+        If Not keep(indexes(index)) Then
+            keep(indexes(index)) = True
+            kept = kept + 1
+        End If
+    Next index
+    If kept < 1 Then Err.Raise 5
+    For index = copyPres.Slides.Count To 1 Step -1
+        If Not keep(index) Then copyPres.Slides(index).Delete
+    Next index
+    If copyPres.Slides.Count <> kept Then Err.Raise 5
+End Sub
+
+Private Sub PPTK_RestoreSelection(ByVal sourceWindow As DocumentWindow, ByVal source As Presentation, ByRef indexes() As Long)
+    Dim pick() As Variant
+    Dim index As Long
+    On Error Resume Next
+    sourceWindow.Activate
+    ReDim pick(1 To UBound(indexes) - LBound(indexes) + 1)
+    For index = LBound(indexes) To UBound(indexes)
+        pick(index - LBound(indexes) + 1) = indexes(index)
+    Next index
+    source.Slides.Range(pick).Select
+End Sub
+
+Private Function PPTK_SuggestedPath(ByVal source As Presentation, ByRef indexes() As Long) As String
+    Dim baseName As String
+    Dim listed As String
+    Dim leaf As String
+    Dim folder As String
+    Dim index As Long
+    baseName = PPTK_SanitizeFileName(PPTK_BaseName(source.Name))
+    If Len(baseName) = 0 Then baseName = "Slides"
+    listed = ""
+    For index = LBound(indexes) To UBound(indexes)
+        If Len(listed) > 0 Then listed = listed & ","
+        listed = listed & CStr(indexes(index))
+    Next index
+    leaf = baseName & " (slide " & listed & ")"
+    If Len(leaf) > 160 Then
+        leaf = baseName & " (" & CStr(UBound(indexes) - LBound(indexes) + 1) & " slides)"
+    End If
+    leaf = PPTK_SanitizeFileName(leaf) & ".pptx"
+    If Len(source.Path) > 0 Then
+        folder = source.Path
+    Else
+        folder = Environ$("TEMP")
+        If Len(folder) = 0 Then folder = CurDir$
+    End If
+    If Right$(folder, 1) <> "\" Then folder = folder & "\"
+    PPTK_SuggestedPath = folder & leaf
+End Function
+
+Private Function PPTK_ForcePptx(ByVal path As String) As String
+    Dim slash As Long
+    Dim dot As Long
+    Dim folder As String
+    Dim leaf As String
+    path = Trim$(path)
+    If Len(path) = 0 Then Exit Function
+    slash = InStrRev(path, "\")
+    If slash > 0 Then
+        folder = Left$(path, slash)
+        leaf = Mid$(path, slash + 1)
+    Else
+        leaf = path
+    End If
+    dot = InStrRev(leaf, ".")
+    If dot > 1 Then
+        leaf = Left$(leaf, dot - 1)
+    ElseIf dot = 1 Then
+        leaf = "Slides"
+    End If
+    leaf = PPTK_SanitizeFileName(leaf)
+    If Len(leaf) = 0 Then leaf = "Slides"
+    PPTK_ForcePptx = folder & leaf & ".pptx"
+End Function
+
+Private Function PPTK_TempCopyPath() As String
+    Dim folder As String
+    folder = Environ$("TEMP")
+    If Len(folder) = 0 Then folder = CurDir$
+    If Right$(folder, 1) <> "\" Then folder = folder & "\"
+    Randomize
+    PPTK_TempCopyPath = folder & "PPTK-slides-" & Format$(Now, "yyyymmddhhnnss") & "-" & CStr(Int(Rnd() * 1000000)) & ".pptx"
+End Function
+
+Private Function PPTK_SameFile(ByVal source As Presentation, ByVal destination As String) As Boolean
+    PPTK_SameFile = False
+    If Len(source.Path) = 0 Then Exit Function
+    PPTK_SameFile = (StrComp(source.FullName, destination, vbTextCompare) = 0)
+End Function
+
+Private Function PPTK_IsTempName(ByVal fileName As String) As Boolean
+    PPTK_IsTempName = (StrComp(Left$(fileName, 12), "PPTK-slides-", vbTextCompare) = 0)
+End Function
+
+Private Function PPTK_BaseName(ByVal fileName As String) As String
+    Dim dot As Long
+    dot = InStrRev(fileName, ".")
+    If dot > 1 Then
+        PPTK_BaseName = Left$(fileName, dot - 1)
+    Else
+        PPTK_BaseName = fileName
+    End If
+End Function
+
+Private Function PPTK_SanitizeFileName(ByVal value As String) As String
+    Dim invalidChars As String
+    Dim index As Long
+    invalidChars = "\/:*?""<>|"
+    For index = 1 To Len(invalidChars)
+        value = Replace$(value, Mid$(invalidChars, index, 1), " ")
+    Next index
+    PPTK_SanitizeFileName = Trim$(value)
+End Function
+
+Private Function PPTK_FileExists(ByVal path As String) As Boolean
+    Dim handle As Integer
+    On Error Resume Next
+    handle = FreeFile
+    Open path For Binary Access Read As #handle
+    If Err.Number = 0 Then
+        Close #handle
+        PPTK_FileExists = True
+    End If
+End Function
+
+Private Sub PPTK_DeleteIfExists(ByVal path As String)
+    Dim slash As Long
+    Dim leaf As String
+    Dim attempt As Long
+    slash = InStrRev(path, "\")
+    If slash > 0 Then
+        leaf = Mid$(path, slash + 1)
+    Else
+        leaf = path
+    End If
+    If Not PPTK_IsTempName(leaf) Then Exit Sub
+    For attempt = 1 To 40
+        On Error Resume Next
+        If Len(Dir$(path)) = 0 Then Exit Sub
+        Kill path
+        If Err.Number = 0 Then Exit Sub
+        Err.Clear
+        DoEvents
+    Next attempt
 End Sub

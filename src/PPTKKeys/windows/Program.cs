@@ -115,6 +115,9 @@ internal sealed class HelperApp
         Console.WriteLine(sequencesArm
             ? "chords=canvas / Ctrl+/ Ctrl+Shift+C/V Alt+. Ctrl+[/] Ctrl+Shift+[/]"
             : "chords=pass");
+        GateDecision saveSlides = ShortcutGate.DecideSaveSlides(
+            probe.Focus, snapshot.Surface, snapshot.Pane, snapshot.Selection);
+        Console.WriteLine($"save-slides={(saveSlides.Dispatch ? "dispatch" : "pass")}");
 
         return 0;
     }
@@ -211,6 +214,21 @@ internal sealed class HelperApp
             else if (KeyLayout.IsPeriod(vk, shift)) mark = KeyMark.Period;
             else if (KeyLayout.IsOpenBracket(vk, shift)) mark = KeyMark.OpenBracket;
             else if (KeyLayout.IsCloseBracket(vk, shift)) mark = KeyMark.CloseBracket;
+            else if (KeyLayout.IsBackslash(vk, shift)) mark = KeyMark.Backslash;
+            if (ShortcutGate.IsBareBackslash(mark, ctrl, alt, win))
+            {
+                GateDecision saveSlides = ShortcutGate.DecideSaveSlides(
+                    probe.Focus,
+                    _session.EffectiveSurface,
+                    _session.Current.Pane,
+                    _session.Current.Selection);
+                if (!saveSlides.Dispatch || saveSlides.Token == null) return Next(nCode, wParam, lParam);
+                if (!PostToken(saveSlides.Token)) return Next(nCode, wParam, lParam);
+                _heldVirtualKey = vk;
+                _lastPass = "";
+                return Swallow();
+            }
+
             string? chord = ShortcutChords.Token(
                 mark,
                 vk,

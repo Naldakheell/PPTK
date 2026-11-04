@@ -1,7 +1,7 @@
 namespace PPTKKeys;
 
 /// <summary>
-/// Which virtual keys produce plus, minus, and the batch-2 punctuation on the foreground layout.
+/// Which virtual keys produce plus, minus, backslash, and the batch-2 punctuation on the foreground layout.
 /// The scan runs on the helper's message thread. The hook only reads the cached pairs,
 /// so it does not call ToUnicode or PowerPoint.
 /// US OEM keys are the defaults until the first scan.
@@ -16,6 +16,7 @@ internal static class KeyLayout
     static readonly Chord[] DefaultPeriod = [new(0xBE, false)];
     static readonly Chord[] DefaultOpenBracket = [new(0xDB, false)];
     static readonly Chord[] DefaultCloseBracket = [new(0xDD, false)];
+    static readonly Chord[] DefaultBackslash = [new(0xDC, false)];
 
     static Chord[] _plus = DefaultPlus;
     static Chord[] _minus = DefaultMinus;
@@ -23,6 +24,7 @@ internal static class KeyLayout
     static Chord[] _period = DefaultPeriod;
     static Chord[] _openBracket = DefaultOpenBracket;
     static Chord[] _closeBracket = DefaultCloseBracket;
+    static Chord[] _backslash = DefaultBackslash;
     static IntPtr _layout = IntPtr.Zero;
 
     public static bool IsPlus(int virtualKey, bool shift)
@@ -55,11 +57,14 @@ internal static class KeyLayout
 
     public static bool IsCloseBracket(int virtualKey, bool shift) => Matches(Volatile.Read(ref _closeBracket), virtualKey, shift);
 
+    public static bool IsBackslash(int virtualKey, bool shift) => Matches(Volatile.Read(ref _backslash), virtualKey, shift);
+
     public static bool IsPunctuation(int virtualKey) =>
         Contains(Volatile.Read(ref _slash), virtualKey)
         || Contains(Volatile.Read(ref _period), virtualKey)
         || Contains(Volatile.Read(ref _openBracket), virtualKey)
-        || Contains(Volatile.Read(ref _closeBracket), virtualKey);
+        || Contains(Volatile.Read(ref _closeBracket), virtualKey)
+        || Contains(Volatile.Read(ref _backslash), virtualKey);
 
     public static void RefreshForeground()
     {
@@ -78,6 +83,7 @@ internal static class KeyLayout
         var period = new List<Chord>();
         var openBracket = new List<Chord>();
         var closeBracket = new List<Chord>();
+        var backslash = new List<Chord>();
         for (int virtualKey = 0x20; virtualKey <= 0xFE; virtualKey++)
         {
             if (ShortcutSequence.IsModifierVirtualKey(virtualKey)) continue;
@@ -93,6 +99,8 @@ internal static class KeyLayout
             Consider(openBracket, virtualKey, shift: true, '[', layout);
             Consider(closeBracket, virtualKey, shift: false, ']', layout);
             Consider(closeBracket, virtualKey, shift: true, ']', layout);
+            ConsiderBackslash(backslash, virtualKey, shift: false, layout);
+            ConsiderBackslash(backslash, virtualKey, shift: true, layout);
         }
 
         bool scannedPlus = plus.Count > 0;
@@ -115,8 +123,10 @@ internal static class KeyLayout
         Volatile.Write(ref _period, period.ToArray());
         Volatile.Write(ref _openBracket, openBracket.ToArray());
         Volatile.Write(ref _closeBracket, closeBracket.ToArray());
+        // An AltGr-only backslash is left to the layout. Do not steal another key.
+        Volatile.Write(ref _backslash, backslash.ToArray());
         Console.Error.WriteLine(
-            $"layout plus={plus.Count} minus={minus.Count} slash={slash.Count} period={period.Count} open={openBracket.Count} close={closeBracket.Count}");
+            $"layout plus={plus.Count} minus={minus.Count} slash={slash.Count} period={period.Count} open={openBracket.Count} close={closeBracket.Count} backslash={backslash.Count}");
     }
 
     static bool Matches(Chord[] table, int virtualKey, bool shift)
@@ -148,8 +158,15 @@ internal static class KeyLayout
     static void Consider(List<Chord> found, int virtualKey, bool shift, char wanted, IntPtr layout)
     {
         if (Produced(virtualKey, shift, layout) != wanted) return;
-        var chord = new Chord(virtualKey, shift);
-        if (!found.Contains(chord)) found.Add(chord);
+        Add(found, virtualKey, shift);
+    }
+
+    static void ConsiderBackslash(List<Chord> found, int virtualKey, bool shift, IntPtr layout)
+    {
+        char produced = Produced(virtualKey, shift, layout);
+        // Japanese and Korean layouts report the backslash key as yen or won.
+        if (produced is not ('\\' or '\u00A5' or '\u20A9')) return;
+        Add(found, virtualKey, shift);
     }
 
     static char Produced(int virtualKey, bool shift, IntPtr layout)

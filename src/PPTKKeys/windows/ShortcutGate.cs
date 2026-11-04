@@ -240,8 +240,29 @@ public static class ShortcutGate
         return GateDecision.DispatchToken("I");
     }
 
+    public static bool IsSaveSlidesToken(string? token) => token == "\\";
+
+    /// <summary>
+    /// Bare backslash, after the layout has resolved the key to \.
+    /// Ctrl, Alt, AltGr, and the Windows key stay with the layout.
+    /// </summary>
+    public static bool IsBareBackslash(KeyMark mark, bool ctrl, bool alt, bool win) =>
+        mark == KeyMark.Backslash && !ctrl && !alt && !win;
+
+    /// <summary>
+    /// Save Selected Slides only on the thumbnail pane while slides are selected.
+    /// The sorter, the slide canvas, text editing, notes, and a failed read pass the key.
+    /// </summary>
+    public static GateDecision DecideSaveSlides(FocusKind focus, Surface surface, int pane, int selection)
+    {
+        if (focus != FocusKind.Pane || surface != Surface.Slides) return GateDecision.Pass;
+        if (pane != ViewThumbnails || selection != SelectionSlides) return GateDecision.Pass;
+        return GateDecision.DispatchToken("\\");
+    }
+
     public static bool IsRunnable(string? token) =>
-        IsToken(token) || IsIconToken(token) || ShortcutSequence.IsSequenceToken(token) || ShortcutChords.IsChordToken(token);
+        IsToken(token) || IsIconToken(token) || ShortcutSequence.IsSequenceToken(token) || ShortcutChords.IsChordToken(token)
+        || IsSaveSlidesToken(token);
 }
 
 public enum SequenceSymbol
@@ -262,6 +283,7 @@ public enum KeyMark
     Period = 2,
     OpenBracket = 3,
     CloseBracket = 4,
+    Backslash = 5,
 }
 
 /// <summary>
@@ -285,6 +307,7 @@ public static class ShortcutChords
         bool unshiftedCloseBracket = false,
         bool unshiftedOpenBracket = false)
     {
+        if (mark == KeyMark.Backslash) return null;
         if (win || (ctrl && alt)) return null;
 
         if (mark == KeyMark.Slash && !alt)

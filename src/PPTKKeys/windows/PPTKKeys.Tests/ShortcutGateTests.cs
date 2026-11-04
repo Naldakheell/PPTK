@@ -150,4 +150,56 @@ public class ShortcutGateTests
         Assert.Equal(' ', space);
         Assert.False(ShortcutGate.TryQueueText(0x31, false, false, false, shift: true, false, out _));
     }
+
+    [Fact]
+    public void Backslash_saves_only_selected_thumbnail_slides()
+    {
+        Assert.True(ShortcutGate.IsBareBackslash(KeyMark.Backslash, false, false, false));
+        Assert.False(ShortcutGate.IsBareBackslash(KeyMark.Backslash, ctrl: true, false, false));
+        Assert.False(ShortcutGate.IsBareBackslash(KeyMark.Backslash, false, alt: true, false));
+        Assert.False(ShortcutGate.IsBareBackslash(KeyMark.Backslash, true, true, false));
+        Assert.False(ShortcutGate.IsBareBackslash(KeyMark.Backslash, false, false, win: true));
+        Assert.False(ShortcutGate.IsBareBackslash(KeyMark.Slash, false, false, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.Backslash, 0xDC, false, false, false, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.Backslash, 0xDC, true, true, false, false));
+        Assert.Equal("/", ShortcutChords.Token(KeyMark.Slash, 0xBF, false, false, false, false));
+
+        Assert.False(ShortcutGate.IsToken("\\"));
+        Assert.False(ShortcutChords.IsChordToken("\\"));
+        Assert.True(ShortcutGate.IsSaveSlidesToken("\\"));
+        Assert.True(ShortcutGate.IsRunnable("\\"));
+        Assert.False(ShortcutGate.Decide("\\", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
+        Assert.False(ShortcutGate.Decide("\\", false, false, FocusKind.Pane, Surface.Slides).Dispatch);
+
+        GateDecision saved = ShortcutGate.DecideSaveSlides(
+            FocusKind.Pane, Surface.Slides, ShortcutGate.ViewThumbnails, ShortcutGate.SelectionSlides);
+        Assert.True(saved.Dispatch);
+        Assert.True(saved.Swallow);
+        Assert.Equal("\\", saved.Token);
+
+        Assert.False(ShortcutGate.DecideSaveSlides(
+            FocusKind.Pane, Surface.Slides, ShortcutGate.ViewSlideSorter, ShortcutGate.SelectionSlides).Dispatch);
+        Assert.False(ShortcutGate.DecideSaveSlides(
+            FocusKind.Pane, Surface.Slides, ShortcutGate.ViewSlide, ShortcutGate.SelectionSlides).Dispatch);
+        Assert.False(ShortcutGate.DecideSaveSlides(
+            FocusKind.Pane, Surface.Slides, ShortcutGate.ViewThumbnails, ShortcutGate.SelectionNone).Dispatch);
+        Assert.False(ShortcutGate.DecideSaveSlides(
+            FocusKind.Pane, Surface.Slides, ShortcutGate.ViewThumbnails, ShortcutGate.SelectionShapes).Dispatch);
+        Assert.False(ShortcutGate.DecideSaveSlides(
+            FocusKind.Pane, Surface.Text, ShortcutGate.ViewThumbnails, ShortcutGate.SelectionText).Dispatch);
+        Assert.False(ShortcutGate.DecideSaveSlides(
+            FocusKind.Pane, Surface.Canvas, ShortcutGate.ViewThumbnails, ShortcutGate.SelectionSlides).Dispatch);
+        Assert.False(ShortcutGate.DecideSaveSlides(
+            FocusKind.Pane, Surface.Blocked, ShortcutGate.ViewThumbnails, ShortcutGate.SelectionSlides).Dispatch);
+        Assert.False(ShortcutGate.DecideSaveSlides(
+            FocusKind.Pane, Surface.Unknown, ShortcutGate.ViewThumbnails, ShortcutGate.SelectionSlides).Dispatch);
+        Assert.False(ShortcutGate.DecideSaveSlides(
+            FocusKind.MenuOrDialog, Surface.Slides, ShortcutGate.ViewThumbnails, ShortcutGate.SelectionSlides).Dispatch);
+        Assert.False(ShortcutGate.DecideSaveSlides(
+            FocusKind.RibbonOrEdit, Surface.Slides, ShortcutGate.ViewThumbnails, ShortcutGate.SelectionSlides).Dispatch);
+        Assert.False(ShortcutGate.DecideSaveSlides(
+            FocusKind.Outside, Surface.Slides, ShortcutGate.ViewThumbnails, ShortcutGate.SelectionSlides).Dispatch);
+        Assert.False(ShortcutGate.IsRunnable(";"));
+        Assert.False(ShortcutGate.IsRunnable("EMAIL SLIDES"));
+    }
 }
