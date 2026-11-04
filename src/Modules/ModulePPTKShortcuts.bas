@@ -3,8 +3,10 @@ Option Explicit
 
 ' PPTK shortcut dispatch. The Select Case list is the only external entry.
 ' Direct inserts: T R U O C P G M N.
-' Canvas sequences in this batch call the existing align, size, distribute, and spacing procedures.
-' Later tokens, including swap and formatting chords, are ignored.
+' Canvas sequences call the existing align, size, distribute, and spacing procedures.
+' Swap position reuses ObjectsSwapPosition. Text swap, merge, margins, and
+' formatting are local helpers so the text module is not imported.
+' Later tokens, including order, library, and icons, are ignored.
 
 Private Const PPTK_TAG As String = "PPTK_SHORTCUT"
 Private Const PPTK_W_STANDARD As Single = 150
@@ -68,6 +70,22 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
             ObjectsIncreaseSpacingVertical
         Case "V -"
             ObjectsDecreaseSpacingVertical
+        Case "/"
+            ObjectsSwapPosition
+        Case "CTRL /"
+            PPTK_SwapText
+        Case ". T"
+            PPTK_MergeText
+        Case "CTRL SHIFT C"
+            PPTK_CopyFormatting
+        Case "CTRL SHIFT V"
+            PPTK_PasteFormatting
+        Case "ALT ."
+            PPTK_ZeroMargins
+        Case "CTRL ]"
+            PPTK_ExecuteMso "FontSizeIncrease"
+        Case "CTRL ["
+            PPTK_ExecuteMso "FontSizeDecrease"
         Case Else
     End Select
 End Sub
@@ -244,5 +262,164 @@ Private Sub PPTK_InsertNewSlide()
     Set layout = sld.CustomLayout
     Set created = ActivePresentation.Slides.AddSlide(sld.SlideIndex + 1, layout)
     created.Select
+Clean:
+End Sub
+
+Private Sub PPTK_ExecuteMso(ByVal controlID As String)
+    On Error Resume Next
+    Application.CommandBars.ExecuteMso controlID
+End Sub
+
+Private Sub PPTK_CopyFormatting()
+    On Error GoTo Clean
+    If ActiveWindow Is Nothing Then Exit Sub
+    If ActiveWindow.Selection.Type <> ppSelectionShapes Then Exit Sub
+    If ActiveWindow.Selection.HasChildShapeRange Then
+        ActiveWindow.Selection.ChildShapeRange.PickUp
+    Else
+        ActiveWindow.Selection.ShapeRange.PickUp
+    End If
+Clean:
+End Sub
+
+Private Sub PPTK_PasteFormatting()
+    On Error GoTo Clean
+    If ActiveWindow Is Nothing Then Exit Sub
+    If ActiveWindow.Selection.Type <> ppSelectionShapes Then Exit Sub
+    If ActiveWindow.Selection.HasChildShapeRange Then
+        ActiveWindow.Selection.ChildShapeRange.Apply
+    Else
+        ActiveWindow.Selection.ShapeRange.Apply
+    End If
+Clean:
+End Sub
+
+Private Sub PPTK_SwapText()
+    Dim window As DocumentWindow
+    Dim text1 As String
+    Dim text2 As String
+    On Error GoTo Clean
+    Set window = Application.ActiveWindow
+    If window Is Nothing Then Exit Sub
+    If Not window.Selection.Type = ppSelectionShapes Then
+        MsgBox "No shapes selected."
+        Exit Sub
+    End If
+
+    If window.Selection.ShapeRange.Count = 2 Then
+        If window.Selection.ShapeRange(1).HasTextFrame And window.Selection.ShapeRange(2).HasTextFrame Then
+            text1 = window.Selection.ShapeRange(1).TextFrame.TextRange.Text
+            text2 = window.Selection.ShapeRange(2).TextFrame.TextRange.Text
+            window.Selection.ShapeRange(1).TextFrame.TextRange.Text = text2
+            window.Selection.ShapeRange(2).TextFrame.TextRange.Text = text1
+        Else
+            MsgBox "Select two shapes that (can) have text."
+        End If
+    ElseIf window.Selection.HasChildShapeRange Then
+        If window.Selection.ChildShapeRange.Count = 2 Then
+            If window.Selection.ChildShapeRange(1).HasTextFrame And window.Selection.ChildShapeRange(2).HasTextFrame Then
+                text1 = window.Selection.ChildShapeRange(1).TextFrame.TextRange.Text
+                text2 = window.Selection.ChildShapeRange(2).TextFrame.TextRange.Text
+                window.Selection.ChildShapeRange(1).TextFrame.TextRange.Text = text2
+                window.Selection.ChildShapeRange(2).TextFrame.TextRange.Text = text1
+            Else
+                MsgBox "Select two shapes that (can) have text."
+            End If
+        Else
+            MsgBox "Select two shapes to swap their text."
+        End If
+    Else
+        MsgBox "Select two shapes to swap their text."
+    End If
+Clean:
+End Sub
+
+Private Sub PPTK_MergeText()
+    Dim window As DocumentWindow
+    Dim target As Shape
+    Dim source As Shape
+    Dim targets As ShapeRange
+    Dim destination As TextRange2
+    Dim copied As TextRange2
+    Dim index As Long
+    On Error GoTo Clean
+    Set window = Application.ActiveWindow
+    If window Is Nothing Then Exit Sub
+    If Not window.Selection.Type = ppSelectionShapes Then
+        MsgBox "No shapes selected."
+        Exit Sub
+    End If
+    If window.Selection.ShapeRange.Count = 1 Then
+        MsgBox "Please select more than one shape."
+        Exit Sub
+    End If
+
+    Set targets = window.Selection.ShapeRange
+    Set target = targets(1)
+    If Not target.HasTextFrame Then
+        MsgBox "The first selected shape has no textframe."
+        Exit Sub
+    End If
+
+    Set destination = target.TextFrame2.TextRange
+    If destination.Length > 0 Then destination.InsertAfter vbCrLf
+
+    For index = 2 To targets.Count
+        Set source = targets(index)
+        If source.HasTextFrame Then
+            If source.TextFrame2.HasText Then
+                Set copied = source.TextFrame2.TextRange
+                If copied.Length > 0 Then
+                    copied.Copy
+                    DoEvents
+                    destination.Characters(destination.Length + 1, 0).Paste
+                    DoEvents
+                    destination.InsertAfter vbCrLf
+                End If
+            End If
+        End If
+    Next index
+
+    For index = targets.Count To 2 Step -1
+        targets(index).Delete
+    Next index
+Clean:
+End Sub
+
+Private Sub PPTK_ZeroMargins()
+    Dim window As DocumentWindow
+    Dim index As Long
+    On Error GoTo Clean
+    Set window = Application.ActiveWindow
+    If window Is Nothing Then Exit Sub
+    If Not (window.Selection.Type = ppSelectionShapes Or window.Selection.Type = ppSelectionText) Then
+        MsgBox "No shapes selected."
+        Exit Sub
+    End If
+    If window.Selection.HasChildShapeRange Then
+        For index = 1 To window.Selection.ChildShapeRange.Count
+            PPTK_ZeroMarginsShape window.Selection.ChildShapeRange(index)
+        Next index
+    Else
+        For index = 1 To window.Selection.ShapeRange.Count
+            PPTK_ZeroMarginsShape window.Selection.ShapeRange(index)
+        Next index
+    End If
+Clean:
+End Sub
+
+Private Sub PPTK_ZeroMarginsShape(ByVal target As Shape)
+    Dim child As Shape
+    On Error GoTo Clean
+    If target.Type = msoGroup Then
+        For Each child In target.GroupItems
+            PPTK_ZeroMarginsShape child
+        Next child
+    ElseIf target.HasTextFrame Then
+        target.TextFrame.MarginBottom = 0
+        target.TextFrame.MarginLeft = 0
+        target.TextFrame.MarginRight = 0
+        target.TextFrame.MarginTop = 0
+    End If
 Clean:
 End Sub

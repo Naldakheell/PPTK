@@ -154,10 +154,56 @@ public class SequenceTests
         Assert.True(ShortcutGate.IsRunnable("A L"));
         Assert.True(ShortcutGate.IsRunnable("T"));
         Assert.False(ShortcutGate.IsRunnable("CMD /"));
+        Assert.True(ShortcutGate.IsRunnable("CTRL /"));
+        Assert.True(ShortcutGate.IsRunnable(". T"));
+        Assert.False(ShortcutGate.Decide("/", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
         Assert.Null(ShortcutGate.TokenForVirtualKey(0x41));
         Assert.False(ShortcutGate.Decide("A", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
         Assert.False(ShortcutGate.Decide("A L", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
         Assert.True(ShortcutGate.Decide("R", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
         Assert.True(ShortcutGate.Decide("N", false, false, FocusKind.Pane, Surface.Slides).Dispatch);
+    }
+
+    [Fact]
+    public void Period_then_T_merges_only_on_the_canvas()
+    {
+        SequencePress period = ShortcutSequence.PressFromLayout(0xBE, false, false, false, false, '.');
+        Assert.Equal(SequenceSymbol.Period, period.Symbol);
+
+        SequenceResult armed = Tap(SequenceState.Idle, period, 1000, allowArm: true);
+        Assert.True(armed.Swallow);
+        Assert.Equal('.', armed.State.Prefix);
+
+        SequenceResult merged = Tap(armed.State, Letter('T'), 1200, true);
+        Assert.Equal(". T", merged.Token);
+        Assert.True(merged.Swallow);
+
+        SequenceResult typed = Tap(SequenceState.Idle, period, 1000, allowArm: false);
+        Assert.False(typed.Swallow);
+        Assert.False(typed.State.IsArmed);
+
+        SequencePress altPeriod = ShortcutSequence.PressFromLayout(0xBE, false, alt: true, false, false, '.');
+        SequenceResult margins = Tap(SequenceState.Idle, altPeriod, 1000, allowArm: true);
+        Assert.False(margins.State.IsArmed);
+        Assert.False(margins.Swallow);
+    }
+
+    [Fact]
+    public void Chords_require_their_modifiers_and_ignore_altgr()
+    {
+        Assert.Equal("/", ShortcutChords.Token(KeyMark.Slash, 0xBF, false, false, false, false));
+        Assert.Equal("CTRL /", ShortcutChords.Token(KeyMark.Slash, 0xBF, true, false, false, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.Slash, 0xBF, true, false, true, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.Slash, 0xBF, false, false, false, true));
+        Assert.Equal("ALT .", ShortcutChords.Token(KeyMark.Period, 0xBE, false, false, true, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.Period, 0xBE, false, false, false, false));
+        Assert.Equal("CTRL ]", ShortcutChords.Token(KeyMark.CloseBracket, 0xDD, true, false, false, false));
+        Assert.Equal("CTRL [", ShortcutChords.Token(KeyMark.OpenBracket, 0xDB, true, false, false, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.CloseBracket, 0xDD, false, false, false, false));
+        Assert.Equal("CTRL SHIFT C", ShortcutChords.Token(KeyMark.None, 0x43, true, true, false, false));
+        Assert.Equal("CTRL SHIFT V", ShortcutChords.Token(KeyMark.None, 0x56, true, true, false, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.None, 0x43, true, false, false, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.None, 0x56, true, false, false, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.None, 0x43, true, true, true, false));
     }
 }

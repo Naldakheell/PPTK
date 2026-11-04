@@ -3,7 +3,8 @@ namespace PPTKKeys;
 /// <summary>
 /// Pure shortcut decision. No Win32 and no COM, so the matrix can be tested on macOS.
 /// Direct inserts go through <see cref="Decide"/>. Two-key canvas sequences go through
-/// <see cref="ShortcutSequence"/> and never through the direct-insert path.
+/// <see cref="ShortcutSequence"/>. Immediate punctuation and modifier chords go through
+/// <see cref="ShortcutChords"/>. None of those paths calls Win32 or PowerPoint.
 /// </summary>
 public enum Surface
 {
@@ -225,7 +226,8 @@ public static class ShortcutGate
         return new HoldResult(hold, Surface.Text, "hold after T");
     }
 
-    public static bool IsRunnable(string? token) => IsToken(token) || ShortcutSequence.IsSequenceToken(token);
+    public static bool IsRunnable(string? token) =>
+        IsToken(token) || ShortcutSequence.IsSequenceToken(token) || ShortcutChords.IsChordToken(token);
 }
 
 public enum SequenceSymbol
@@ -236,6 +238,48 @@ public enum SequenceSymbol
     Minus = 3,
     Escape = 4,
     Other = 5,
+    Period = 6,
+}
+
+public enum KeyMark
+{
+    None = 0,
+    Slash = 1,
+    Period = 2,
+    OpenBracket = 3,
+    CloseBracket = 4,
+}
+
+/// <summary>
+/// One-key canvas chords. The caller has already resolved punctuation from the
+/// keyboard layout, so Ctrl, Alt, and Shift are the keys actually held.
+/// AltGr is Ctrl+Alt and is left to the layout. Text editing is the caller's veto.
+/// </summary>
+public static class ShortcutChords
+{
+    public static bool IsChordToken(string? token) => token is
+        "/" or "CTRL /" or "CTRL SHIFT C" or "CTRL SHIFT V" or "ALT ." or "CTRL ]" or "CTRL [";
+
+    public static string? Token(KeyMark mark, int virtualKey, bool ctrl, bool shift, bool alt, bool win)
+    {
+        if (win || (ctrl && alt)) return null;
+
+        if (mark == KeyMark.Slash && !alt)
+            return ctrl ? "CTRL /" : "/";
+        if (mark == KeyMark.Period && alt && !ctrl)
+            return "ALT .";
+        if (mark == KeyMark.CloseBracket && ctrl && !alt)
+            return "CTRL ]";
+        if (mark == KeyMark.OpenBracket && ctrl && !alt)
+            return "CTRL [";
+        if (mark != KeyMark.None) return null;
+
+        if (virtualKey == 0x43 && ctrl && shift && !alt)
+            return "CTRL SHIFT C";
+        if (virtualKey == 0x56 && ctrl && shift && !alt)
+            return "CTRL SHIFT V";
+        return null;
+    }
 }
 
 public readonly record struct SequencePress(
@@ -259,9 +303,10 @@ public readonly record struct SequenceState(char Prefix, uint ArmedAt)
 public readonly record struct SequenceResult(SequenceState State, bool Swallow, string? Token, bool Reprocess);
 
 /// <summary>
-/// Two-key sequences. A, S, D, H, and V arm only when the caller says the slide canvas is legal.
+/// Two-key sequences. A, S, D, H, V, and period arm only when the caller says the slide canvas is legal.
 /// The second key must arrive within one second. Escape, an invalid second key, or a lost canvas cancels.
 /// Shift+plus and the minus key complete spacing. Shift+minus and shifted letters do not.
+/// Period then T merges text. A shifted period is not the prefix unless that shift is what types the period.
 /// </summary>
 public static class ShortcutSequence
 {
@@ -282,7 +327,8 @@ public static class ShortcutSequence
         "S W" or "S H" or "S S" or
         "D H" or "D V" or
         "H +" or "H -" or
-        "V +" or "V -";
+        "V +" or "V -" or
+        ". T";
 
     public static bool Expired(uint now, uint armedAt) => now - armedAt >= TimeoutMs;
 
@@ -303,6 +349,8 @@ public static class ShortcutSequence
             return new SequencePress(SequenceSymbol.Plus, '\0', ctrl, alt, win, shift);
         if (produced == '-')
             return new SequencePress(SequenceSymbol.Minus, '\0', ctrl, alt, win, shift);
+        if (produced == '.')
+            return new SequencePress(SequenceSymbol.Period, '\0', ctrl, alt, win, shift);
         if (produced == '\0')
         {
             if (virtualKey == 0xBB && shift)
@@ -336,6 +384,7 @@ public static class ShortcutSequence
             ('H', SequenceSymbol.Minus, _, false) => "H -",
             ('V', SequenceSymbol.Plus, _, _) => "V +",
             ('V', SequenceSymbol.Minus, _, false) => "V -",
+            ('.', SequenceSymbol.Letter, 'T', false) => ". T",
             _ => null,
         };
     }
@@ -357,6 +406,11 @@ public static class ShortcutSequence
                 return new SequenceResult(SequenceState.Idle, true, token, false);
             return new SequenceResult(SequenceState.Idle, false, null, true);
         }
+
+        if (allowArm
+            && !press.HasCommandModifier
+            && press.Symbol == SequenceSymbol.Period)
+            return new SequenceResult(new SequenceState('.', now), true, null, false);
 
         if (allowArm
             && press.Symbol == SequenceSymbol.Letter

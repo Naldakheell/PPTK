@@ -71,7 +71,8 @@ internal sealed class HelperApp
 
         Console.WriteLine("Hook: WH_KEYBOARD_LL, keyDown, head of the hook chain");
         Console.WriteLine("Mapped keys: T R U O C P G M N");
-        Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C, S W/H/S, D H/V, H +/-, V +/-");
+        Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C, S W/H/S, D H/V, H +/-, V +/-, . T");
+        Console.WriteLine("Canvas chords: /  Ctrl+/  Ctrl+Shift+C  Ctrl+Shift+V  Alt+.  Ctrl+[  Ctrl+]");
         Console.WriteLine("PowerPoint selection is cached outside the hook. Ctrl+C stops the helper.");
 
         try
@@ -108,8 +109,11 @@ internal sealed class HelperApp
 
         bool sequencesArm = probe.Focus == FocusKind.Pane && snapshot.Surface == Surface.Canvas;
         Console.WriteLine(sequencesArm
-            ? "sequences=arm-on-canvas A S D H V"
+            ? "sequences=arm-on-canvas A S D H V ."
             : "sequences=pass");
+        Console.WriteLine(sequencesArm
+            ? "chords=canvas / Ctrl+/ Ctrl+Shift+C/V Alt+. Ctrl+[/]"
+            : "chords=pass");
 
         return 0;
     }
@@ -150,7 +154,8 @@ internal sealed class HelperApp
             bool relevant = _capture
                 || _sequence.IsArmed
                 || ShortcutGate.TokenForVirtualKey(vk) != null
-                || ShortcutSequence.IsPrefixVirtualKey(vk);
+                || ShortcutSequence.IsPrefixVirtualKey(vk)
+                || KeyLayout.IsPunctuation(vk);
             if (!relevant) return Next(nCode, wParam, lParam);
 
             bool ctrl = IsDown(NativeMethods.VkControl);
@@ -173,13 +178,16 @@ internal sealed class HelperApp
                 return Next(nCode, wParam, lParam);
             }
 
-            if (_sequence.IsArmed || ShortcutSequence.IsPrefixVirtualKey(vk))
+            if (_capture) return Next(nCode, wParam, lParam);
+
+            char produced = ProducedCharacter(vk, shift);
+            bool allowCanvas = probe.Focus == FocusKind.Pane
+                && _session.EffectiveSurface == Surface.Canvas;
+            bool allowArm = allowCanvas && !ctrl && !alt && !win;
+
+            if (_sequence.IsArmed || ShortcutSequence.IsPrefixVirtualKey(vk) || KeyLayout.IsPeriod(vk, shift))
             {
-                char produced = ProducedCharacter(vk, shift);
                 SequencePress press = ShortcutSequence.PressFromLayout(vk, ctrl, alt, win, shift, produced);
-                bool allowArm = probe.Focus == FocusKind.Pane
-                    && _session.EffectiveSurface == Surface.Canvas
-                    && !ctrl && !alt && !win;
                 SequenceResult sequence = ApplySequence(press, info.time, allowArm);
                 if (sequence.Token != null)
                 {
@@ -194,6 +202,21 @@ internal sealed class HelperApp
                     _heldVirtualKey = vk;
                     return Swallow();
                 }
+            }
+
+            KeyMark mark = KeyMark.None;
+            if (KeyLayout.IsSlash(vk, shift)) mark = KeyMark.Slash;
+            else if (KeyLayout.IsPeriod(vk, shift)) mark = KeyMark.Period;
+            else if (KeyLayout.IsOpenBracket(vk, shift)) mark = KeyMark.OpenBracket;
+            else if (KeyLayout.IsCloseBracket(vk, shift)) mark = KeyMark.CloseBracket;
+            string? chord = ShortcutChords.Token(mark, vk, ctrl, shift, alt, win);
+            if (chord != null)
+            {
+                if (!allowCanvas) return Next(nCode, wParam, lParam);
+                if (!PostToken(chord)) return Next(nCode, wParam, lParam);
+                _heldVirtualKey = vk;
+                _lastPass = "";
+                return Swallow();
             }
 
             if (ctrl || shift || alt || win) return Next(nCode, wParam, lParam);
@@ -412,6 +435,7 @@ internal sealed class HelperApp
         if (virtualKey is >= 0x41 and <= 0x5A or 0x1B) return '\0';
         if (KeyLayout.IsPlus(virtualKey, shift)) return '+';
         if (KeyLayout.IsMinus(virtualKey, shift)) return '-';
+        if (KeyLayout.IsPeriod(virtualKey, shift)) return '.';
         return '\0';
     }
 
