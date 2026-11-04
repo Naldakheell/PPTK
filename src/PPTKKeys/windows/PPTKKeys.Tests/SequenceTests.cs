@@ -18,6 +18,7 @@ public class SequenceTests
     [InlineData('A', 'B', "A B")]
     [InlineData('A', 'M', "A M")]
     [InlineData('A', 'C', "A C")]
+    [InlineData('A', 'A', "A A")]
     [InlineData('S', 'W', "S W")]
     [InlineData('S', 'H', "S H")]
     [InlineData('S', 'S', "S S")]
@@ -121,14 +122,15 @@ public class SequenceTests
     [Fact]
     public void Invalid_prefix_rearms_and_direct_insert_letter_is_released()
     {
-        SequenceState armed = Tap(SequenceState.Idle, Letter('A'), 1000, true).State;
-        SequenceResult again = Tap(armed, Letter('A'), 1100, true);
+        SequenceState armed = Tap(SequenceState.Idle, Letter('D'), 1000, true).State;
+        SequenceResult again = Tap(armed, Letter('D'), 1100, true);
         Assert.True(again.State.IsArmed);
-        Assert.Equal('A', again.State.Prefix);
+        Assert.Equal('D', again.State.Prefix);
         Assert.True(again.Swallow);
         Assert.Null(again.Token);
 
-        SequenceResult insert = Tap(armed, Letter('U'), 1100, true);
+        SequenceState align = Tap(SequenceState.Idle, Letter('A'), 1000, true).State;
+        SequenceResult insert = Tap(align, Letter('U'), 1100, true);
         Assert.False(insert.Swallow);
         Assert.Null(insert.Token);
         Assert.False(insert.State.IsArmed);

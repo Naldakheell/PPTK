@@ -375,7 +375,7 @@ public static class ShortcutSequence
         0x14 or 0x90 or 0x91;
 
     public static bool IsSequenceToken(string? token) => token is
-        "A L" or "A R" or "A T" or "A B" or "A M" or "A C" or
+        "A L" or "A R" or "A T" or "A B" or "A M" or "A C" or "A A" or
         "S W" or "S H" or "S S" or
         "D H" or "D V" or
         "H +" or "H -" or
@@ -427,6 +427,7 @@ public static class ShortcutSequence
             ('A', SequenceSymbol.Letter, 'B', false) => "A B",
             ('A', SequenceSymbol.Letter, 'M', false) => "A M",
             ('A', SequenceSymbol.Letter, 'C', false) => "A C",
+            ('A', SequenceSymbol.Letter, 'A', false) => "A A",
             ('S', SequenceSymbol.Letter, 'W', false) => "S W",
             ('S', SequenceSymbol.Letter, 'H', false) => "S H",
             ('S', SequenceSymbol.Letter, 'S', false) => "S S",
@@ -474,7 +475,7 @@ public static class ShortcutSequence
     }
 
     /// <summary>
-    /// Applies an invalid second key again as a fresh key, so A then A re-arms and A then U can insert.
+    /// Applies an invalid second key again as a fresh key, so D then D re-arms and A then U can insert.
     /// </summary>
     public static SequenceResult Next(SequenceState state, SequencePress press, uint now, bool allowArm)
     {

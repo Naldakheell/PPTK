@@ -4,6 +4,7 @@ Option Explicit
 ' PPTK shortcut dispatch. The Select Case list is the only external entry.
 ' Direct inserts: T R U O C P G M N.
 ' Canvas sequences call the existing align, size, distribute, and spacing procedures.
+' A A copies the first selected shape's rotation onto the other selected shapes.
 ' Swap position reuses ObjectsSwapPosition. Text swap, merge, margins, and
 ' formatting are local helpers so the text module is not imported.
 ' Ctrl+Shift+] and Ctrl+Shift+[ move the selection one z-order step.
@@ -56,6 +57,8 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
             ObjectsAlignMiddles
         Case "A C"
             ObjectsAlignCenters
+        Case "A A"
+            ObjectsAlignShapeAngle
         Case "S W"
             ObjectsSameWidth
         Case "S H"

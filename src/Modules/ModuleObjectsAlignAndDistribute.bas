@@ -1269,6 +1269,44 @@ Sub ObjectsDistributeVertically(Optional ByVal control As IRibbonControl)
     End If
 End Sub
 
+Sub ObjectsAlignShapeAngle(Optional ByVal control As IRibbonControl)
+    Dim Selected As ShapeRange
+    Dim HasChildren As Boolean
+    Dim AnchorAngle As Single
+    Dim Index As Long
+
+    Set MyDocument = Application.ActiveWindow
+    If MyDocument Is Nothing Then Exit Sub
+    If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
+
+    On Error Resume Next
+    HasChildren = MyDocument.Selection.HasChildShapeRange
+    If Err.Number <> 0 Then Exit Sub
+    Err.Clear
+    If HasChildren Then
+        Set Selected = MyDocument.Selection.ChildShapeRange
+    Else
+        Set Selected = MyDocument.Selection.ShapeRange
+    End If
+    If Err.Number <> 0 Then Exit Sub
+    Err.Clear
+    On Error GoTo 0
+
+    If Selected Is Nothing Then Exit Sub
+    If Selected.count < 2 Then Exit Sub
+    If Selected(1).Type = msoTable Then Exit Sub
+
+    On Error Resume Next
+    AnchorAngle = Selected(1).Rotation
+    If Err.Number <> 0 Then Exit Sub
+    Err.Clear
+
+    For Index = 2 To Selected.count
+        If Selected(Index).Type <> msoTable Then Selected(Index).Rotation = AnchorAngle
+        Err.Clear
+    Next Index
+End Sub
+
 Sub ArrangeShapes(Optional ByVal control As IRibbonControl)
     Dim SlideShape         As shape
     Dim ShapeGroups      As Collection

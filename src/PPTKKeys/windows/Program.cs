@@ -72,7 +72,7 @@ internal sealed class HelperApp
         Console.WriteLine("Hook: WH_KEYBOARD_LL, keyDown, head of the hook chain");
         Console.WriteLine("Mapped keys: T R U O C P G M N");
         Console.WriteLine("Canvas key: I opens Insert Icon");
-        Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C, S W/H/S, D H/V, H +/-, V +/-, . T");
+        Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C/A, S W/H/S, D H/V, H +/-, V +/-, . T");
         Console.WriteLine("Canvas chords: /  Ctrl+/  Ctrl+Shift+C  Ctrl+Shift+V  Alt+.  Ctrl+[  Ctrl+]  Ctrl+Shift+[  Ctrl+Shift+]");
         Console.WriteLine("PowerPoint selection is cached outside the hook. Ctrl+C stops the helper.");
 
