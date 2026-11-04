@@ -182,3 +182,52 @@ Sub SetRealHeight(SlideShape As shape, newRealHeight As Single)
             SlideShape.width = SlideShape.height * aspectRatio
     End Select
 End Sub
+
+Function SetRealSize(SlideShape As shape, newRealWidth As Single, newRealHeight As Single) As Boolean
+    Dim rotation    As Double
+    Dim radians     As Double
+    Dim cosAbs      As Double
+    Dim sinAbs      As Double
+    Dim det         As Double
+    Dim newWidth    As Double
+    Dim newHeight   As Double
+    Dim centerX     As Single
+    Dim centerY     As Single
+    Dim locked      As Boolean
+    
+    SetRealSize = False
+    If newRealWidth <= 0 Or newRealHeight <= 0 Then Exit Function
+    
+    rotation = SlideShape.rotation
+    rotation = rotation - (Int(rotation / 360) * 360)
+    If rotation < 0 Then rotation = rotation + 360
+    radians = rotation * (3.14159265358979 / 180)
+    cosAbs = Abs(Cos(radians))
+    sinAbs = Abs(Sin(radians))
+    det = (cosAbs * cosAbs) - (sinAbs * sinAbs)
+    
+    centerX = GetRealLeft(SlideShape) + (GetRealWidth(SlideShape) / 2)
+    centerY = GetRealTop(SlideShape) + (GetRealHeight(SlideShape) / 2)
+    
+    If Abs(det) < 0.00000001 Then
+        If Abs(newRealWidth - newRealHeight) > 0.05 Then Exit Function
+        If SlideShape.width <= 0 Or SlideShape.height <= 0 Then Exit Function
+        If cosAbs = 0 Then Exit Function
+        newHeight = (newRealWidth / cosAbs) / ((SlideShape.width / SlideShape.height) + 1)
+        newWidth = newHeight * (SlideShape.width / SlideShape.height)
+    Else
+        newWidth = (newRealWidth * cosAbs - newRealHeight * sinAbs) / det
+        newHeight = (newRealHeight * cosAbs - newRealWidth * sinAbs) / det
+        If newWidth <= 0.01 Or newHeight <= 0.01 Then Exit Function
+    End If
+    
+    locked = SlideShape.LockAspectRatio
+    If locked Then SlideShape.LockAspectRatio = False
+    SlideShape.width = newWidth
+    SlideShape.height = newHeight
+    If locked Then SlideShape.LockAspectRatio = True
+    
+    SetRealLeft SlideShape, centerX - (newRealWidth / 2)
+    SetRealTop SlideShape, centerY - (newRealHeight / 2)
+    SetRealSize = True
+End Function

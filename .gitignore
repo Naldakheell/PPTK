@@ -12,3 +12,6 @@ build-tools*
 *.user
 *.suo
 ~$*
+bin/*.ppam.backup
+bin/*.ppam.backup-before-*
+/bin/PPTK DEV.ppam

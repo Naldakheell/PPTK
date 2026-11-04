@@ -30,8 +30,14 @@ Sub SaveSelectedSlides()
         Dim SlideLoop As Long
         Dim PresentationSlides As Slide
         Dim DotPosition As Integer
+        #If Mac Then
+        Dim wasSaved As Boolean
+        #End If
         
         Set ThisPresentation = ActivePresentation
+        #If Mac Then
+        wasSaved = ThisPresentation.Saved
+        #End If
         
         'Delete any previous export tags
         On Error Resume Next
@@ -76,7 +82,20 @@ Sub SaveSelectedSlides()
                 
         #If Mac Then
         
+        On Error Resume Next
+        Err.Clear
         exportFilePath = MacSaveAsDialog(PresentationFilename & ".pptx")
+        If Err.Number <> 0 Then exportFilePath = ""
+        On Error GoTo 0
+        If Len(exportFilePath) = 0 Then
+            On Error Resume Next
+            For Each PresentationSlides In ThisPresentation.Slides
+                PresentationSlides.Tags.Delete ("INSTRUMENTA EXPORT")
+            Next PresentationSlides
+            On Error GoTo 0
+            If wasSaved Then ThisPresentation.Saved = True
+            Exit Sub
+        End If
         
         #Else
         

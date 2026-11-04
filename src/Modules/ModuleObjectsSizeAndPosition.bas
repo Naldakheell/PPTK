@@ -21,7 +21,7 @@ Attribute VB_Name = "ModuleObjectsSizeAndPosition"
 'OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 'SOFTWARE.
 
-Sub ObjectsSizeToTallest()
+Sub ObjectsSizeToTallest(Optional control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim Tallest     As Single
@@ -58,7 +58,7 @@ Sub ObjectsSizeToTallest()
     
 End Sub
 
-Sub ObjectsSizeToShortest()
+Sub ObjectsSizeToShortest(Optional control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim Shortest    As Single
@@ -96,7 +96,7 @@ Sub ObjectsSizeToShortest()
     
 End Sub
 
-Sub ObjectsSizeToWidest()
+Sub ObjectsSizeToWidest(Optional control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim width       As Single
     Dim Widest      As Single
@@ -134,7 +134,7 @@ Sub ObjectsSizeToWidest()
     
 End Sub
 
-Sub ObjectsSizeToNarrowest()
+Sub ObjectsSizeToNarrowest(Optional control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim width       As Single
     Dim Narrowest   As Single
@@ -172,7 +172,7 @@ Sub ObjectsSizeToNarrowest()
     
 End Sub
 
-Sub ObjectsSameHeight()
+Sub ObjectsSameHeight(Optional control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim SlideShape  As shape
@@ -210,7 +210,7 @@ Sub ObjectsSameHeight()
     End If
 End Sub
 
-Sub ObjectsSameWidth()
+Sub ObjectsSameWidth(Optional control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim width       As Single
     Dim SlideShape  As shape
@@ -248,11 +248,12 @@ Sub ObjectsSameWidth()
     End If
 End Sub
 
-Sub ObjectsSameHeightAndWidth()
+Sub ObjectsSameHeightAndWidth(Optional control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim width       As Single
     Dim SlideShape  As shape
+    Dim unmatched   As Boolean
     
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
     
@@ -262,16 +263,14 @@ Sub ObjectsSameHeightAndWidth()
             width = GetRealWidth(MyDocument.Selection.ChildShapeRange(1))
             
             For Each SlideShape In MyDocument.Selection.ChildShapeRange
-                SetRealHeight SlideShape, height
-                SetRealWidth SlideShape, width
+                If Not SetRealSize(SlideShape, width, height) Then unmatched = True
             Next SlideShape
         Else
             height = GetRealHeight(MyDocument.Selection.ShapeRange(1))
             width = GetRealWidth(MyDocument.Selection.ShapeRange(1))
             
             For Each SlideShape In MyDocument.Selection.ShapeRange
-                SetRealHeight SlideShape, height
-                SetRealWidth SlideShape, width
+                If Not SetRealSize(SlideShape, width, height) Then unmatched = True
             Next SlideShape
         End If
     Else
@@ -280,22 +279,23 @@ Sub ObjectsSameHeightAndWidth()
             width = GetRealWidth(MyDocument.Selection.ChildShapeRange(MyDocument.Selection.ChildShapeRange.count))
             
             For Each SlideShape In MyDocument.Selection.ChildShapeRange
-                SetRealHeight SlideShape, height
-                SetRealWidth SlideShape, width
+                If Not SetRealSize(SlideShape, width, height) Then unmatched = True
             Next SlideShape
         Else
             height = GetRealHeight(MyDocument.Selection.ShapeRange(MyDocument.Selection.ShapeRange.count))
             width = GetRealWidth(MyDocument.Selection.ShapeRange(MyDocument.Selection.ShapeRange.count))
             
             For Each SlideShape In MyDocument.Selection.ShapeRange
-                SetRealHeight SlideShape, height
-                SetRealWidth SlideShape, width
+                If Not SetRealSize(SlideShape, width, height) Then unmatched = True
             Next SlideShape
         End If
     End If
+    If unmatched Then
+        MsgBox "Cannot match both the visual width and height at this rotation."
+    End If
 End Sub
 
-Sub ObjectsSwapPosition()
+Sub ObjectsSwapPosition(Optional control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
     
@@ -377,7 +377,7 @@ Sub ObjectsSwapPosition()
     
 End Sub
 
-Sub ObjectsSwapPositionCentered()
+Sub ObjectsSwapPositionCentered(Optional control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
     
