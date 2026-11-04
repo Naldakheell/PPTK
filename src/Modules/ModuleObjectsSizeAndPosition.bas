@@ -21,7 +21,7 @@ Attribute VB_Name = "ModuleObjectsSizeAndPosition"
 'OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 'SOFTWARE.
 
-Sub ObjectsSizeToTallest()
+Sub ObjectsSizeToTallest(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim Tallest     As Single
@@ -58,7 +58,7 @@ Sub ObjectsSizeToTallest()
     
 End Sub
 
-Sub ObjectsSizeToShortest()
+Sub ObjectsSizeToShortest(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim Shortest    As Single
@@ -96,7 +96,7 @@ Sub ObjectsSizeToShortest()
     
 End Sub
 
-Sub ObjectsSizeToWidest()
+Sub ObjectsSizeToWidest(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim width       As Single
     Dim Widest      As Single
@@ -134,7 +134,7 @@ Sub ObjectsSizeToWidest()
     
 End Sub
 
-Sub ObjectsSizeToNarrowest()
+Sub ObjectsSizeToNarrowest(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim width       As Single
     Dim Narrowest   As Single

@@ -1,0 +1,132 @@
+Windows PPTK ribbon controls that exist on origin/mac-development
+(src/PPTK DEV.pptm customUI/customUI.xml) and are not wired on Windows.
+
+Reason: the callback is not a public procedure in the Windows VBA project
+inside src/PPTK-WINDOWS-FINAL.pptm. Source modules for many of these
+features are in the repository, but they are not imported into that project.
+They are omitted instead of being pointed at a different command.
+
+Visibility and enablement callbacks are also absent from the Windows project,
+so the Windows ribbon does not call InstrumentaGetVisible, InstrumentaInitialize,
+RibbonObjectGetImage, or the EnableWhen* callbacks. Built-in idMso controls
+remain visible. Custom commands that need those callbacks are listed below.
+
+Design
+- IncreaseShapeTransparency
+- ApplySameCropToSelectedImages
+- PictureCropToSlide
+- CropSelectedImageByDominantEdgeColor
+- ApplyH1, ApplyH2, ApplyH3, ApplyParagraph, ApplyQuote
+- ApplyCustom1, ApplyCustom2, ApplyCustom3, ApplyCustom4, ApplyCustom5
+- UpdateFullShapeStyles
+- ExportStylesToPPTX, ImportStylesFromPPTX
+- OpenStyleSheet, CreateStyleSheetLayout, CreateStyleSheetOnAllMasters
+- RemoveInstrumentaStylesheet, RemoveStyleSheetsFromAllMasters, RemoveAllInstrumentaStyleTags
+
+Reuse
+- ShowSlideLibrary, OpenSlideLibraryFile, AddSelectedSlidesToLibraryFile
+- EmailSelectedSlides, EmailSelectedSlidesAsPDF
+- SaveSelectedSlides is implemented as PPTK_SaveSelectedSlides and is wired
+  through the existing PPTK_RibbonShortcut callback with tag "\".
+
+Insert
+- GenerateStickyNote
+- MoveStickyNotesOffSlide, MoveStickyNotesOnSlide, DeleteStickyNotesOnSlide, ConvertCommentsToStickyNotes
+- MoveStickyNotesOffAllSlides, MoveStickyNotesOnAllSlides, DeleteStickyNotesOnAllSlides, ConvertAllCommentsToStickyNotes
+- GenerateHarveyBall10, GenerateHarveyBall20, GenerateHarveyBall25, GenerateHarveyBall30, GenerateHarveyBall33
+- GenerateHarveyBall40, GenerateHarveyBall50, GenerateHarveyBall60, GenerateHarveyBall67, GenerateHarveyBall70
+- GenerateHarveyBall75, GenerateHarveyBall80, GenerateHarveyBall90, GenerateHarveyBall100
+- GenerateHarveyBallCustom, AverageHarveyBall
+- GenerateRAGStatusRed, GenerateRAGStatusAmber, GenerateRAGStatusGreen, AverageRAGStatus
+- EmojiGallery_GetItemWidth, EmojiGallery_GetItemHeight, EmojiGallery_GetItemScreentip, EmojiGallery_GetItemImage
+- EmojiGallery_GetItemCount, EmojiGallery_GetItemID, EmojiGallery_GetItemLabel, EmojiGallery_OnAction
+- GenerateStampConfidential, GenerateStampDoNotDistribute, GenerateStampDraft, GenerateStampUpdated
+- GenerateStampNew, GenerateStampToBeRemoved, GenerateStampToAppendix
+- MoveStampsOffSlide, MoveStampsOnSlide, DeleteStampsOnSlide
+- MoveStampsOffAllSlides, MoveStampsOnAllSlides, DeleteStampsOnAllSlides
+- InsertLegendSquareVerticalThree, InsertLegendSquareVerticalFive, InsertLegendSquareVerticalTen
+- InsertLegendCircleVerticalThree, InsertLegendCircleVerticalFive, InsertLegendCircleVerticalTen
+- InsertLegendSquareHorizontalThree, InsertLegendSquareHorizontalFive, InsertLegendSquareHorizontalTen
+- InsertLegendCircleHorizontalThree, InsertLegendCircleHorizontalFive, InsertLegendCircleHorizontalTen
+- ShowCustomInsertLegend
+- GenerateFivePointStars05, GenerateFivePointStars10, GenerateFivePointStars15, GenerateFivePointStars20, GenerateFivePointStars25
+- GenerateFivePointStars30, GenerateFivePointStars35, GenerateFivePointStars40, GenerateFivePointStars45, GenerateFivePointStars50
+- AverageFivePointStars
+- GenerateStepsCounter, GenerateCrossSlideStepsCounter, SelectAllStepsCounter, SelectAllCrossSlideStepsCounter
+- InsertCaption, ReNumberCaptions
+- InsertProcessSmartArt, InsertQRCode
+
+Text
+- ColorBoldTextColorAutomatically, ColorBoldTextColorPicker
+- ObjectsTextDeleteStrikethrough
+- ObjectsToggleAutoSize, ObjectsAutoSizeNone, ObjectsAutoSizeTextToFitShape, ObjectsAutoSizeShapeToFitText
+- LineSpacingRemove, ObjectsIncreaseLineSpacing, ObjectsDecreaseLineSpacing
+- ParagraphSpacingRemove, ObjectsIncreaseLineSpacingBeforeAndAfter, ObjectsDecreaseLineSpacingBeforeAndAfter
+- ResetHangingIndent, IncreaseHangingIndent, DecreaseHangingIndent
+- ObjectsTextWordwrapToggle
+- TextBulletsTicks, TextBulletsCrosses
+- TextInsertEuro, TextInsertCopyright, TextInsertNoBreakSpace
+- ObjectsTextSplitByParagraph, ObjectsTextMerge
+- MoveSelectedTextToNewElement, CopySelectedTextToNewElement
+- ObjectsRemoveText, ObjectsRemoveHyperlinks
+- ObjectsSwapTextNoFormatting, ObjectsSwapText
+- ShowChangeSpellCheckLanguageForm
+- ObjectsMarginsToZero, ObjectsMarginsIncrease, ObjectsMarginsDecrease
+
+Shape
+- LockAspectRatioToggleSelectedShapes
+- ObjectsCopyRoundedCorner, ObjectsCopyShapeTypeAndAdjustments
+- RectifyLines
+- ObjectsSelectBySameFillColor, ObjectsSelectBySameLineColor, ObjectsSelectBySameFillAndLineColor
+- ObjectsSelectBySameWidthAndHeight, ObjectsSelectBySameWidth, ObjectsSelectBySameHeight, ObjectsSelectBySameType
+
+Smart Align
+- ObjectsCloneRight, ObjectsCloneDown
+- ObjectsAlignToTable, ObjectsAlignToTableColumn, ObjectsAlignToTableRow
+- GroupShapesByColumns, GroupShapesByRows
+- InitialiseSetPositionAppEventHandler
+- CopyPosition, PastePosition, PastePositionAndDimensions
+- ConnectRectangleShapesRightToLeft, ConnectRectangleShapesLeftToRight
+- ConnectRectangleShapesBottomToTop, ConnectRectangleShapesTopToBottom
+- LockToggleSelectedShapes, LockToggleAllShapesOnAllSlides, LockAllShapesOnAllSlides, UnLockAllShapesOnAllSlides
+- ShowFormCopyShapeToMultipleSlides, UpdateTaggedShapePositionAndDimensions, DeleteTaggedShapes
+
+Tools
+- TableQuickFormat, TableRemoveBackgrounds, TableRemoveBorders
+- InsertColumnToLeftKeepOtherColumnWidths, InsertColumnToRightKeepOtherColumnWidths
+- TableDistributeRowsWithGaps, TableDistributeColumnsWithGaps
+- TableColumnGapsEven, TableColumnGapsOdd, TableColumnRemoveGaps, TableColumnIncreaseGaps, TableColumnDecreaseGaps
+- TableRowGapsEven, TableRowGapsOdd, TableRowRemoveGaps, TableRowIncreaseGaps, TableRowDecreaseGaps
+- MoveTableRowUp, MoveTableRowDown, MoveTableColumnLeft, MoveTableColumnRight
+- MoveTableRowUpIgnoreBorders, MoveTableRowDownIgnoreBorders, MoveTableColumnLeftIgnoreBorders, MoveTableColumnRightIgnoreBorders
+- MoveTableRowUpTextOnly, MoveTableRowDownTextOnly, MoveTableColumnLeftTextOnly, MoveTableColumnRightTextOnly
+- ConvertTableToShapes, ConvertShapesToTable, TableTranspose
+- SplitTableByRow, SplitTableByColumn
+- TableSum, TableRowSum
+- OptimizeTableHeightQuick, OptimizeTableHeight3Iterations, OptimizeTableHeight5Iterations
+- OptimizeTableHeight10Iterations, OptimizeTableHeight20Iterations
+- TablesMarginsToZero, TablesMarginsIncrease, TablesMarginsDecrease
+- ShowSlideGrader
+- CleanUpHideAndMoveSelectedSlides, CleanUpAddSlideNumbers
+- CleanUpRemoveAnimationsFromAllSlides, CleanUpRemoveSlideShowTransitionsFromAllSlides
+- CleanUpRemoveSpeakerNotesFromAllSlides, CleanUpRemoveCommentsFromAllSlides
+- CleanUpRemoveUnusedMasterSlides, CleanUpRemoveHiddenSlides
+- ConvertSlidesToPictures, InsertWatermarkAndConvertSlidesToPictures, AnonymizeWithLoremIpsum
+- ScanColorsInSelectedShapes, ScanAndManageColors
+- CreateOrUpdateMasterAgenda, ShowSettings
+- ShowScriptEditor, ScriptPreset_Run
+- ScriptPreset_GetItemCount, ScriptPreset_GetItemLabel, ScriptPreset_GetItemID, ScriptPreset_OnAction
+- CopySlideNotesToWord, CopySlideNotesToClipboardOnly
+- CopyStorylineToWord, CopyStorylineToClipBoardOnly, PasteStorylineInSelectedShape
+- ShowPyramidBuilder
+- ShowFormManageTags, ShowTagsOnSlide, HideTagsOnSlide, ShowFormSelectSlidesByTag
+- ExcelMailMerge, ExcelFullFileMailMerge, InsertMergeField, ImportHeadersFromExcel, ManualMailMerge
+- ShowFeatureSearch, ShowAboutDialog
+- MoveSelectedShapeToMaster, CopySelectedShapeToMaster
+- MoveSelectedShapeToAllMasters, CopySelectedShapeToAllMasters
+- MoveSelectedShapeToUsedMasters, CopySelectedShapeToUsedMasters
+
+Windows-only controls kept
+- PPTK shortcut buttons R, U, O, C, P, G, and M stay on the ribbon.
+  Mac places only T and N in Insert. Those two stay in Insert.
+  The other seven stay in the PPTK group, which is empty on Mac.
