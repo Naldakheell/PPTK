@@ -7,7 +7,7 @@ Option Explicit
 ' Swap position reuses ObjectsSwapPosition. Text swap, merge, margins, and
 ' formatting are local helpers so the text module is not imported.
 ' Ctrl+Shift+] and Ctrl+Shift+[ move the selection one z-order step.
-' IconsPane is not a command in Windows PowerPoint, so I is ignored.
+' I opens the Windows Insert Icon command. IconsPane is not used.
 ' Later tokens, including library and email, are ignored.
 
 Private Const PPTK_TAG As String = "PPTK_SHORTCUT"
@@ -42,6 +42,8 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
             PPTK_InsertParallelogram
         Case "N"
             PPTK_InsertNewSlide
+        Case "I"
+            PPTK_InsertIcon
         Case "A L"
             ObjectsAlignLefts
         Case "A R"
@@ -274,6 +276,12 @@ End Sub
 Private Sub PPTK_ExecuteMso(ByVal controlID As String)
     On Error Resume Next
     Application.CommandBars.ExecuteMso controlID
+End Sub
+
+Private Sub PPTK_InsertIcon()
+    Dim sld As Slide
+    If Not PPTK_ActiveSlide(sld) Then Exit Sub
+    PPTK_ExecuteMso "IconInsertFromFile"
 End Sub
 
 Private Sub PPTK_CopyFormatting()

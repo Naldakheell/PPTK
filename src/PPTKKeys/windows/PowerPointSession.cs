@@ -98,10 +98,62 @@ internal sealed class PowerPointSession : IDisposable
         PublishObserved(Read(), runFinished: true, selectionEvent: false);
     }
 
+    static int _iconBusy;
+
     public void Dispatch(string token)
     {
         if (token == "T" || !ShortcutGate.IsRunnable(token)) return;
+        if (token == "I")
+        {
+            BeginInsertIcon();
+            return;
+        }
+
         Run(ShortcutGate.MacroName, token);
+    }
+
+    /// <summary>
+    /// Insert Icon is a modal PowerPoint dialog. Run it on a separate STA so this
+    /// helper thread can keep pumping the keyboard hook, and ignore I while it is open.
+    /// </summary>
+    static void BeginInsertIcon()
+    {
+        if (Interlocked.CompareExchange(ref _iconBusy, 1, 0) != 0)
+        {
+            Console.Error.WriteLine("Icon dialog already open");
+            return;
+        }
+
+        var thread = new Thread(InsertIconWorker)
+        {
+            IsBackground = true,
+            Name = "PPTKKeys.Icon",
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+    }
+
+    static void InsertIconWorker()
+    {
+        object? unknown = null;
+        try
+        {
+            Guid clsid = PowerPointClsid;
+            NativeMethods.GetActiveObject(ref clsid, IntPtr.Zero, out unknown);
+            var app = (Ppt.Application)unknown;
+            object[] args = ["I"];
+            app.Run(ShortcutGate.MacroName, ref args);
+            Console.WriteLine("Dispatched IconInsertFromFile");
+        }
+        catch (Exception ex) when (ex is COMException or InvalidCastException or InvalidComObjectException or System.Reflection.TargetException)
+        {
+            Console.Error.WriteLine("Icon dialog failed: " + ex.GetType().Name);
+        }
+        finally
+        {
+            if (unknown != null) Marshal.ReleaseComObject(unknown);
+            Interlocked.Exchange(ref _iconBusy, 0);
+        }
     }
 
     public void CancelHold()

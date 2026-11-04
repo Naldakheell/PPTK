@@ -205,7 +205,14 @@ public class SequenceTests
         Assert.Equal("CTRL ]", ShortcutChords.Token(KeyMark.CloseBracket, 0xDD, true, true, false, false, unshiftedCloseBracket: true));
         Assert.Null(ShortcutChords.Token(KeyMark.None, 0xDD, true, true, true, false, unshiftedCloseBracket: true));
         Assert.False(ShortcutGate.IsToken("I"));
-        Assert.False(ShortcutGate.IsRunnable("I"));
+        Assert.True(ShortcutGate.IsRunnable("I"));
+        Assert.Equal("I", ShortcutGate.DecideIcon(FocusKind.Pane, Surface.Canvas).Token);
+        Assert.False(ShortcutGate.DecideIcon(FocusKind.Pane, Surface.Text).Dispatch);
+        Assert.False(ShortcutGate.DecideIcon(FocusKind.Pane, Surface.Blocked).Dispatch);
+        Assert.False(ShortcutGate.DecideIcon(FocusKind.RibbonOrEdit, Surface.Canvas).Dispatch);
+        Assert.False(ShortcutGate.DecideIcon(FocusKind.MenuOrDialog, Surface.Canvas).Dispatch);
+        Assert.False(ShortcutGate.DecideIcon(FocusKind.Outside, Surface.Canvas).Dispatch);
+        Assert.False(ShortcutGate.Decide("I", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
         Assert.Equal("CTRL SHIFT C", ShortcutChords.Token(KeyMark.None, 0x43, true, true, false, false));
         Assert.Equal("CTRL SHIFT V", ShortcutChords.Token(KeyMark.None, 0x56, true, true, false, false));
         Assert.Null(ShortcutChords.Token(KeyMark.None, 0x43, true, false, false, false));

@@ -71,6 +71,7 @@ internal sealed class HelperApp
 
         Console.WriteLine("Hook: WH_KEYBOARD_LL, keyDown, head of the hook chain");
         Console.WriteLine("Mapped keys: T R U O C P G M N");
+        Console.WriteLine("Canvas key: I opens Insert Icon");
         Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C, S W/H/S, D H/V, H +/-, V +/-, . T");
         Console.WriteLine("Canvas chords: /  Ctrl+/  Ctrl+Shift+C  Ctrl+Shift+V  Alt+.  Ctrl+[  Ctrl+]  Ctrl+Shift+[  Ctrl+Shift+]");
         Console.WriteLine("PowerPoint selection is cached outside the hook. Ctrl+C stops the helper.");
@@ -155,6 +156,7 @@ internal sealed class HelperApp
                 || _sequence.IsArmed
                 || ShortcutGate.TokenForVirtualKey(vk) != null
                 || ShortcutSequence.IsPrefixVirtualKey(vk)
+                || ShortcutGate.IsIconVirtualKey(vk)
                 || KeyLayout.IsPunctuation(vk);
             if (!relevant) return Next(nCode, wParam, lParam);
 
@@ -228,6 +230,16 @@ internal sealed class HelperApp
             }
 
             if (ctrl || shift || alt || win) return Next(nCode, wParam, lParam);
+            if (ShortcutGate.IsIconVirtualKey(vk))
+            {
+                GateDecision icon = ShortcutGate.DecideIcon(probe.Focus, _session.EffectiveSurface);
+                if (!icon.Dispatch || icon.Token == null) return Next(nCode, wParam, lParam);
+                if (!PostToken(icon.Token)) return Next(nCode, wParam, lParam);
+                _heldVirtualKey = vk;
+                _lastPass = "";
+                return Swallow();
+            }
+
             string? token = ShortcutGate.TokenForVirtualKey(vk);
             if (token == null) return Next(nCode, wParam, lParam);
 

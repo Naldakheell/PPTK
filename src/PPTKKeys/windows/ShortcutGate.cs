@@ -226,8 +226,22 @@ public static class ShortcutGate
         return new HoldResult(hold, Surface.Text, "hold after T");
     }
 
+    public static bool IsIconToken(string? token) => token == "I";
+
+    public static bool IsIconVirtualKey(int virtualKey) => virtualKey == 0x49;
+
+    /// <summary>
+    /// I opens Insert Icon only on the slide canvas. Text, ribbon, dialogs,
+    /// notes, slideshow, and other panes pass the key through.
+    /// </summary>
+    public static GateDecision DecideIcon(FocusKind focus, Surface surface)
+    {
+        if (focus != FocusKind.Pane || surface != Surface.Canvas) return GateDecision.Pass;
+        return GateDecision.DispatchToken("I");
+    }
+
     public static bool IsRunnable(string? token) =>
-        IsToken(token) || ShortcutSequence.IsSequenceToken(token) || ShortcutChords.IsChordToken(token);
+        IsToken(token) || IsIconToken(token) || ShortcutSequence.IsSequenceToken(token) || ShortcutChords.IsChordToken(token);
 }
 
 public enum SequenceSymbol
