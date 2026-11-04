@@ -1,0 +1,216 @@
+Attribute VB_Name = "ModulePPTKShortcuts"
+Option Explicit
+
+' PPTK shortcut dispatch. The Select Case list is the only external entry.
+' Unknown tokens, including later chords such as "A L" or "Cmd+/", are ignored.
+
+Private Const PPTK_TAG As String = "PPTK_SHORTCUT"
+Private Const PPTK_W_STANDARD As Single = 150
+Private Const PPTK_H_STANDARD As Single = 100
+Private Const PPTK_W_PROCESS As Single = 150
+Private Const PPTK_H_PROCESS As Single = 50
+Private Const PPTK_W_TEXT As Single = 300
+Private Const PPTK_H_TEXT As Single = 50
+Private Const PPTK_NUDGE As Single = 12
+Private Const PPTK_NUDGE_LIMIT As Long = 40
+
+Public Sub PPTK_DispatchShortcut(ByVal token As String)
+    Dim normalized As String
+    normalized = PPTK_NormalizeToken(token)
+    Select Case normalized
+        Case "T"
+            PPTK_InsertTextbox
+        Case "R"
+            PPTK_InsertRectangle
+        Case "U"
+            PPTK_InsertRoundedRectangle
+        Case "O"
+            PPTK_InsertOval
+        Case "C"
+            PPTK_InsertChevron
+        Case "P"
+            PPTK_InsertPentagon
+        Case "G"
+            PPTK_InsertTriangle
+        Case "M"
+            PPTK_InsertParallelogram
+        Case "N"
+            PPTK_InsertNewSlide
+        Case Else
+    End Select
+End Sub
+
+Private Function PPTK_NormalizeToken(ByVal token As String) As String
+    Dim i As Long
+    Dim ch As String
+    Dim out As String
+    Dim pendingSpace As Boolean
+    out = ""
+    pendingSpace = False
+    For i = 1 To Len(token)
+        ch = UCase$(Mid$(token, i, 1))
+        If ch = " " Or ch = vbTab Or ch = vbCr Or ch = vbLf Then
+            If Len(out) > 0 Then pendingSpace = True
+        Else
+            If pendingSpace Then
+                out = out & " "
+                pendingSpace = False
+            End If
+            out = out & ch
+        End If
+    Next i
+    PPTK_NormalizeToken = out
+End Function
+
+Private Function PPTK_ActiveSlide(ByRef sld As Slide) As Boolean
+    Dim picked As Slide
+    PPTK_ActiveSlide = False
+    Set sld = Nothing
+    On Error GoTo Clean
+    If Application.Presentations.Count < 1 Then Exit Function
+    If ActiveWindow Is Nothing Then Exit Function
+    If ActiveWindow.ViewType <> ppViewNormal Then Exit Function
+
+    On Error Resume Next
+    Set picked = ActiveWindow.View.Slide
+    If picked Is Nothing Then
+        If ActiveWindow.Selection.Type = ppSelectionSlides Then
+            If ActiveWindow.Selection.SlideRange.Count >= 1 Then
+                Set picked = ActiveWindow.Selection.SlideRange(1)
+            End If
+        End If
+    End If
+    On Error GoTo Clean
+    If picked Is Nothing Then Exit Function
+    Set sld = picked
+    PPTK_ActiveSlide = True
+Clean:
+End Function
+
+Private Function PPTK_TokenCovers(ByVal sld As Slide, ByVal token As String, ByVal leftPos As Single, ByVal topPos As Single, ByVal widthPts As Single, ByVal heightPts As Single) As Boolean
+    Dim i As Long
+    Dim shp As Shape
+    PPTK_TokenCovers = False
+    On Error GoTo Clean
+    For i = 1 To sld.Shapes.Count
+        Set shp = sld.Shapes(i)
+        If StrComp(shp.Tags(PPTK_TAG), token, vbTextCompare) = 0 Then
+            If Abs(shp.Left - leftPos) <= 0.5 Then
+                If Abs(shp.Top - topPos) <= 0.5 Then
+                    If Abs(shp.Width - widthPts) <= 0.5 Then
+                        If Abs(shp.Height - heightPts) <= 0.5 Then
+                            PPTK_TokenCovers = True
+                            Exit Function
+                        End If
+                    End If
+                End If
+            End If
+        End If
+    Next i
+Clean:
+End Function
+
+Private Sub PPTK_PlaceOrigin(ByVal sld As Slide, ByVal token As String, ByVal widthPts As Single, ByVal heightPts As Single, ByRef leftPos As Single, ByRef topPos As Single)
+    Dim slideWidth As Single
+    Dim slideHeight As Single
+    Dim nudgeIndex As Long
+    Dim candidateLeft As Single
+    Dim candidateTop As Single
+    slideWidth = ActivePresentation.PageSetup.slideWidth
+    slideHeight = ActivePresentation.PageSetup.slideHeight
+    leftPos = (slideWidth - widthPts) / 2
+    topPos = (slideHeight - heightPts) / 2
+    If leftPos < 0 Then leftPos = 0
+    If topPos < 0 Then topPos = 0
+    For nudgeIndex = 0 To PPTK_NUDGE_LIMIT
+        candidateLeft = leftPos + (PPTK_NUDGE * nudgeIndex)
+        candidateTop = topPos + (PPTK_NUDGE * nudgeIndex)
+        If candidateLeft > slideWidth Or candidateTop > slideHeight Then Exit For
+        If Not PPTK_TokenCovers(sld, token, candidateLeft, candidateTop, widthPts, heightPts) Then
+            leftPos = candidateLeft
+            topPos = candidateTop
+            Exit Sub
+        End If
+    Next nudgeIndex
+    leftPos = candidateLeft
+    topPos = candidateTop
+End Sub
+
+Private Sub PPTK_InsertShape(ByVal shapeType As MsoAutoShapeType, ByVal widthPts As Single, ByVal heightPts As Single, ByVal token As String)
+    Dim sld As Slide
+    Dim shp As Shape
+    Dim leftPos As Single
+    Dim topPos As Single
+    If Not PPTK_ActiveSlide(sld) Then Exit Sub
+    On Error GoTo Clean
+    PPTK_PlaceOrigin sld, token, widthPts, heightPts, leftPos, topPos
+    Set shp = sld.Shapes.AddShape(shapeType, leftPos, topPos, widthPts, heightPts)
+    shp.Tags.Add PPTK_TAG, token
+    shp.Select
+Clean:
+End Sub
+
+Private Sub PPTK_TryEnterTextEdit(ByVal shp As Shape)
+    On Error GoTo Clean
+    shp.Select
+    If Not shp.HasTextFrame Then Exit Sub
+    shp.TextFrame.TextRange.Select
+    If ActiveWindow.Selection.Type = ppSelectionText Then Exit Sub
+    On Error Resume Next
+    shp.TextFrame2.TextRange.Select
+Clean:
+End Sub
+
+Private Sub PPTK_InsertTextbox()
+    Dim sld As Slide
+    Dim shp As Shape
+    Dim leftPos As Single
+    Dim topPos As Single
+    If Not PPTK_ActiveSlide(sld) Then Exit Sub
+    On Error GoTo Clean
+    PPTK_PlaceOrigin sld, "T", PPTK_W_TEXT, PPTK_H_TEXT, leftPos, topPos
+    Set shp = sld.Shapes.AddTextbox(msoTextOrientationHorizontal, leftPos, topPos, PPTK_W_TEXT, PPTK_H_TEXT)
+    shp.Tags.Add PPTK_TAG, "T"
+    PPTK_TryEnterTextEdit shp
+Clean:
+End Sub
+
+Private Sub PPTK_InsertRectangle()
+    PPTK_InsertShape msoShapeRectangle, PPTK_W_STANDARD, PPTK_H_STANDARD, "R"
+End Sub
+
+Private Sub PPTK_InsertRoundedRectangle()
+    PPTK_InsertShape msoShapeRoundedRectangle, PPTK_W_STANDARD, PPTK_H_STANDARD, "U"
+End Sub
+
+Private Sub PPTK_InsertOval()
+    PPTK_InsertShape msoShapeOval, PPTK_W_STANDARD, PPTK_H_STANDARD, "O"
+End Sub
+
+Private Sub PPTK_InsertChevron()
+    PPTK_InsertShape msoShapeChevron, PPTK_W_PROCESS, PPTK_H_PROCESS, "C"
+End Sub
+
+Private Sub PPTK_InsertPentagon()
+    PPTK_InsertShape msoShapePentagon, PPTK_W_PROCESS, PPTK_H_PROCESS, "P"
+End Sub
+
+Private Sub PPTK_InsertTriangle()
+    PPTK_InsertShape msoShapeIsoscelesTriangle, PPTK_W_STANDARD, PPTK_H_STANDARD, "G"
+End Sub
+
+Private Sub PPTK_InsertParallelogram()
+    PPTK_InsertShape msoShapeParallelogram, PPTK_W_STANDARD, PPTK_H_STANDARD, "M"
+End Sub
+
+Private Sub PPTK_InsertNewSlide()
+    Dim sld As Slide
+    Dim layout As CustomLayout
+    Dim created As Slide
+    If Not PPTK_ActiveSlide(sld) Then Exit Sub
+    On Error GoTo Clean
+    Set layout = sld.CustomLayout
+    Set created = ActivePresentation.Slides.AddSlide(sld.SlideIndex + 1, layout)
+    created.Select
+Clean:
+End Sub

@@ -465,7 +465,7 @@ Sub ObjectsStretchRightShapeLeft()
     Next ShapeCount
 End Sub
 
-Sub ObjectsRemoveSpacingHorizontal()
+Sub ObjectsRemoveSpacingHorizontal(Optional ByVal control As IRibbonControl)
     
     Set MyDocument = Application.ActiveWindow
     
@@ -494,7 +494,7 @@ Sub ObjectsRemoveSpacingHorizontal()
        
 End Sub
 
-Sub ObjectsRemoveSpacingHorizontalRight()
+Sub ObjectsRemoveSpacingHorizontalRight(Optional ByVal control As IRibbonControl)
     
     Set MyDocument = Application.ActiveWindow
     
@@ -524,7 +524,7 @@ Sub ObjectsRemoveSpacingHorizontalRight()
     
 End Sub
 
-Sub ObjectsRemoveSpacingVertical()
+Sub ObjectsRemoveSpacingVertical(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
     
@@ -553,7 +553,7 @@ Sub ObjectsRemoveSpacingVertical()
 
 End Sub
 
-Sub ObjectsRemoveSpacingVerticalDown()
+Sub ObjectsRemoveSpacingVerticalDown(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
     
@@ -583,7 +583,7 @@ Sub ObjectsRemoveSpacingVerticalDown()
 
 End Sub
 
-Sub ObjectsIncreaseSpacingHorizontal()
+Sub ObjectsIncreaseSpacingHorizontal(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -611,7 +611,7 @@ Sub ObjectsIncreaseSpacingHorizontal()
     Next ShapeCount
 End Sub
 
-Sub ObjectsDecreaseSpacingHorizontal()
+Sub ObjectsDecreaseSpacingHorizontal(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -639,7 +639,7 @@ Sub ObjectsDecreaseSpacingHorizontal()
     Next ShapeCount
 End Sub
 
-Sub ObjectsIncreaseSpacingVertical()
+Sub ObjectsIncreaseSpacingVertical(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -667,7 +667,7 @@ Sub ObjectsIncreaseSpacingVertical()
     Next ShapeCount
 End Sub
 
-Sub ObjectsDecreaseSpacingVertical()
+Sub ObjectsDecreaseSpacingVertical(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -855,7 +855,7 @@ Sub ObjectsSortByBottomPosition(ArrayToSort() As shape)
     Set SlideShapes = Nothing
 End Sub
 
-Sub ObjectsAlignLefts()
+Sub ObjectsAlignLefts(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim Left1 As Single
     Dim Left2 As Single
@@ -908,7 +908,7 @@ Sub ObjectsAlignLefts()
     
 End Sub
 
-Sub ObjectsAlignTops()
+Sub ObjectsAlignTops(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim Top1 As Single
     Dim Top2 As Single
@@ -964,7 +964,7 @@ Sub ObjectsAlignTops()
     
 End Sub
 
-Sub ObjectsAlignRights()
+Sub ObjectsAlignRights(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     
     Dim Right1 As Single
@@ -1028,7 +1028,7 @@ Sub ObjectsAlignRights()
     
 End Sub
 
-Sub ObjectsAlignBottoms()
+Sub ObjectsAlignBottoms(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     
     Dim Bottom1 As Single
@@ -1093,7 +1093,7 @@ Sub ObjectsAlignBottoms()
     
 End Sub
 
-Sub ObjectsAlignCenters()
+Sub ObjectsAlignCenters(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim Center1, Center2 As Single
     
@@ -1154,7 +1154,7 @@ Sub ObjectsAlignCenters()
     
 End Sub
 
-Sub ObjectsAlignMiddles()
+Sub ObjectsAlignMiddles(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim Middle1, Middle2 As Single
     
@@ -1215,7 +1215,7 @@ Sub ObjectsAlignMiddles()
 End Sub
 
 
-Sub ObjectsDistributeHorizontally()
+Sub ObjectsDistributeHorizontally(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
@@ -1234,7 +1234,7 @@ Sub ObjectsDistributeHorizontally()
     
 End Sub
 
-Sub ObjectsDistributeVertically()
+Sub ObjectsDistributeVertically(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub

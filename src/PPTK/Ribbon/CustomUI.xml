@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui">
+  <ribbon>
+    <tabs>
+      <tab id="InstrumentaPowerpointToolbar" label="PPTK">
+        <group id="Design" label="Design">
+          <control idMso="ShapeFillColorPicker" showLabel="false" label="​" />
+          <control idMso="ShapeOutlineColorPicker" showLabel="false" label="​" />
+          <control idMso="FormatPainter" showLabel="false" />
+          <button idMso="EyedropperFill" showLabel="false" size="normal" />
+          <menu id="DesignMoreFormatting" label="More Formatting" imageMso="ShapeFillColorPicker" showLabel="false" itemSize="normal" screentip="More Formatting" size="normal">
+            <gallery idMso="ShapeStylesGallery" showLabel="false" label="​" />
+            <gallery idMso="GradientGallery" showLabel="false" label="​" />
+            <button idMso="ObjectPictureFill" showLabel="false" />
+            <gallery idMso="OutlineDashesGallery" showLabel="false" label="​" />
+            <gallery idMso="OutlineWeightGallery" showLabel="false" label="​" />
+            <button idMso="EyedropperOutline" showLabel="false" />
+            <toggleButton idMso="PictureCrop" showLabel="false" />
+            <button idMso="PictureReset" showLabel="false" />
+            <toggleButton idMso="PictureSetTransparentColor" showLabel="false" />
+            <button idMso="PicturesCompress" showLabel="false" />
+            <gallery idMso="PictureShapeGallery" showLabel="false" label="​" />
+          </menu>
+        </group>
+        <group id="Reuse" label="Reuse">
+          <labelControl id="PPTKShellReuse" label="Reuse" />
+        </group>
+        <group id="Insert" label="Insert">
+          <box id="PPTKShortcutCol1" boxStyle="vertical">
+            <button id="PPTKShortcutT" label="Textbox" tag="T" imageMso="TextBoxInsert" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Textbox" supertip="PPTK shortcut T" />
+            <button id="PPTKShortcutR" label="Rectangle" tag="R" imageMso="ShapeRectangle" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Rectangle" supertip="PPTK shortcut R" />
+            <button id="PPTKShortcutU" label="Rounded Rectangle" tag="U" imageMso="ShapeRoundedRectangle" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Rounded Rectangle" supertip="PPTK shortcut U" />
+          </box>
+          <box id="PPTKShortcutCol2" boxStyle="vertical">
+            <button id="PPTKShortcutO" label="Oval" tag="O" imageMso="ShapeOval" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Oval" supertip="PPTK shortcut O" />
+            <button id="PPTKShortcutC" label="Chevron" tag="C" imageMso="ShapeChevron" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Chevron" supertip="PPTK shortcut C" />
+            <button id="PPTKShortcutP" label="Pentagon" tag="P" imageMso="ShapePentagon" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Pentagon" supertip="PPTK shortcut P" />
+          </box>
+          <box id="PPTKShortcutCol3" boxStyle="vertical">
+            <button id="PPTKShortcutG" label="Triangle" tag="G" imageMso="ShapeIsoscelesTriangle" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Triangle" supertip="PPTK shortcut G" />
+            <button id="PPTKShortcutM" label="Parallelogram" tag="M" imageMso="ShapeParallelogram" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Parallelogram" supertip="PPTK shortcut M" />
+            <button id="PPTKShortcutN" label="New Slide" tag="N" imageMso="SlideNew" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="New Slide" supertip="PPTK shortcut N" />
+          </box>
+          <box id="InsertNativeCol1" boxStyle="vertical">
+            <toggleButton idMso="TextBoxInsert" showLabel="false" size="normal" />
+            <gallery idMso="ShapesInsertGallery" showLabel="false" label="​" size="normal" />
+            <button idMso="PictureInsertFromFile" showLabel="false" size="normal" />
+          </box>
+          <box id="InsertNativeCol2" boxStyle="vertical">
+            <button idMso="ScreenClipping" showLabel="false" size="normal" />
+            <menu id="InsertMoreMenu" label="More" imageMso="PasteAlternative" showLabel="false" itemSize="normal" screentip="More" size="normal">
+            <splitButton id="PastePngSplitButton" showLabel="false">
+              <button idMso="PastePng" showLabel="false" />
+              <menu id="PasteJpegMenu" itemSize="normal" supertip="Opens the tools for pasting content as JPEG" screentip="Paste as JPEG">
+                <button idMso="PasteJpeg" showLabel="false" />
+              </menu>
+            </splitButton>
+            <button idMso="DateAndTimeInsert" showLabel="false" />
+            </menu>
+          </box>
+        </group>
+        <group id="Text" label="Text">
+          <box id="FontBox1" boxStyle="horizontal">
+            <control idMso="Font" />
+          </box>
+          <box id="FontBox2" boxStyle="horizontal">
+            <comboBox idMso="FontSize" showLabel="false" />
+            <button idMso="FontSizeIncrease" showLabel="false" size="normal" />
+            <button idMso="FontSizeDecrease" showLabel="false" size="normal" />
+            <toggleButton idMso="Bold" showLabel="false" />
+            <toggleButton idMso="Italic" showLabel="false" size="normal" />
+            <toggleButton idMso="Underline" showLabel="false" size="normal" />
+          </box>
+          <box id="FontBox3" boxStyle="horizontal">
+            <control idMso="FontColorPicker" showLabel="false" />
+            <toggleButton idMso="AlignLeft" showLabel="false" size="normal" />
+            <toggleButton idMso="AlignCenter" showLabel="false" size="normal" />
+            <toggleButton idMso="AlignRight" showLabel="false" size="normal" />
+            <control idMso="BulletsGallery" showLabel="false" />
+            <menu id="TextMoreMenu" label="More" imageMso="MenuView2" showLabel="false" itemSize="normal" screentip="More" size="normal">
+              <button idMso="ClearFormatting" showLabel="false" />
+              <toggleButton idMso="Strikethrough" showLabel="false" />
+              <control idMso="TextHighlightColorPickerLicensed" showLabel="false" />
+              <control idMso="NumberingGallery" showLabel="false" />
+              <button idMso="FontsReplaceFonts" showLabel="false" />
+              <toggleButton idMso="AlignJustify" showLabel="false" />
+              <button idMso="EyedropperFillText" showLabel="false" />
+              <gallery idMso="TextAlignGallery" showLabel="false" />
+              <gallery idMso="LineSpacingGalleryPowerPoint" showLabel="false" />
+              <button idMso="IndentIncrease" showLabel="false" />
+              <button idMso="IndentDecrease" showLabel="false" />
+              <gallery idMso="TableColumnsGallery" showLabel="false" />
+              <toggleButton idMso="Superscript" showLabel="false" />
+              <toggleButton idMso="Subscript" showLabel="false" />
+              <toggleButton idMso="Shadow" showLabel="false" />
+              <gallery idMso="CharacterSpacingGallery" showLabel="false" />
+              <gallery idMso="ChangeCaseGallery" showLabel="false" />
+              <menu id="SpecialCharacterMenu" label="Special characters" imageMso="SymbolInsert" showLabel="false" supertip="Inserts commonly used special characters" screentip="Special characters">
+                <button idMso="SymbolInsert" showLabel="false" />
+              </menu>
+              <menuSeparator id="TextMoreAdvancedSeparator" />
+              <button idMso="ReplaceDialog" showLabel="false" />
+              <button idMso="PasteTextOnly" showLabel="false" />
+            </menu>
+          </box>
+        </group>
+        <group id="Align" label="Align">
+          <box id="AlignDistributeBox" boxStyle="horizontal">
+            <button id="ObjectsAlignLeftsButton" label="Align left" showLabel="false" imageMso="ObjectsAlignLeft" onAction="ObjectsAlignLefts" supertip="Aligns the selected objects to the left" screentip="Align Left" size="normal" />
+            <button id="ObjectsAlignCentersButton" label="Align center" showLabel="false" imageMso="ObjectsAlignCenterHorizontal" onAction="ObjectsAlignCenters" supertip="Aligns the selected objects to the center" screentip="Align Center" size="normal" />
+            <button id="ObjectsAlignRightsButton" label="Align right" showLabel="false" imageMso="ObjectsAlignRight" onAction="ObjectsAlignRights" supertip="Aligns the selected objects to the right" screentip="Align Right" size="normal" />
+          </box>
+          <box id="AlignVerticalBox" boxStyle="horizontal">
+            <button id="ObjectsAlignTopsButton" label="Align top" showLabel="false" imageMso="ObjectsAlignTop" onAction="ObjectsAlignTops" supertip="Aligns the selected objects to the top" screentip="Align Top" size="normal" />
+            <button id="ObjectsAlignMiddlesButton" label="Align middle" showLabel="false" imageMso="ObjectsAlignMiddleVertical" onAction="ObjectsAlignMiddles" supertip="Aligns the selected objects to the middle" screentip="Align Middle" size="normal" />
+            <button id="ObjectsAlignBottomsButton" label="Align bottom" showLabel="false" imageMso="ObjectsAlignBottom" onAction="ObjectsAlignBottoms" supertip="Aligns the selected objects to the bottom" screentip="Align Bottom" size="normal" />
+          </box>
+        </group>
+        <group id="Space" label="Space">
+          <box id="SpaceRow1Box" boxStyle="horizontal">
+            <button id="ObjectsDistributeHorizontallyButton" label="Distribute horizontally" showLabel="false" imageMso="AlignDistributeHorizontally" onAction="ObjectsDistributeHorizontally" supertip="Evenly distributes the selected objects horizontally" screentip="Distribute Horizontally" size="normal" />
+            <button id="ObjectsDistributeVerticallyButton" imageMso="AlignDistributeVertically" label="Distribute vertically" showLabel="false" onAction="ObjectsDistributeVertically" supertip="Evenly distributes the selected objects vertically" screentip="Distribute Vertically" size="normal" />
+          </box>
+          <box id="SpaceRow2Box" boxStyle="horizontal">
+            <menu id="SpaceGapsMenu" label="Gaps" imageMso="AlignDistributeHorizontally" showLabel="false" itemSize="normal" screentip="Gaps" size="normal">
+              <splitButton id="ObjectsRemoveSpaceHorizontalSplitButton" showLabel="false">
+                <button id="ObjectsRemoveSpaceHorizontal" imageMso="ObjectsAlignDistributeHorizontallyRemove" label="Remove horizontal gap between shapes (direction left)" showLabel="false" onAction="ObjectsRemoveSpacingHorizontal" supertip="Removes the horizontal gap between the selected shapes toward the left" screentip="Remove Horizontal Gap" />
+                <menu id="ObjectsRemoveSpaceHorizontalMenu" itemSize="normal" supertip="Opens the tools for removing the horizontal gap between shapes" screentip="Remove Horizontal Gap">
+                  <button id="ObjectsRemoveSpaceHorizontalRight" imageMso="ObjectsAlignDistributeHorizontallyRemove" label="Remove horizontal gap between shapes (direction right)" showLabel="false" onAction="ObjectsRemoveSpacingHorizontalRight" supertip="Removes the horizontal gap between the selected shapes toward the right" screentip="Remove Horizontal Gap" />
+                </menu>
+              </splitButton>
+              <button id="ObjectsIncreaseSpacingHorizontal" imageMso="HorizontalSpacingIncrease" label="Increase horizontal gap between shapes" showLabel="false" onAction="ObjectsIncreaseSpacingHorizontal" supertip="Increases the horizontal gap between the selected shapes" screentip="Increase Horizontal Gap" />
+              <button id="ObjectsDecreaseSpacingHorizontal" imageMso="HorizontalSpacingDecrease" label="Decrease horizontal gap between shapes" showLabel="false" onAction="ObjectsDecreaseSpacingHorizontal" supertip="Decreases the horizontal gap between the selected shapes" screentip="Decrease Horizontal Gap" />
+              <splitButton id="ObjectsRemoveSpaceVerticalSplitButton" showLabel="false">
+                <button id="ObjectsRemoveSpaceVertical" imageMso="ObjectsAlignDistributeVerticallyRemove" label="Remove vertical gap between shapes (direction up)" showLabel="false" onAction="ObjectsRemoveSpacingVertical" supertip="Removes the vertical gap between the selected shapes upward" screentip="Remove Vertical Gap" />
+                <menu id="ObjectsRemoveSpaceVerticalMenu" itemSize="normal" supertip="Opens the tools for removing the vertical gap between shapes" screentip="Remove Vertical Gap">
+                  <button id="ObjectsRemoveSpaceVerticalDown" imageMso="ObjectsAlignDistributeVerticallyRemove" label="Remove vertical gap between shapes (direction down)" showLabel="false" onAction="ObjectsRemoveSpacingVerticalDown" supertip="Removes the vertical gap between the selected shapes downward" screentip="Remove Vertical Gap" />
+                </menu>
+              </splitButton>
+              <button id="ObjectsIncreaseSpacingVertical" imageMso="VerticalSpacingIncrease" label="Increase vertical gap between shapes" showLabel="false" onAction="ObjectsIncreaseSpacingVertical" supertip="Increases the vertical gap between the selected shapes" screentip="Increase Vertical Gap" />
+              <button id="ObjectsDecreaseSpacingVertical" imageMso="VerticalSpacingDecrease" label="Decrease vertical gap between shapes" showLabel="false" onAction="ObjectsDecreaseSpacingVertical" supertip="Decreases the vertical gap between the selected shapes" screentip="Decrease Vertical Gap" />
+            </menu>
+          </box>
+        </group>
+        <group id="Shape" label="Shape">
+          <gallery idMso="ShapeChangeShapeGallery" showLabel="false" label="​" size="normal" />
+          <box id="ShapeDimensionsColumn" boxStyle="vertical">
+            <control idMso="ShapeWidth" showLabel="false" />
+            <control idMso="ShapeHeight" showLabel="false" />
+            <box id="DimensionsBox" boxStyle="horizontal">
+              <button id="ObjectsSameWidthButton" imageMso="ColumnWidth" label="Set same width" showLabel="false" onAction="ObjectsSameWidth" supertip="Sets all selected objects to the same width" screentip="Same Width" size="normal" />
+              <button id="ObjectsSameHeightButton" imageMso="RowHeight" label="Set same height" showLabel="false" onAction="ObjectsSameHeight" supertip="Sets all selected objects to the same height" screentip="Same Height" size="normal" />
+              <button id="ObjectsSameHeightAndWidthButton" imageMso="SizeToControlHeightAndWidth" label="Set same height and width" showLabel="false" onAction="ObjectsSameHeightAndWidth" supertip="Sets all selected objects to the same height and width" screentip="Same Height and Width" size="normal" />
+              <splitButton id="ObjectsSwapPositionSplitButton" size="normal" showLabel="false">
+                <button id="ObjectsSwapPosition" imageMso="CircularReferences" label="Swap position of two shapes" showLabel="false" onAction="ObjectsSwapPosition" supertip="Swaps the positions of the two selected shapes" screentip="Swap Position" />
+                <menu id="ObjectsSwapPositionMenu" label="Swap position of two shapes" imageMso="CircularReferences" showLabel="false" supertip="Opens the tools for swapping the positions of two shapes" screentip="Swap Position">
+                  <button id="ObjectsSwapPositionCentered" imageMso="CircularReferences" label="Swap position of two shapes (centered)" showLabel="false" onAction="ObjectsSwapPositionCentered" supertip="Swaps the positions of the two selected shapes while centering them" screentip="Swap Position (Centered)" />
+                </menu>
+              </splitButton>
+            </box>
+          </box>
+          <box id="ShapeOrderColumn" boxStyle="vertical">
+            <button idMso="ObjectBringForward" showLabel="false" size="normal" />
+            <button idMso="ObjectSendBackward" showLabel="false" size="normal" />
+            <menu id="ShapeMoreMenu" label="More" imageMso="ShapesMoreShapes" showLabel="false" itemSize="normal" screentip="More" size="normal">
+              <menu idMso="CombineShapesMenu" showLabel="false" />
+              <button idMso="ObjectBringToFront" showLabel="false" />
+              <button idMso="ObjectSendToBack" showLabel="false" />
+              <button idMso="ObjectFlipHorizontal" showLabel="false" />
+              <button idMso="ObjectFlipVertical" showLabel="false" />
+              <button idMso="ObjectRotateLeft90" showLabel="false" />
+              <button idMso="ObjectRotateRight90" showLabel="false" />
+              <toggleButton idMso="ObjectEditPoints" showLabel="false" />
+            </menu>
+          </box>
+        </group>
+        <group id="SmartAlign" label="Smart Align">
+          <box id="SmartAlignRow2Box" boxStyle="horizontal">
+            <menu id="SmartAlignMoreMenu" label="More" imageMso="GroupPosition" showLabel="false" itemSize="normal" screentip="More" size="normal">
+              <menu id="ObjectSetPositionMenu" itemSize="normal" supertip="Opens the tools for setting the position of shapes" screentip="Set Position">
+                <control idMso="ObjectSizeAndPositionDialog" showLabel="true" />
+              </menu>
+            </menu>
+          </box>
+        </group>
+        <group id="PPTK" label="PPTK">
+          <labelControl id="PPTKShellPPTK" label="PPTK" />
+        </group>
+        <group id="Tools" label="Tools">
+          <menu id="ToolsTableMenu" label="Table" imageMso="TableInsert" showLabel="false" itemSize="normal" screentip="Table" size="normal">
+            <gallery idMso="TableInsertGallery" showLabel="false" label="​" />
+            <control idMso="ShadingColorPicker" showLabel="false" label="​" />
+            <gallery idMso="TableBorderPenColorPicker" showLabel="false" label="​" />
+            <control idMso="TableBordersMenu" showLabel="false" />
+            <toggleButton idMso="TableCellAlignTop" showLabel="false" />
+            <toggleButton idMso="TableCellAlignCenterVertically" showLabel="false" />
+            <toggleButton idMso="TableCellAlignBottom" showLabel="false" />
+            <menu id="TableFormatMenu" itemSize="normal" supertip="Opens the tools for formatting table cells" screentip="Format Table">
+              <button idMso="TableStyleClearTable" showLabel="false" />
+            </menu>
+            <button idMso="TableInsertColumnsLeft" showLabel="false" />
+            <button idMso="TableInsertColumnsRight" showLabel="false" />
+            <button idMso="TableDeleteColumns" showLabel="false" />
+            <button idMso="TableInsertRowsAbove" showLabel="false" />
+            <button idMso="TableInsertRowsBelow" showLabel="false" />
+            <button idMso="TableDeleteRows" showLabel="false" />
+            <button idMso="TableRowsDistribute" showLabel="false" />
+            <button idMso="TableColumnsDistribute" showLabel="false" />
+          </menu>
+          <toggleButton idMso="SelectionPane" showLabel="false" size="normal" />
+          <menu id="ToolsMoreMenu" label="More Tools" imageMso="AdvancedFileProperties" showLabel="false" itemSize="normal" screentip="More Tools" size="normal">
+            <button idMso="FileSaveAsPdfOrXps" showLabel="false" />
+            <button idMso="ObjectSaveAsPicture" imageMso="PictureReset" showLabel="false" />
+            <menu id="CopyStorylineMenu" label="Copy storyline/slide note" imageMso="SpeakerNotes" showLabel="false" supertip="Opens the tools for copying slide notes or storyline content to Word or the clipboard" screentip="Copy Storyline / Notes">
+              <button idMso="CreateHandoutsInWord" />
+            </menu>
+            <button idMso="FileNewDefault" showLabel="false" />
+            <button idMso="AdvancedFileProperties" imageMso="ChooseForm" showLabel="false" />
+          </menu>
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>

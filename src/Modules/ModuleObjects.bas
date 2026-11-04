@@ -182,3 +182,81 @@ Sub SetRealHeight(SlideShape As shape, newRealHeight As Single)
             SlideShape.width = SlideShape.height * aspectRatio
     End Select
 End Sub
+
+' Sets both axis-aligned visual dimensions at the current rotation.
+' Returns False and leaves the shape unchanged when no positive stored
+' Width and Height can produce that visual box.
+Function SetRealSize(SlideShape As shape, ByVal newRealWidth As Single, ByVal newRealHeight As Single) As Boolean
+    Dim rotation    As Double
+    Dim radians     As Double
+    Dim cosAbs      As Double
+    Dim sinAbs      As Double
+    Dim det         As Double
+    Dim newWidth    As Double
+    Dim newHeight   As Double
+    Dim currentSum  As Double
+    Dim targetSum   As Double
+    Dim centerX     As Single
+    Dim centerY     As Single
+    Dim oldWidth    As Single
+    Dim oldHeight   As Single
+    Dim oldLeft     As Single
+    Dim oldTop      As Single
+    Dim wasLocked   As Boolean
+
+    SetRealSize = False
+    If SlideShape Is Nothing Then Exit Function
+    If newRealWidth <= 0 Or newRealHeight <= 0 Then Exit Function
+
+    rotation = SlideShape.rotation
+    rotation = rotation - Int(rotation / 360#) * 360#
+    If rotation < 0 Then rotation = rotation + 360#
+
+    radians = rotation * (3.14159265358979 / 180#)
+    cosAbs = Abs(Cos(radians))
+    sinAbs = Abs(Sin(radians))
+    det = cosAbs * cosAbs - sinAbs * sinAbs
+
+    If Abs(det) < 0.0000001 Then
+        If Abs(CDbl(newRealWidth) - CDbl(newRealHeight)) > 0.05 Then Exit Function
+        If cosAbs < 0.0000001 Then Exit Function
+        currentSum = CDbl(SlideShape.width) + CDbl(SlideShape.height)
+        If currentSum <= 0.0000001 Then Exit Function
+        targetSum = CDbl(newRealWidth) / cosAbs
+        newWidth = CDbl(SlideShape.width) * targetSum / currentSum
+        newHeight = CDbl(SlideShape.height) * targetSum / currentSum
+    Else
+        newWidth = (CDbl(newRealWidth) * cosAbs - CDbl(newRealHeight) * sinAbs) / det
+        newHeight = (CDbl(newRealHeight) * cosAbs - CDbl(newRealWidth) * sinAbs) / det
+    End If
+
+    If newWidth <= 0.05 Or newHeight <= 0.05 Then Exit Function
+
+    oldWidth = SlideShape.width
+    oldHeight = SlideShape.height
+    oldLeft = SlideShape.left
+    oldTop = SlideShape.Top
+    wasLocked = SlideShape.LockAspectRatio
+    centerX = oldLeft + oldWidth / 2
+    centerY = oldTop + oldHeight / 2
+
+    On Error GoTo RestoreSize
+    SlideShape.LockAspectRatio = False
+    SlideShape.width = CSng(newWidth)
+    SlideShape.height = CSng(newHeight)
+    SlideShape.left = centerX - SlideShape.width / 2
+    SlideShape.Top = centerY - SlideShape.height / 2
+    SlideShape.LockAspectRatio = wasLocked
+    On Error GoTo 0
+    SetRealSize = True
+    Exit Function
+
+RestoreSize:
+    On Error Resume Next
+    SlideShape.width = oldWidth
+    SlideShape.height = oldHeight
+    SlideShape.left = oldLeft
+    SlideShape.Top = oldTop
+    SlideShape.LockAspectRatio = wasLocked
+    SetRealSize = False
+End Function

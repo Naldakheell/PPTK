@@ -172,7 +172,7 @@ Sub ObjectsSizeToNarrowest()
     
 End Sub
 
-Sub ObjectsSameHeight()
+Sub ObjectsSameHeight(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim SlideShape  As shape
@@ -210,7 +210,7 @@ Sub ObjectsSameHeight()
     End If
 End Sub
 
-Sub ObjectsSameWidth()
+Sub ObjectsSameWidth(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim width       As Single
     Dim SlideShape  As shape
@@ -248,13 +248,15 @@ Sub ObjectsSameWidth()
     End If
 End Sub
 
-Sub ObjectsSameHeightAndWidth()
+Sub ObjectsSameHeightAndWidth(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim width       As Single
     Dim SlideShape  As shape
+    Dim sizeFailed  As Boolean
     
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
+    sizeFailed = False
     
     If GetSetting("Instrumenta", "AlignDistributeSize", "DefaultTransformationMethod", "0") = 0 Then
         If MyDocument.Selection.HasChildShapeRange Then
@@ -262,16 +264,14 @@ Sub ObjectsSameHeightAndWidth()
             width = GetRealWidth(MyDocument.Selection.ChildShapeRange(1))
             
             For Each SlideShape In MyDocument.Selection.ChildShapeRange
-                SetRealHeight SlideShape, height
-                SetRealWidth SlideShape, width
+                If Not SetRealSize(SlideShape, width, height) Then sizeFailed = True
             Next SlideShape
         Else
             height = GetRealHeight(MyDocument.Selection.ShapeRange(1))
             width = GetRealWidth(MyDocument.Selection.ShapeRange(1))
             
             For Each SlideShape In MyDocument.Selection.ShapeRange
-                SetRealHeight SlideShape, height
-                SetRealWidth SlideShape, width
+                If Not SetRealSize(SlideShape, width, height) Then sizeFailed = True
             Next SlideShape
         End If
     Else
@@ -280,22 +280,24 @@ Sub ObjectsSameHeightAndWidth()
             width = GetRealWidth(MyDocument.Selection.ChildShapeRange(MyDocument.Selection.ChildShapeRange.count))
             
             For Each SlideShape In MyDocument.Selection.ChildShapeRange
-                SetRealHeight SlideShape, height
-                SetRealWidth SlideShape, width
+                If Not SetRealSize(SlideShape, width, height) Then sizeFailed = True
             Next SlideShape
         Else
             height = GetRealHeight(MyDocument.Selection.ShapeRange(MyDocument.Selection.ShapeRange.count))
             width = GetRealWidth(MyDocument.Selection.ShapeRange(MyDocument.Selection.ShapeRange.count))
             
             For Each SlideShape In MyDocument.Selection.ShapeRange
-                SetRealHeight SlideShape, height
-                SetRealWidth SlideShape, width
+                If Not SetRealSize(SlideShape, width, height) Then sizeFailed = True
             Next SlideShape
         End If
     End If
+
+    If sizeFailed Then
+        MsgBox "Same Size could not match both visual dimensions for one or more shapes at their current rotation.", vbExclamation, "PPTK"
+    End If
 End Sub
 
-Sub ObjectsSwapPosition()
+Sub ObjectsSwapPosition(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
     
@@ -377,7 +379,7 @@ Sub ObjectsSwapPosition()
     
 End Sub
 
-Sub ObjectsSwapPositionCentered()
+Sub ObjectsSwapPositionCentered(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
     
