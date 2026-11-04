@@ -7,6 +7,7 @@ Option Explicit
 ' A A copies the first selected shape's rotation onto the other selected shapes.
 ' Swap position reuses ObjectsSwapPosition. Text swap, merge, margins, and
 ' formatting are local helpers so the text module is not imported.
+' Ctrl+Shift+T pastes clipboard text into the destination and keeps its formatting.
 ' Ctrl+Shift+] and Ctrl+Shift+[ move the selection one z-order step.
 ' I opens the Windows Insert Icon command. IconsPane is not used.
 ' \ saves the selected slides as a new PPTX. Library and email are ignored.
@@ -87,6 +88,8 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
             PPTK_CopyFormatting
         Case "CTRL SHIFT V"
             PPTK_PasteFormatting
+        Case "CTRL SHIFT T"
+            PPTK_PasteContentOnly
         Case "ALT ."
             PPTK_ZeroMargins
         Case "CTRL ]"
@@ -312,6 +315,71 @@ Private Sub PPTK_PasteFormatting()
     End If
 Clean:
 End Sub
+
+Private Sub PPTK_PasteContentOnly()
+    Dim window As DocumentWindow
+    Dim selected As ShapeRange
+    Dim text As String
+    Dim hasChildren As Boolean
+
+    On Error GoTo Clean
+    Set window = ActiveWindow
+    If window Is Nothing Then Exit Sub
+    If Not PPTK_ClipboardText(text) Then Exit Sub
+
+    If window.Selection.Type = ppSelectionText Then
+        PPTK_ReplaceTextKeepingFormat window.Selection.TextRange, text
+        Exit Sub
+    End If
+    If window.Selection.Type <> ppSelectionShapes Then Exit Sub
+
+    On Error Resume Next
+    hasChildren = window.Selection.HasChildShapeRange
+    If Err.Number <> 0 Then Exit Sub
+    Err.Clear
+    If hasChildren Then
+        Set selected = window.Selection.ChildShapeRange
+    Else
+        Set selected = window.Selection.ShapeRange
+    End If
+    If Err.Number <> 0 Then Exit Sub
+    Err.Clear
+    On Error GoTo Clean
+
+    If selected Is Nothing Then Exit Sub
+    If selected.Count <> 1 Then Exit Sub
+    If Not selected(1).HasTextFrame Then Exit Sub
+    PPTK_ReplaceTextKeepingFormat selected(1).TextFrame.TextRange, text
+Clean:
+End Sub
+
+Private Sub PPTK_ReplaceTextKeepingFormat(ByVal target As TextRange, ByVal text As String)
+    On Error GoTo Clean
+    If target Is Nothing Then Exit Sub
+    If target.Length = 0 Then
+        target.InsertAfter text
+    Else
+        target.Text = text
+    End If
+Clean:
+End Sub
+
+Private Function PPTK_ClipboardText(ByRef text As String) As Boolean
+    Dim data As Object
+    On Error GoTo Clean
+    text = ""
+    Set data = GetObject("New:{1C3B4210-F441-11CE-B9EA-00AA006B1A69}")
+    data.GetFromClipboard
+    text = CStr(data.GetText())
+    If Len(text) >= 2 Then
+        If Right$(text, 2) = vbCrLf Then text = Left$(text, Len(text) - 2)
+    End If
+    If Len(text) >= 1 Then
+        If Right$(text, 1) = vbCr Or Right$(text, 1) = vbLf Then text = Left$(text, Len(text) - 1)
+    End If
+    PPTK_ClipboardText = Len(text) > 0
+Clean:
+End Function
 
 Private Sub PPTK_SwapText()
     Dim window As DocumentWindow

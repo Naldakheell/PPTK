@@ -217,6 +217,10 @@ public class SequenceTests
         Assert.False(ShortcutGate.Decide("I", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
         Assert.Equal("CTRL SHIFT C", ShortcutChords.Token(KeyMark.None, 0x43, true, true, false, false));
         Assert.Equal("CTRL SHIFT V", ShortcutChords.Token(KeyMark.None, 0x56, true, true, false, false));
+        Assert.Equal("CTRL SHIFT T", ShortcutChords.Token(KeyMark.None, 0x54, true, true, false, false));
+        Assert.True(ShortcutChords.IsChordToken("CTRL SHIFT T"));
+        Assert.Null(ShortcutChords.Token(KeyMark.None, 0x54, true, false, false, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.None, 0x54, false, true, false, false));
         Assert.Null(ShortcutChords.Token(KeyMark.None, 0x43, true, false, false, false));
         Assert.Null(ShortcutChords.Token(KeyMark.None, 0x56, true, false, false, false));
         Assert.Null(ShortcutChords.Token(KeyMark.None, 0x43, true, true, true, false));

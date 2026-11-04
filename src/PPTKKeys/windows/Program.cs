@@ -73,7 +73,7 @@ internal sealed class HelperApp
         Console.WriteLine("Mapped keys: T R U O C P G M N");
         Console.WriteLine("Canvas key: I opens Insert Icon");
         Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C/A, S W/H/S, D H/V, H +/-, V +/-, . T");
-        Console.WriteLine("Canvas chords: /  Ctrl+/  Ctrl+Shift+C  Ctrl+Shift+V  Alt+.  Ctrl+[  Ctrl+]  Ctrl+Shift+[  Ctrl+Shift+]");
+        Console.WriteLine("Canvas chords: /  Ctrl+/  Ctrl+Shift+C  Ctrl+Shift+V  Ctrl+Shift+T  Alt+.  Ctrl+[  Ctrl+]  Ctrl+Shift+[  Ctrl+Shift+]");
         Console.WriteLine("PowerPoint selection is cached outside the hook. Ctrl+C stops the helper.");
 
         try
@@ -240,7 +240,10 @@ internal sealed class HelperApp
                 KeyLayout.IsOpenBracket(vk, false));
             if (chord != null)
             {
-                if (!allowCanvas) return Next(nCode, wParam, lParam);
+                bool allowPasteContent = chord == "CTRL SHIFT T"
+                    && probe.Focus == FocusKind.Pane
+                    && _session.EffectiveSurface == Surface.Text;
+                if (!allowCanvas && !allowPasteContent) return Next(nCode, wParam, lParam);
                 if (!PostToken(chord)) return Next(nCode, wParam, lParam);
                 _heldVirtualKey = vk;
                 _lastPass = "";

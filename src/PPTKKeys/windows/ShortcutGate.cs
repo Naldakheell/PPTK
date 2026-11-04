@@ -294,7 +294,7 @@ public enum KeyMark
 public static class ShortcutChords
 {
     public static bool IsChordToken(string? token) => token is
-        "/" or "CTRL /" or "CTRL SHIFT C" or "CTRL SHIFT V" or "ALT ." or "CTRL ]" or "CTRL [" or
+        "/" or "CTRL /" or "CTRL SHIFT C" or "CTRL SHIFT V" or "CTRL SHIFT T" or "ALT ." or "CTRL ]" or "CTRL [" or
         "CTRL SHIFT ]" or "CTRL SHIFT [";
 
     public static string? Token(
@@ -330,6 +330,8 @@ public static class ShortcutChords
             return "CTRL SHIFT C";
         if (virtualKey == 0x56 && ctrl && shift && !alt)
             return "CTRL SHIFT V";
+        if (virtualKey == 0x54 && ctrl && shift && !alt)
+            return "CTRL SHIFT T";
         return null;
     }
 }
