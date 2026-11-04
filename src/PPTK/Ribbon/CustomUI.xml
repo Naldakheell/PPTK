@@ -9,6 +9,8 @@
           <control idMso="FormatPainter" showLabel="false" />
           <button idMso="EyedropperFill" showLabel="false" size="normal" />
           <menu id="DesignMoreFormatting" label="More Formatting" imageMso="ShapeFillColorPicker" showLabel="false" itemSize="normal" screentip="More Formatting" size="normal">
+            <button id="PPTKCopyFormatting" tag="CTRL SHIFT C" label="Copy formatting" imageMso="FormatPainter" onAction="PPTK_RibbonShortcut" screentip="Copy Formatting" supertip="Copies formatting from the selected shape" />
+            <button id="PPTKPasteFormatting" tag="CTRL SHIFT V" label="Paste formatting" imageMso="FormatPainter" onAction="PPTK_RibbonShortcut" screentip="Paste Formatting" supertip="Applies the copied formatting to the selected shapes" />
             <gallery idMso="ShapeStylesGallery" showLabel="false" label="&#x200B;" />
             <gallery idMso="GradientGallery" showLabel="false" label="&#x200B;" />
             <button idMso="ObjectPictureFill" showLabel="false" />
@@ -33,6 +35,7 @@
           <box id="PPTKInsertRow1" boxStyle="horizontal">
             <button id="PPTKInsertT" tag="T" imageMso="TextBoxInsert" label="Text" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Inserts a PPTK text box and enters text editing" screentip="Text (T)" size="normal" />
             <button id="PPTKInsertN" tag="N" imageMso="SlideNew" label="New slide" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Inserts a slide after the current slide using the same layout" screentip="New slide (N)" size="normal" />
+            <button id="PPTKInsertI" tag="I" imageMso="IconInsertFromFile" label="Icon" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Opens the PowerPoint icon library" screentip="Insert Icon (I)" size="normal" />
           </box>
           <menu id="InsertMoreMenu" label="More" imageMso="PasteAlternative" showLabel="false" itemSize="normal" screentip="More" size="normal">
             <splitButton id="PastePngSplitButton" showLabel="false">
@@ -85,7 +88,9 @@
               </menu>
               <menuSeparator id="TextMoreAdvancedSeparator" />
               <button idMso="ReplaceDialog" showLabel="false" />
-              <button idMso="PasteTextOnly" showLabel="false" />
+              <button id="PPTKPasteContentOnly" tag="CTRL SHIFT T" label="Paste content only" imageMso="PasteTextOnly" onAction="PPTK_RibbonShortcut" screentip="Paste Content Only" supertip="Pastes clipboard text into the selection and keeps its formatting" />
+              <button id="PPTKMergeText" tag=". T" label="Merge textboxes" imageMso="TextBoxInsert" onAction="PPTK_RibbonShortcut" screentip="Merge Textboxes" supertip="Merges the selected text into the first shape" />
+              <button id="PPTKRemoveMargins" tag="ALT ." label="Remove margins" imageMso="ParagraphMarks" onAction="PPTK_RibbonShortcut" screentip="Remove Margins" supertip="Sets the text margins of the selected shapes to zero" />
             </menu>
           </box>
         </group>
@@ -152,6 +157,7 @@
               <button id="ObjectsSwapPosition" imageMso="CircularReferences" label="Swap position of two shapes" showLabel="false" onAction="ObjectsSwapPosition" supertip="Swaps the positions of the two selected shapes" screentip="Swap Position" />
               <menu id="ObjectsSwapPositionMenu" label="Swap position of two shapes" imageMso="CircularReferences" showLabel="false" supertip="Opens the tools for swapping the positions of two shapes" screentip="Swap Position">
                 <button id="ObjectsSwapPositionCentered" imageMso="CircularReferences" label="Swap position of two shapes (centered)" showLabel="false" onAction="ObjectsSwapPositionCentered" supertip="Swaps the positions of the two selected shapes while centering them" screentip="Swap Position (Centered)" />
+                <button id="PPTKSwapText" tag="CTRL /" label="Swap text" imageMso="ReplaceDialog" onAction="PPTK_RibbonShortcut" screentip="Swap Text" supertip="Swaps the text of the two selected shapes" />
               </menu>
             </splitButton>
             <button idMso="ObjectSendBackward" showLabel="false" size="normal" />
@@ -191,6 +197,7 @@
               <menu id="ObjectSetPositionMenu" itemSize="normal" supertip="Opens the tools for setting the position of shapes" screentip="Set Position">
                 <control idMso="ObjectSizeAndPositionDialog" showLabel="true" />
               </menu>
+              <button id="PPTKAlignShapeAngle" tag="A A" label="Align shape angle" imageMso="ObjectRotateRight90" onAction="PPTK_RibbonShortcut" screentip="Align Shape Angle" supertip="Copies the first selected shape's rotation onto the other selected shapes" />
             </menu>
           </box>
         </group>
