@@ -6,7 +6,9 @@ Option Explicit
 ' Canvas sequences call the existing align, size, distribute, and spacing procedures.
 ' Swap position reuses ObjectsSwapPosition. Text swap, merge, margins, and
 ' formatting are local helpers so the text module is not imported.
-' Later tokens, including order, library, and icons, are ignored.
+' Ctrl+Shift+] and Ctrl+Shift+[ move the selection one z-order step.
+' IconsPane is not a command in Windows PowerPoint, so I is ignored.
+' Later tokens, including library and email, are ignored.
 
 Private Const PPTK_TAG As String = "PPTK_SHORTCUT"
 Private Const PPTK_W_STANDARD As Single = 150
@@ -86,6 +88,10 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
             PPTK_ExecuteMso "FontSizeIncrease"
         Case "CTRL ["
             PPTK_ExecuteMso "FontSizeDecrease"
+        Case "CTRL SHIFT ]"
+            PPTK_ExecuteMso "ObjectBringForward"
+        Case "CTRL SHIFT ["
+            PPTK_ExecuteMso "ObjectSendBackward"
         Case Else
     End Select
 End Sub

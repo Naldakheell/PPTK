@@ -72,7 +72,7 @@ internal sealed class HelperApp
         Console.WriteLine("Hook: WH_KEYBOARD_LL, keyDown, head of the hook chain");
         Console.WriteLine("Mapped keys: T R U O C P G M N");
         Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C, S W/H/S, D H/V, H +/-, V +/-, . T");
-        Console.WriteLine("Canvas chords: /  Ctrl+/  Ctrl+Shift+C  Ctrl+Shift+V  Alt+.  Ctrl+[  Ctrl+]");
+        Console.WriteLine("Canvas chords: /  Ctrl+/  Ctrl+Shift+C  Ctrl+Shift+V  Alt+.  Ctrl+[  Ctrl+]  Ctrl+Shift+[  Ctrl+Shift+]");
         Console.WriteLine("PowerPoint selection is cached outside the hook. Ctrl+C stops the helper.");
 
         try
@@ -112,7 +112,7 @@ internal sealed class HelperApp
             ? "sequences=arm-on-canvas A S D H V ."
             : "sequences=pass");
         Console.WriteLine(sequencesArm
-            ? "chords=canvas / Ctrl+/ Ctrl+Shift+C/V Alt+. Ctrl+[/]"
+            ? "chords=canvas / Ctrl+/ Ctrl+Shift+C/V Alt+. Ctrl+[/] Ctrl+Shift+[/]"
             : "chords=pass");
 
         return 0;
@@ -209,7 +209,15 @@ internal sealed class HelperApp
             else if (KeyLayout.IsPeriod(vk, shift)) mark = KeyMark.Period;
             else if (KeyLayout.IsOpenBracket(vk, shift)) mark = KeyMark.OpenBracket;
             else if (KeyLayout.IsCloseBracket(vk, shift)) mark = KeyMark.CloseBracket;
-            string? chord = ShortcutChords.Token(mark, vk, ctrl, shift, alt, win);
+            string? chord = ShortcutChords.Token(
+                mark,
+                vk,
+                ctrl,
+                shift,
+                alt,
+                win,
+                KeyLayout.IsCloseBracket(vk, false),
+                KeyLayout.IsOpenBracket(vk, false));
             if (chord != null)
             {
                 if (!allowCanvas) return Next(nCode, wParam, lParam);

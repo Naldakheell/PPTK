@@ -200,6 +200,12 @@ public class SequenceTests
         Assert.Equal("CTRL ]", ShortcutChords.Token(KeyMark.CloseBracket, 0xDD, true, false, false, false));
         Assert.Equal("CTRL [", ShortcutChords.Token(KeyMark.OpenBracket, 0xDB, true, false, false, false));
         Assert.Null(ShortcutChords.Token(KeyMark.CloseBracket, 0xDD, false, false, false, false));
+        Assert.Equal("CTRL SHIFT ]", ShortcutChords.Token(KeyMark.None, 0xDD, true, true, false, false, unshiftedCloseBracket: true));
+        Assert.Equal("CTRL SHIFT [", ShortcutChords.Token(KeyMark.None, 0xDB, true, true, false, false, unshiftedOpenBracket: true));
+        Assert.Equal("CTRL ]", ShortcutChords.Token(KeyMark.CloseBracket, 0xDD, true, true, false, false, unshiftedCloseBracket: true));
+        Assert.Null(ShortcutChords.Token(KeyMark.None, 0xDD, true, true, true, false, unshiftedCloseBracket: true));
+        Assert.False(ShortcutGate.IsToken("I"));
+        Assert.False(ShortcutGate.IsRunnable("I"));
         Assert.Equal("CTRL SHIFT C", ShortcutChords.Token(KeyMark.None, 0x43, true, true, false, false));
         Assert.Equal("CTRL SHIFT V", ShortcutChords.Token(KeyMark.None, 0x56, true, true, false, false));
         Assert.Null(ShortcutChords.Token(KeyMark.None, 0x43, true, false, false, false));

@@ -258,9 +258,18 @@ public enum KeyMark
 public static class ShortcutChords
 {
     public static bool IsChordToken(string? token) => token is
-        "/" or "CTRL /" or "CTRL SHIFT C" or "CTRL SHIFT V" or "ALT ." or "CTRL ]" or "CTRL [";
+        "/" or "CTRL /" or "CTRL SHIFT C" or "CTRL SHIFT V" or "ALT ." or "CTRL ]" or "CTRL [" or
+        "CTRL SHIFT ]" or "CTRL SHIFT [";
 
-    public static string? Token(KeyMark mark, int virtualKey, bool ctrl, bool shift, bool alt, bool win)
+    public static string? Token(
+        KeyMark mark,
+        int virtualKey,
+        bool ctrl,
+        bool shift,
+        bool alt,
+        bool win,
+        bool unshiftedCloseBracket = false,
+        bool unshiftedOpenBracket = false)
     {
         if (win || (ctrl && alt)) return null;
 
@@ -268,10 +277,16 @@ public static class ShortcutChords
             return ctrl ? "CTRL /" : "/";
         if (mark == KeyMark.Period && alt && !ctrl)
             return "ALT .";
+        // A shifted bracket key still types the bracket, so it stays the font command.
         if (mark == KeyMark.CloseBracket && ctrl && !alt)
             return "CTRL ]";
         if (mark == KeyMark.OpenBracket && ctrl && !alt)
             return "CTRL [";
+        // US Ctrl+Shift+] holds Shift on the unshifted ] key, which then types }.
+        if (ctrl && shift && !alt && unshiftedCloseBracket)
+            return "CTRL SHIFT ]";
+        if (ctrl && shift && !alt && unshiftedOpenBracket)
+            return "CTRL SHIFT [";
         if (mark != KeyMark.None) return null;
 
         if (virtualKey == 0x43 && ctrl && shift && !alt)
