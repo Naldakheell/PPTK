@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace PPTKKeys;
 
 /// <summary>
-/// WH_KEYBOARD_LL helper for the nine PPTK insert tokens.
+/// WH_KEYBOARD_LL helper for the nine PPTK insert tokens and the first canvas sequences.
 /// The hook reads Win32 focus and the cached snapshot only. COM runs later, on this same
 /// STA, when a posted message is dispatched. Any hook failure passes the key through.
 /// </summary>
@@ -23,10 +23,15 @@ internal sealed class HelperApp
     IntPtr _focusHook;
     IntPtr _lastFocus;
     uint _focusHookPid;
+    readonly List<string> _tokens = new();
+    SequenceState _sequence = SequenceState.Idle;
     int _heldVirtualKey;
     bool _capture;
     bool _needsRefresh;
     string _lastPass = "";
+
+    const int RefreshTimerId = 1;
+    const int SequenceTimerId = 2;
 
     internal HelperApp()
     {
@@ -61,11 +66,12 @@ internal sealed class HelperApp
             0,
             0,
             NativeMethods.WineventOutOfContext | NativeMethods.WineventSkipOwnProcess);
-        NativeMethods.SetTimer(_window, new IntPtr(1), 1000, IntPtr.Zero);
+        NativeMethods.SetTimer(_window, new IntPtr(RefreshTimerId), 1000, IntPtr.Zero);
         NativeMethods.PostMessage(_window, NativeMethods.WmRefresh, IntPtr.Zero, IntPtr.Zero);
 
         Console.WriteLine("Hook: WH_KEYBOARD_LL, keyDown, head of the hook chain");
         Console.WriteLine("Mapped keys: T R U O C P G M N");
+        Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C, S W/H/S, D H/V, H +/-, V +/-");
         Console.WriteLine("PowerPoint selection is cached outside the hook. Ctrl+C stops the helper.");
 
         try
@@ -78,7 +84,8 @@ internal sealed class HelperApp
             if (_hook != IntPtr.Zero) NativeMethods.UnhookWindowsHookEx(_hook);
             if (_foregroundHook != IntPtr.Zero) NativeMethods.UnhookWinEvent(_foregroundHook);
             if (_focusHook != IntPtr.Zero) NativeMethods.UnhookWinEvent(_focusHook);
-            NativeMethods.KillTimer(_window, new IntPtr(1));
+            NativeMethods.KillTimer(_window, new IntPtr(RefreshTimerId));
+            NativeMethods.KillTimer(_window, new IntPtr(SequenceTimerId));
             NativeMethods.DestroyWindow(_window);
             _session.Dispose();
         }
@@ -99,6 +106,11 @@ internal sealed class HelperApp
             Console.WriteLine($"{token} {(decision.Dispatch ? "dispatch" : "pass")}");
         }
 
+        bool sequencesArm = probe.Focus == FocusKind.Pane && snapshot.Surface == Surface.Canvas;
+        Console.WriteLine(sequencesArm
+            ? "sequences=arm-on-canvas A S D H V"
+            : "sequences=pass");
+
         return 0;
     }
 
@@ -114,7 +126,12 @@ internal sealed class HelperApp
 
             var info = Marshal.PtrToStructure<NativeMethods.KbdLlHookStruct>(lParam);
             int vk = (int)info.vkCode;
-            if ((info.flags & NativeMethods.LlkhfInjected) != 0) return Next(nCode, wParam, lParam);
+            if ((info.flags & NativeMethods.LlkhfInjected) != 0)
+            {
+                if (ShortcutGate.TokenForVirtualKey(vk) != null || ShortcutSequence.IsPrefixVirtualKey(vk))
+                    Console.Error.WriteLine($"injected pass vk={vk:X2}");
+                return Next(nCode, wParam, lParam);
+            }
 
             if (up)
             {
@@ -127,8 +144,14 @@ internal sealed class HelperApp
                 return Next(nCode, wParam, lParam);
             }
 
-            if (!_capture && ShortcutGate.TokenForVirtualKey(vk) == null)
-                return Next(nCode, wParam, lParam);
+            if (vk == _heldVirtualKey) return Swallow();
+            if (ShortcutSequence.IsModifierVirtualKey(vk)) return Next(nCode, wParam, lParam);
+
+            bool relevant = _capture
+                || _sequence.IsArmed
+                || ShortcutGate.TokenForVirtualKey(vk) != null
+                || ShortcutSequence.IsPrefixVirtualKey(vk);
+            if (!relevant) return Next(nCode, wParam, lParam);
 
             bool ctrl = IsDown(NativeMethods.VkControl);
             bool shift = IsDown(NativeMethods.VkShift);
@@ -136,20 +159,46 @@ internal sealed class HelperApp
             bool win = IsDown(NativeMethods.VkLWin) || IsDown(NativeMethods.VkRWin);
             bool caps = (NativeMethods.GetKeyState(NativeMethods.VkCapital) & 1) != 0;
 
-            if (_capture && FocusProbe.Inspect().IsPowerPoint
+            FocusProbe.Probe probe = FocusProbe.Inspect();
+            if (_capture && probe.IsPowerPoint
                 && ShortcutGate.TryQueueText(vk, ctrl, alt, win, shift, caps, out char queued))
             {
                 if (_pending.Length < QueueLimit) _pending.Append(queued);
                 return Swallow();
             }
 
+            if (!probe.IsPowerPoint)
+            {
+                if (_sequence.IsArmed) CancelSequence("app");
+                return Next(nCode, wParam, lParam);
+            }
+
+            if (_sequence.IsArmed || ShortcutSequence.IsPrefixVirtualKey(vk))
+            {
+                char produced = ProducedCharacter(vk, shift);
+                SequencePress press = ShortcutSequence.PressFromLayout(vk, ctrl, alt, win, shift, produced);
+                bool allowArm = probe.Focus == FocusKind.Pane
+                    && _session.EffectiveSurface == Surface.Canvas
+                    && !ctrl && !alt && !win;
+                SequenceResult sequence = ApplySequence(press, info.time, allowArm);
+                if (sequence.Token != null)
+                {
+                    if (!PostToken(sequence.Token)) return Next(nCode, wParam, lParam);
+                    _heldVirtualKey = vk;
+                    _lastPass = "";
+                    return Swallow();
+                }
+
+                if (sequence.Swallow)
+                {
+                    _heldVirtualKey = vk;
+                    return Swallow();
+                }
+            }
+
             if (ctrl || shift || alt || win) return Next(nCode, wParam, lParam);
             string? token = ShortcutGate.TokenForVirtualKey(vk);
             if (token == null) return Next(nCode, wParam, lParam);
-            if (vk == _heldVirtualKey) return Swallow();
-
-            FocusProbe.Probe probe = FocusProbe.Inspect();
-            if (!probe.IsPowerPoint) return Next(nCode, wParam, lParam);
 
             GateDecision decision = ShortcutGate.Decide(token, false, false, probe.Focus, _session.EffectiveSurface);
             if (!decision.Dispatch || decision.Token == null)
@@ -158,8 +207,7 @@ internal sealed class HelperApp
                 return Next(nCode, wParam, lParam);
             }
 
-            if (!NativeMethods.PostMessage(_window, NativeMethods.WmDispatch, (IntPtr)decision.Token[0], IntPtr.Zero))
-                return Next(nCode, wParam, lParam);
+            if (!PostToken(decision.Token)) return Next(nCode, wParam, lParam);
 
             if (decision.Token == "T")
             {
@@ -184,7 +232,7 @@ internal sealed class HelperApp
             switch (message)
             {
                 case NativeMethods.WmDispatch:
-                    Dispatch((char)wParam.ToInt32());
+                    DispatchQueued();
                     return IntPtr.Zero;
                 case NativeMethods.WmRefresh:
                     _needsRefresh = false;
@@ -192,6 +240,14 @@ internal sealed class HelperApp
                     WatchPowerPointFocus();
                     return IntPtr.Zero;
                 case NativeMethods.WmTimer:
+                    if (wParam == new IntPtr(SequenceTimerId))
+                    {
+                        if (_sequence.IsArmed
+                            && ShortcutSequence.Expired(unchecked((uint)Environment.TickCount), _sequence.ArmedAt))
+                            CancelSequence("timeout");
+                        return IntPtr.Zero;
+                    }
+
                     if (!_session.IsAttached || _needsRefresh)
                     {
                         _needsRefresh = false;
@@ -208,6 +264,7 @@ internal sealed class HelperApp
         catch
         {
             _capture = false;
+            CancelSequence("error");
         }
 
         return NativeMethods.DefWindowProc(hwnd, message, wParam, lParam);
@@ -229,6 +286,7 @@ internal sealed class HelperApp
                 FocusProbe.Probe probe = FocusProbe.Inspect();
                 if (!probe.IsPowerPoint)
                 {
+                    CancelSequence("app");
                     ReplaceFocusHook(0);
                     return;
                 }
@@ -243,6 +301,13 @@ internal sealed class HelperApp
             {
                 if (hwnd == _lastFocus) return;
                 _lastFocus = hwnd;
+                if (_sequence.IsArmed)
+                {
+                    FocusProbe.Probe focusProbe = FocusProbe.Inspect();
+                    if (!focusProbe.IsPowerPoint || focusProbe.Focus != FocusKind.Pane)
+                        CancelSequence("focus");
+                }
+
                 _session.Invalidate();
                 RequestRefresh();
             }
@@ -253,10 +318,10 @@ internal sealed class HelperApp
         }
     }
 
-    void Dispatch(char tokenChar)
+    void DispatchQueued()
     {
-        string token = tokenChar.ToString();
-        if (!ShortcutGate.IsToken(token)) return;
+        string? token = TakeToken();
+        if (token == null || !ShortcutGate.IsRunnable(token)) return;
         if (token == "T")
         {
             try
@@ -291,6 +356,65 @@ internal sealed class HelperApp
         }
     }
 
+    bool PostToken(string token)
+    {
+        if (!ShortcutGate.IsRunnable(token) || _tokens.Count >= QueueLimit) return false;
+        _tokens.Add(token);
+        if (NativeMethods.PostMessage(_window, NativeMethods.WmDispatch, IntPtr.Zero, IntPtr.Zero))
+            return true;
+        _tokens.RemoveAt(_tokens.Count - 1);
+        return false;
+    }
+
+    string? TakeToken()
+    {
+        if (_tokens.Count == 0) return null;
+        string token = _tokens[0];
+        _tokens.RemoveAt(0);
+        return token;
+    }
+
+    SequenceResult ApplySequence(SequencePress press, uint now, bool allowArm)
+    {
+        bool wasArmed = _sequence.IsArmed;
+        uint armedAt = _sequence.ArmedAt;
+        bool timedOut = wasArmed && ShortcutSequence.Expired(now, armedAt);
+        if (timedOut) Console.Error.WriteLine("Sequence timeout");
+
+        SequenceResult result = ShortcutSequence.Next(_sequence, press, now, allowArm);
+        if (result.State.IsArmed && result.State.ArmedAt != armedAt)
+        {
+            NativeMethods.SetTimer(_window, new IntPtr(SequenceTimerId), ShortcutSequence.TimeoutMs, IntPtr.Zero);
+            Console.Error.WriteLine("Sequence armed " + result.State.Prefix);
+        }
+        else if (wasArmed && !result.State.IsArmed)
+        {
+            NativeMethods.KillTimer(_window, new IntPtr(SequenceTimerId));
+            if (!timedOut && result.Token == null)
+                Console.Error.WriteLine(result.Swallow ? "Sequence cancelled escape" : "Sequence cancelled key");
+        }
+
+        _sequence = result.State;
+        return result;
+    }
+
+    void CancelSequence(string reason)
+    {
+        if (!_sequence.IsArmed) return;
+        _sequence = SequenceState.Idle;
+        if (_window != IntPtr.Zero)
+            NativeMethods.KillTimer(_window, new IntPtr(SequenceTimerId));
+        Console.Error.WriteLine("Sequence cancelled " + reason);
+    }
+
+    static char ProducedCharacter(int virtualKey, bool shift)
+    {
+        if (virtualKey is >= 0x41 and <= 0x5A or 0x1B) return '\0';
+        if (KeyLayout.IsPlus(virtualKey, shift)) return '+';
+        if (KeyLayout.IsMinus(virtualKey, shift)) return '-';
+        return '\0';
+    }
+
     void RequestRefresh()
     {
         _needsRefresh = true;
@@ -302,6 +426,7 @@ internal sealed class HelperApp
     {
         FocusProbe.Probe probe = FocusProbe.Inspect();
         ReplaceFocusHook(probe.IsPowerPoint ? probe.ProcessId : 0);
+        KeyLayout.RefreshForeground();
     }
 
     void ReplaceFocusHook(uint processId)

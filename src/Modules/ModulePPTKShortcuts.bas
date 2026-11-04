@@ -2,7 +2,9 @@ Attribute VB_Name = "ModulePPTKShortcuts"
 Option Explicit
 
 ' PPTK shortcut dispatch. The Select Case list is the only external entry.
-' Unknown tokens, including later chords such as "A L" or "Cmd+/", are ignored.
+' Direct inserts: T R U O C P G M N.
+' Canvas sequences in this batch call the existing align, size, distribute, and spacing procedures.
+' Later tokens, including swap and formatting chords, are ignored.
 
 Private Const PPTK_TAG As String = "PPTK_SHORTCUT"
 Private Const PPTK_W_STANDARD As Single = 150
@@ -36,6 +38,36 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
             PPTK_InsertParallelogram
         Case "N"
             PPTK_InsertNewSlide
+        Case "A L"
+            ObjectsAlignLefts
+        Case "A R"
+            ObjectsAlignRights
+        Case "A T"
+            ObjectsAlignTops
+        Case "A B"
+            ObjectsAlignBottoms
+        Case "A M"
+            ObjectsAlignMiddles
+        Case "A C"
+            ObjectsAlignCenters
+        Case "S W"
+            ObjectsSameWidth
+        Case "S H"
+            ObjectsSameHeight
+        Case "S S"
+            ObjectsSameHeightAndWidth
+        Case "D H"
+            ObjectsDistributeHorizontally
+        Case "D V"
+            ObjectsDistributeVertically
+        Case "H +"
+            ObjectsIncreaseSpacingHorizontal
+        Case "H -"
+            ObjectsDecreaseSpacingHorizontal
+        Case "V +"
+            ObjectsIncreaseSpacingVertical
+        Case "V -"
+            ObjectsDecreaseSpacingVertical
         Case Else
     End Select
 End Sub

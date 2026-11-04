@@ -2,8 +2,8 @@ namespace PPTKKeys;
 
 /// <summary>
 /// Pure shortcut decision. No Win32 and no COM, so the matrix can be tested on macOS.
-/// Sequential and modifier shortcuts are not decided here yet; a later matcher can
-/// run before <see cref="Decide"/> without changing the token protocol.
+/// Direct inserts go through <see cref="Decide"/>. Two-key canvas sequences go through
+/// <see cref="ShortcutSequence"/> and never through the direct-insert path.
 /// </summary>
 public enum Surface
 {
@@ -223,5 +223,157 @@ public static class ShortcutGate
             return new HoldResult(HoldState.Off, observed, detail);
 
         return new HoldResult(hold, Surface.Text, "hold after T");
+    }
+
+    public static bool IsRunnable(string? token) => IsToken(token) || ShortcutSequence.IsSequenceToken(token);
+}
+
+public enum SequenceSymbol
+{
+    None = 0,
+    Letter = 1,
+    Plus = 2,
+    Minus = 3,
+    Escape = 4,
+    Other = 5,
+}
+
+public readonly record struct SequencePress(
+    SequenceSymbol Symbol,
+    char Letter,
+    bool Ctrl,
+    bool Alt,
+    bool Win,
+    bool Shift)
+{
+    public bool HasCommandModifier => Ctrl || Alt || Win;
+}
+
+public readonly record struct SequenceState(char Prefix, uint ArmedAt)
+{
+    public static SequenceState Idle { get; } = new('\0', 0);
+
+    public bool IsArmed => Prefix != '\0';
+}
+
+public readonly record struct SequenceResult(SequenceState State, bool Swallow, string? Token, bool Reprocess);
+
+/// <summary>
+/// Two-key sequences. A, S, D, H, and V arm only when the caller says the slide canvas is legal.
+/// The second key must arrive within one second. Escape, an invalid second key, or a lost canvas cancels.
+/// Shift+plus and the minus key complete spacing. Shift+minus and shifted letters do not.
+/// </summary>
+public static class ShortcutSequence
+{
+    public const uint TimeoutMs = 1000;
+
+    public static bool IsPrefixLetter(char letter) => letter is 'A' or 'S' or 'D' or 'H' or 'V';
+
+    public static bool IsPrefixVirtualKey(int virtualKey) => virtualKey is 0x41 or 0x53 or 0x44 or 0x48 or 0x56;
+
+    public static bool IsModifierVirtualKey(int virtualKey) => virtualKey is
+        0x10 or 0x11 or 0x12 or
+        0xA0 or 0xA1 or 0xA2 or 0xA3 or 0xA4 or 0xA5 or
+        0x5B or 0x5C or
+        0x14 or 0x90 or 0x91;
+
+    public static bool IsSequenceToken(string? token) => token is
+        "A L" or "A R" or "A T" or "A B" or "A M" or "A C" or
+        "S W" or "S H" or "S S" or
+        "D H" or "D V" or
+        "H +" or "H -" or
+        "V +" or "V -";
+
+    public static bool Expired(uint now, uint armedAt) => now - armedAt >= TimeoutMs;
+
+    /// <summary>
+    /// Letters use the virtual key, which Windows assigns from the active layout.
+    /// Plus and minus use the translated character, with numpad and US OEM fallbacks
+    /// when translation returns nothing. Shift+plus is plus. Shift+OEM minus is underscore, not minus.
+    /// </summary>
+    public static SequencePress PressFromLayout(int virtualKey, bool ctrl, bool alt, bool win, bool shift, char produced)
+    {
+        if (virtualKey == 0x1B)
+            return new SequencePress(SequenceSymbol.Escape, '\0', ctrl, alt, win, shift);
+        if (virtualKey == 0x6B)
+            return new SequencePress(SequenceSymbol.Plus, '\0', ctrl, alt, win, shift);
+        if (virtualKey == 0x6D)
+            return new SequencePress(SequenceSymbol.Minus, '\0', ctrl, alt, win, shift);
+        if (produced == '+')
+            return new SequencePress(SequenceSymbol.Plus, '\0', ctrl, alt, win, shift);
+        if (produced == '-')
+            return new SequencePress(SequenceSymbol.Minus, '\0', ctrl, alt, win, shift);
+        if (produced == '\0')
+        {
+            if (virtualKey == 0xBB && shift)
+                return new SequencePress(SequenceSymbol.Plus, '\0', ctrl, alt, win, shift);
+            if (virtualKey == 0xBD && !shift)
+                return new SequencePress(SequenceSymbol.Minus, '\0', ctrl, alt, win, shift);
+        }
+
+        if (virtualKey is >= 0x41 and <= 0x5A)
+            return new SequencePress(SequenceSymbol.Letter, (char)virtualKey, ctrl, alt, win, shift);
+        return new SequencePress(SequenceSymbol.Other, '\0', ctrl, alt, win, shift);
+    }
+
+    public static string? Match(char prefix, SequencePress press)
+    {
+        if (press.HasCommandModifier) return null;
+        return (prefix, press.Symbol, press.Letter, press.Shift) switch
+        {
+            ('A', SequenceSymbol.Letter, 'L', false) => "A L",
+            ('A', SequenceSymbol.Letter, 'R', false) => "A R",
+            ('A', SequenceSymbol.Letter, 'T', false) => "A T",
+            ('A', SequenceSymbol.Letter, 'B', false) => "A B",
+            ('A', SequenceSymbol.Letter, 'M', false) => "A M",
+            ('A', SequenceSymbol.Letter, 'C', false) => "A C",
+            ('S', SequenceSymbol.Letter, 'W', false) => "S W",
+            ('S', SequenceSymbol.Letter, 'H', false) => "S H",
+            ('S', SequenceSymbol.Letter, 'S', false) => "S S",
+            ('D', SequenceSymbol.Letter, 'H', false) => "D H",
+            ('D', SequenceSymbol.Letter, 'V', false) => "D V",
+            ('H', SequenceSymbol.Plus, _, _) => "H +",
+            ('H', SequenceSymbol.Minus, _, false) => "H -",
+            ('V', SequenceSymbol.Plus, _, _) => "V +",
+            ('V', SequenceSymbol.Minus, _, false) => "V -",
+            _ => null,
+        };
+    }
+
+    public static SequenceResult Advance(SequenceState state, SequencePress press, uint now, bool allowArm)
+    {
+        if (state.IsArmed && Expired(now, state.ArmedAt))
+            state = SequenceState.Idle;
+
+        if (state.IsArmed)
+        {
+            if (!allowArm || press.HasCommandModifier)
+                return new SequenceResult(SequenceState.Idle, false, null, true);
+            if (press.Symbol == SequenceSymbol.Escape)
+                return new SequenceResult(SequenceState.Idle, true, null, false);
+
+            string? token = Match(state.Prefix, press);
+            if (token != null)
+                return new SequenceResult(SequenceState.Idle, true, token, false);
+            return new SequenceResult(SequenceState.Idle, false, null, true);
+        }
+
+        if (allowArm
+            && press.Symbol == SequenceSymbol.Letter
+            && !press.Shift
+            && IsPrefixLetter(press.Letter))
+            return new SequenceResult(new SequenceState(press.Letter, now), true, null, false);
+
+        return new SequenceResult(SequenceState.Idle, false, null, false);
+    }
+
+    /// <summary>
+    /// Applies an invalid second key again as a fresh key, so A then A re-arms and A then U can insert.
+    /// </summary>
+    public static SequenceResult Next(SequenceState state, SequencePress press, uint now, bool allowArm)
+    {
+        SequenceResult result = Advance(state, press, now, allowArm);
+        if (!result.Reprocess) return result;
+        return Advance(SequenceState.Idle, press, now, allowArm);
     }
 }

@@ -100,7 +100,7 @@ internal sealed class PowerPointSession : IDisposable
 
     public void Dispatch(string token)
     {
-        if (!ShortcutGate.IsToken(token) || token == "T") return;
+        if (token == "T" || !ShortcutGate.IsRunnable(token)) return;
         Run(ShortcutGate.MacroName, token);
     }
 
@@ -151,7 +151,7 @@ internal sealed class PowerPointSession : IDisposable
 
     void Run(string macro, string token)
     {
-        if (!ShortcutGate.IsToken(token) || macro != ShortcutGate.MacroName)
+        if (!ShortcutGate.IsRunnable(token) || macro != ShortcutGate.MacroName)
             throw new InvalidOperationException("Refusing an unlisted macro call.");
         if (_app == null && !TryAttach())
         {
