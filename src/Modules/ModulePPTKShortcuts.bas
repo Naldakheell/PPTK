@@ -10,6 +10,7 @@ Option Explicit
 ' Ctrl+Shift+T pastes clipboard text into the destination and keeps its formatting.
 ' Ctrl+Shift+] and Ctrl+Shift+[ move the selection one z-order step.
 ' I opens the Windows Insert Icon command. IconsPane is not used.
+' E encloses a selected SVG icon in one circle, then toggles a fill on that circle.
 ' \ saves the selected slides as a new PPTX. Library and email are ignored.
 
 Private Const PPTK_TAG As String = "PPTK_SHORTCUT"
@@ -46,6 +47,8 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
             PPTK_InsertNewSlide
         Case "I"
             PPTK_InsertIcon
+        Case "E"
+            PPTK_EncloseIcons
         Case "A L"
             ObjectsAlignLefts
         Case "A R"
@@ -290,6 +293,251 @@ Private Sub PPTK_InsertIcon()
     Dim sld As Slide
     If Not PPTK_ActiveSlide(sld) Then Exit Sub
     PPTK_ExecuteMso "IconInsertFromFile"
+End Sub
+
+Private Sub PPTK_EncloseIcons()
+    Dim window As DocumentWindow
+    Dim selected As ShapeRange
+    Dim hasChildren As Boolean
+    Dim allIds() As Long
+    Dim iconIds() As Long
+    Dim iconCount As Long
+    Dim index As Long
+    Dim sld As Slide
+    Dim icon As Shape
+
+    On Error GoTo Clean
+    Set window = ActiveWindow
+    If window Is Nothing Then Exit Sub
+    If window.ViewType <> ppViewNormal Then Exit Sub
+    If window.Selection.Type <> ppSelectionShapes Then Exit Sub
+
+    On Error Resume Next
+    hasChildren = window.Selection.HasChildShapeRange
+    If Err.Number <> 0 Then Exit Sub
+    Err.Clear
+    On Error GoTo Clean
+    If hasChildren Then Exit Sub
+
+    Set selected = window.Selection.ShapeRange
+    If selected Is Nothing Then Exit Sub
+    If selected.Count < 1 Then Exit Sub
+
+    ReDim allIds(1 To selected.Count)
+    iconCount = 0
+    For index = 1 To selected.Count
+        allIds(index) = selected(index).Id
+        If PPTK_IsIcon(selected(index)) Then
+            If TypeName(selected(index).Parent) = "Slide" Then
+                iconCount = iconCount + 1
+                ReDim Preserve iconIds(1 To iconCount)
+                iconIds(iconCount) = selected(index).Id
+                Set sld = selected(index).Parent
+            End If
+        End If
+    Next index
+    If iconCount = 0 Then Exit Sub
+
+    For index = 1 To iconCount
+        Set icon = PPTK_ShapeById(sld, iconIds(index))
+        If Not icon Is Nothing Then PPTK_EncloseOne icon
+    Next index
+    PPTK_ReselectIds sld, allIds
+Clean:
+End Sub
+
+Private Sub PPTK_EncloseOne(ByVal icon As Shape)
+    Dim sld As Slide
+    Dim enclosure As Shape
+    Dim created As Boolean
+
+    On Error GoTo Clean
+    If Not PPTK_IsIcon(icon) Then Exit Sub
+    If TypeName(icon.Parent) <> "Slide" Then Exit Sub
+    Set sld = icon.Parent
+    Set enclosure = PPTK_FindEnclosure(sld, icon)
+    If enclosure Is Nothing Then
+        created = True
+    Else
+        created = False
+    End If
+    If created Then Set enclosure = PPTK_CreateEnclosure(sld, icon)
+    If enclosure Is Nothing Then Exit Sub
+    PPTK_PlaceEnclosure enclosure, icon
+    If created Then
+        PPTK_ApplyEnclosureStyle enclosure, "OUTLINE"
+    ElseIf PPTK_TagValue(enclosure, "PPTK_ENCLOSURE_STATE") = "FILL" Then
+        PPTK_ApplyEnclosureStyle enclosure, "OUTLINE"
+    Else
+        PPTK_ApplyEnclosureStyle enclosure, "FILL"
+    End If
+    PPTK_PlaceBehind icon, enclosure
+Clean:
+End Sub
+
+Private Function PPTK_IsIcon(ByVal target As Shape) As Boolean
+    PPTK_IsIcon = False
+    On Error GoTo Clean
+    If target Is Nothing Then Exit Function
+    If PPTK_TagValue(target, "PPTK_ENCLOSURE_FOR") <> "" Then Exit Function
+    PPTK_IsIcon = (target.Type = msoGraphic Or target.Type = msoLinkedGraphic)
+Clean:
+End Function
+
+Private Function PPTK_CreateEnclosure(ByVal sld As Slide, ByVal icon As Shape) As Shape
+    Dim enclosure As Shape
+    On Error GoTo Clean
+    Set enclosure = sld.Shapes.AddShape(msoShapeOval, icon.Left, icon.Top, icon.Width, icon.Height)
+    enclosure.Tags.Add "PPTK_ENCLOSURE_FOR", CStr(icon.Id)
+    On Error Resume Next
+    enclosure.Name = "PPTK Enclosure"
+    On Error GoTo Clean
+    Set PPTK_CreateEnclosure = enclosure
+Clean:
+End Function
+
+Private Sub PPTK_PlaceEnclosure(ByVal enclosure As Shape, ByVal icon As Shape)
+    Dim side As Single
+    Dim centerX As Single
+    Dim centerY As Single
+    On Error GoTo Clean
+    side = PPTK_EnclosureSide(icon)
+    centerX = icon.Left + (icon.Width / 2)
+    centerY = icon.Top + (icon.Height / 2)
+    enclosure.LockAspectRatio = msoFalse
+    enclosure.Rotation = 0
+    enclosure.Width = side
+    enclosure.Height = side
+    enclosure.Left = centerX - (side / 2)
+    enclosure.Top = centerY - (side / 2)
+Clean:
+End Sub
+
+Private Function PPTK_EnclosureSide(ByVal icon As Shape) As Single
+    Dim radians As Double
+    Dim cosine As Double
+    Dim sine As Double
+    Dim boxWidth As Single
+    Dim boxHeight As Single
+    radians = icon.Rotation * 3.14159265358979 / 180#
+    cosine = Abs(Cos(radians))
+    sine = Abs(Sin(radians))
+    boxWidth = (icon.Width * cosine) + (icon.Height * sine)
+    boxHeight = (icon.Width * sine) + (icon.Height * cosine)
+    If boxWidth > boxHeight Then
+        PPTK_EnclosureSide = boxWidth * 1.5
+    Else
+        PPTK_EnclosureSide = boxHeight * 1.5
+    End If
+End Function
+
+Private Sub PPTK_ApplyEnclosureStyle(ByVal enclosure As Shape, ByVal stateName As String)
+    On Error GoTo Clean
+    enclosure.Tags.Add "PPTK_ENCLOSURE_STATE", stateName
+    enclosure.Shadow.Visible = msoFalse
+    enclosure.Line.Visible = msoTrue
+    enclosure.Line.Weight = 1.25
+    enclosure.Line.Transparency = 0
+    enclosure.Line.ForeColor.ObjectThemeColor = msoThemeColorText1
+    enclosure.Fill.Solid
+    If stateName = "FILL" Then
+        enclosure.Fill.ForeColor.ObjectThemeColor = msoThemeColorAccent1
+        enclosure.Fill.ForeColor.Brightness = 0.6
+        enclosure.Fill.Transparency = 0
+        enclosure.Fill.Visible = msoTrue
+    Else
+        enclosure.Fill.ForeColor.RGB = RGB(255, 255, 255)
+        enclosure.Fill.Transparency = 1
+        enclosure.Fill.Visible = msoFalse
+    End If
+Clean:
+End Sub
+
+Private Sub PPTK_PlaceBehind(ByVal icon As Shape, ByVal enclosure As Shape)
+    Dim guard As Long
+    On Error GoTo Clean
+    guard = 0
+    Do While enclosure.ZOrderPosition > icon.ZOrderPosition
+        enclosure.ZOrder msoSendBackward
+        guard = guard + 1
+        If guard > 200 Then Exit Do
+    Loop
+Clean:
+End Sub
+
+Private Function PPTK_FindEnclosure(ByVal sld As Slide, ByVal icon As Shape) As Shape
+    Dim candidate As Shape
+    Dim best As Shape
+    Dim bestDistance As Double
+    Dim centerX As Double
+    Dim centerY As Double
+    Dim distance As Double
+    On Error GoTo Clean
+    bestDistance = 1E+99
+    centerX = icon.Left + (icon.Width / 2)
+    centerY = icon.Top + (icon.Height / 2)
+    For Each candidate In sld.Shapes
+        If candidate.Id <> icon.Id Then
+            If PPTK_TagValue(candidate, "PPTK_ENCLOSURE_FOR") = CStr(icon.Id) Then
+                distance = ((candidate.Left + (candidate.Width / 2)) - centerX) ^ 2
+                distance = distance + ((candidate.Top + (candidate.Height / 2)) - centerY) ^ 2
+                If best Is Nothing Then
+                    Set best = candidate
+                    bestDistance = distance
+                ElseIf distance < bestDistance Then
+                    Set best = candidate
+                    bestDistance = distance
+                End If
+            End If
+        End If
+    Next candidate
+    Set PPTK_FindEnclosure = best
+Clean:
+End Function
+
+Private Function PPTK_ShapeById(ByVal sld As Slide, ByVal shapeId As Long) As Shape
+    Dim candidate As Shape
+    On Error GoTo Clean
+    For Each candidate In sld.Shapes
+        If candidate.Id = shapeId Then
+            Set PPTK_ShapeById = candidate
+            Exit Function
+        End If
+    Next candidate
+Clean:
+End Function
+
+Private Function PPTK_TagValue(ByVal target As Shape, ByVal name As String) As String
+    Dim index As Long
+    PPTK_TagValue = ""
+    On Error GoTo Clean
+    For index = 1 To target.Tags.Count
+        If target.Tags.Name(index) = name Then
+            PPTK_TagValue = target.Tags.Value(index)
+            Exit Function
+        End If
+    Next index
+Clean:
+End Function
+
+Private Sub PPTK_ReselectIds(ByVal sld As Slide, ByRef shapeIds() As Long)
+    Dim index As Long
+    Dim candidate As Shape
+    Dim first As Boolean
+    On Error GoTo Clean
+    first = True
+    For index = LBound(shapeIds) To UBound(shapeIds)
+        Set candidate = PPTK_ShapeById(sld, shapeIds(index))
+        If Not candidate Is Nothing Then
+            If first Then
+                candidate.Select
+                first = False
+            Else
+                candidate.Select False
+            End If
+        End If
+    Next index
+Clean:
 End Sub
 
 Private Sub PPTK_CopyFormatting()

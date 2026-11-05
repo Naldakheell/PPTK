@@ -93,7 +93,7 @@ public static class ShortcutGate
     };
 
     public static bool IsToken(string? token) =>
-        token is "T" or "R" or "U" or "O" or "C" or "P" or "G" or "M" or "N";
+        token is "T" or "R" or "U" or "O" or "C" or "P" or "G" or "M" or "N" or "E";
 
     public static string? TokenForVirtualKey(int virtualKey) => virtualKey switch
     {
@@ -106,6 +106,7 @@ public static class ShortcutGate
         0x47 => "G",
         0x4D => "M",
         0x4E => "N",
+        0x45 => "E",
         _ => null,
     };
 

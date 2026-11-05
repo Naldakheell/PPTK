@@ -5,7 +5,7 @@ namespace PPTKKeys.Tests;
 
 public class ShortcutGateTests
 {
-    static readonly string[] Tokens = ["T", "R", "U", "O", "C", "P", "G", "M", "N"];
+    static readonly string[] Tokens = ["T", "R", "U", "O", "C", "P", "G", "M", "N", "E"];
 
     [Fact]
     public void Canvas_dispatches_every_bare_token()
@@ -64,7 +64,7 @@ public class ShortcutGateTests
     }
 
     [Fact]
-    public void Virtual_keys_map_only_the_nine_letters()
+    public void Virtual_keys_map_the_canvas_letters()
     {
         Assert.Equal("T", ShortcutGate.TokenForVirtualKey(0x54));
         Assert.Equal("R", ShortcutGate.TokenForVirtualKey(0x52));
@@ -75,7 +75,12 @@ public class ShortcutGateTests
         Assert.Equal("G", ShortcutGate.TokenForVirtualKey(0x47));
         Assert.Equal("M", ShortcutGate.TokenForVirtualKey(0x4D));
         Assert.Equal("N", ShortcutGate.TokenForVirtualKey(0x4E));
+        Assert.Equal("E", ShortcutGate.TokenForVirtualKey(0x45));
         Assert.Null(ShortcutGate.TokenForVirtualKey(0x41));
+        Assert.Null(ShortcutGate.TokenForVirtualKey(0x51));
+        Assert.False(ShortcutGate.Decide("E", modified: true, injected: false, FocusKind.Pane, Surface.Canvas).Dispatch);
+        Assert.False(ShortcutGate.Decide("E", false, false, FocusKind.Pane, Surface.Text).Dispatch);
+        Assert.True(ShortcutGate.Decide("E", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
     }
 
     [Fact]

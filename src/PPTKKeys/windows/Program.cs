@@ -70,8 +70,9 @@ internal sealed class HelperApp
         NativeMethods.PostMessage(_window, NativeMethods.WmRefresh, IntPtr.Zero, IntPtr.Zero);
 
         Console.WriteLine("Hook: WH_KEYBOARD_LL, keyDown, head of the hook chain");
-        Console.WriteLine("Mapped keys: T R U O C P G M N");
+        Console.WriteLine("Mapped keys: T R U O C P G M N E");
         Console.WriteLine("Canvas key: I opens Insert Icon");
+        Console.WriteLine("Canvas key: E encloses the selected icon");
         Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C/A, S W/H/S, D H/V, H +/-, V +/-, . T");
         Console.WriteLine("Canvas chords: /  Ctrl+/  Ctrl+Shift+C  Ctrl+Shift+V  Ctrl+Shift+T  Alt+.  Ctrl+[  Ctrl+]  Ctrl+Shift+[  Ctrl+Shift+]");
         Console.WriteLine("PowerPoint selection is cached outside the hook. Ctrl+C stops the helper.");
@@ -102,7 +103,7 @@ internal sealed class HelperApp
         FocusProbe.Probe probe = FocusProbe.Inspect();
         Console.WriteLine($"surface={snapshot.Surface} {snapshot.Detail}");
         FocusProbe.Write(Console.Out);
-        foreach (string token in new[] { "T", "R", "U", "O", "C", "P", "G", "M", "N" })
+        foreach (string token in new[] { "T", "R", "U", "O", "C", "P", "G", "M", "N", "E" })
         {
             GateDecision decision = ShortcutGate.Decide(token, false, false, probe.Focus, snapshot.Surface);
             Console.WriteLine($"{token} {(decision.Dispatch ? "dispatch" : "pass")}");

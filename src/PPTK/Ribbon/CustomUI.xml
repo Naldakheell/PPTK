@@ -36,6 +36,7 @@
             <button id="PPTKInsertT" tag="T" imageMso="TextBoxInsert" label="Text" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Inserts a PPTK text box and enters text editing" screentip="Text (T)" size="normal" />
             <button id="PPTKInsertN" tag="N" imageMso="SlideNew" label="New slide" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Inserts a slide after the current slide using the same layout" screentip="New slide (N)" size="normal" />
             <button id="PPTKInsertI" tag="I" imageMso="IconInsertFromFile" label="Icon" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Opens the PowerPoint icon library" screentip="Insert Icon (I)" size="normal" />
+            <button id="PPTKEncloseIcons" tag="E" imageMso="ShapeOval" label="Enclose" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Draws a circle around the selected icon. Press again to add a fill." screentip="Enclose Icons (E)" size="normal" />
           </box>
           <menu id="InsertMoreMenu" label="More" imageMso="PasteAlternative" showLabel="false" itemSize="normal" screentip="More" size="normal">
             <splitButton id="PastePngSplitButton" showLabel="false">
