@@ -27,6 +27,8 @@ internal sealed class HelperApp
     SequenceState _sequence = SequenceState.Idle;
     int _heldVirtualKey;
     bool _capture;
+    bool _hasReplayOrigin;
+    ReplayOrigin _replayOrigin;
     bool _needsRefresh;
     string _lastPass = "";
 
@@ -70,11 +72,12 @@ internal sealed class HelperApp
         NativeMethods.PostMessage(_window, NativeMethods.WmRefresh, IntPtr.Zero, IntPtr.Zero);
 
         Console.WriteLine("Hook: WH_KEYBOARD_LL, keyDown, head of the hook chain");
-        Console.WriteLine("Mapped keys: T R U O C P G M N E");
+        Console.WriteLine("Mapped keys: T R U O C P G M N E Q");
         Console.WriteLine("Canvas key: I opens Insert Icon");
         Console.WriteLine("Canvas key: E encloses the selected icon");
-        Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C/A, S W/H/S, D H/V, H +/-, V +/-, . T");
+        Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C/A/P/X/Z, S W/H/S, D H/V, H +/-, V +/-, . T");
         Console.WriteLine("Canvas chords: /  Ctrl+/  Ctrl+Shift+C  Ctrl+Shift+V  Ctrl+Shift+T  Alt+.  Ctrl+[  Ctrl+]  Ctrl+Shift+[  Ctrl+Shift+]");
+        Console.WriteLine("Canvas chords: Ctrl+2/3 Alt+2/3 Ctrl+4/5/6/7 Ctrl+K Ctrl+Space");
         Console.WriteLine("PowerPoint selection is cached outside the hook. Ctrl+C stops the helper.");
 
         try
@@ -156,24 +159,26 @@ internal sealed class HelperApp
             if (vk == _heldVirtualKey) return Swallow();
             if (ShortcutSequence.IsModifierVirtualKey(vk)) return Next(nCode, wParam, lParam);
 
+            bool ctrl = IsDown(NativeMethods.VkControl);
+            bool shift = IsDown(NativeMethods.VkShift);
+            bool alt = IsDown(NativeMethods.VkMenu) || (info.flags & NativeMethods.LlkhfAltDown) != 0;
+            bool win = IsDown(NativeMethods.VkLWin) || IsDown(NativeMethods.VkRWin);
             bool relevant = _capture
                 || _sequence.IsArmed
                 || ShortcutGate.TokenForVirtualKey(vk) != null
                 || ShortcutSequence.IsPrefixVirtualKey(vk)
                 || ShortcutGate.IsIconVirtualKey(vk)
-                || KeyLayout.IsPunctuation(vk);
+                || KeyLayout.IsPunctuation(vk)
+                || ((ctrl || alt) && !win && ShortcutChords.IsModifiedChordKey(vk));
             if (!relevant) return Next(nCode, wParam, lParam);
 
-            bool ctrl = IsDown(NativeMethods.VkControl);
-            bool shift = IsDown(NativeMethods.VkShift);
-            bool alt = IsDown(NativeMethods.VkMenu) || (info.flags & NativeMethods.LlkhfAltDown) != 0;
-            bool win = IsDown(NativeMethods.VkLWin) || IsDown(NativeMethods.VkRWin);
             bool caps = (NativeMethods.GetKeyState(NativeMethods.VkCapital) & 1) != 0;
 
             FocusProbe.Probe probe = FocusProbe.Inspect();
             if (_capture && probe.IsPowerPoint
                 && ShortcutGate.TryQueueText(vk, ctrl, alt, win, shift, caps, out char queued))
             {
+                if (!ReplayStillValid(probe)) return Next(nCode, wParam, lParam);
                 if (_pending.Length < QueueLimit) _pending.Append(queued);
                 return Swallow();
             }
@@ -278,6 +283,13 @@ internal sealed class HelperApp
             {
                 _session.ArmTextHold();
                 _capture = true;
+                _hasReplayOrigin = ReplayGuard.TryCreateOrigin(
+                    probe.IsPowerPoint,
+                    probe.ProcessId,
+                    probe.FrameWindow,
+                    probe.FrameClassMatches,
+                    probe.Focus,
+                    out _replayOrigin);
             }
 
             _heldVirtualKey = vk;
@@ -397,6 +409,8 @@ internal sealed class HelperApp
             finally
             {
                 _capture = false;
+                _hasReplayOrigin = false;
+                if (_pending.Length > 0) _pending.Take();
             }
 
             return;
@@ -407,19 +421,57 @@ internal sealed class HelperApp
 
     void ReplayQueuedText()
     {
-        for (int round = 0; round < 6 && _pending.Length > 0; round++)
+        int sent = 0;
+        while (_pending.Length > 0 && sent < QueueLimit)
         {
-            string chunk = _pending.Take();
-            if (chunk.Length == 0) return;
-            if (!SendUnicode(chunk))
+            if (!ReplayAllowed())
             {
-                Console.Error.WriteLine("Replay failed");
+                int discarded = _pending.Length;
+                _pending.Take();
+                Console.Error.WriteLine($"Replay cancelled ({discarded} characters)");
                 return;
             }
 
-            Console.Error.WriteLine($"Replayed {chunk.Length} characters");
+            string chunk = _pending.Take();
+            for (int index = 0; index < chunk.Length && sent < QueueLimit; index++)
+            {
+                if (!ReplayAllowed())
+                {
+                    int discarded = chunk.Length - index + _pending.Length;
+                    _pending.Take();
+                    Console.Error.WriteLine($"Replay cancelled ({discarded} characters)");
+                    return;
+                }
+
+                if (!SendUnicode(chunk[index].ToString()))
+                {
+                    Console.Error.WriteLine("Replay failed");
+                    return;
+                }
+
+                sent++;
+            }
         }
+
+        if (sent > 0) Console.Error.WriteLine($"Replayed {sent} characters");
     }
+
+    bool ReplayStillValid(FocusProbe.Probe probe) =>
+        _hasReplayOrigin && ReplayGuard.CanReplay(_replayOrigin, ToObservation(probe), powerpointRunning: true);
+
+    bool ReplayAllowed() =>
+        _hasReplayOrigin
+        && _session.IsAttached
+        && ReplayGuard.CanReplay(_replayOrigin, ToObservation(FocusProbe.Inspect()), powerpointRunning: true);
+
+    static ReplayObservation ToObservation(FocusProbe.Probe probe) => new(
+        probe.IsPowerPoint,
+        probe.ProcessId,
+        probe.FrameWindow,
+        probe.FrameClassMatches,
+        probe.Focus,
+        probe.MenuOrDialog,
+        probe.TextEditInFrame);
 
     bool PostToken(string token)
     {

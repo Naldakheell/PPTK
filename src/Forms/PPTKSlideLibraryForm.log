@@ -1,0 +1,13 @@
+Line 10: Class MSForms.Label of control lblAccent was not a loaded control class.
+Line 18: Class MSForms.TextBox of control txtSearch was not a loaded control class.
+Line 25: Class MSForms.ListBox of control lstEntries was not a loaded control class.
+Line 32: Class MSForms.Label of control lblEmpty was not a loaded control class.
+Line 41: Class MSForms.Image of control imgPreview was not a loaded control class.
+Line 52: Class MSForms.Label of control lblPreview was not a loaded control class.
+Line 61: Class MSForms.Label of control lblName was not a loaded control class.
+Line 69: Class MSForms.CheckBox of control chkSource was not a loaded control class.
+Line 77: Class MSForms.Label of control lblFolder was not a loaded control class.
+Line 85: Class MSForms.CommandButton of control btnInsert was not a loaded control class.
+Line 93: Class MSForms.CommandButton of control btnFolder was not a loaded control class.
+Line 101: Class MSForms.CommandButton of control btnClose was not a loaded control class.
+Line 9: The property name BackColor in PPTKSlideLibraryForm is invalid.

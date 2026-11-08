@@ -8,9 +8,10 @@
           <control idMso="ShapeOutlineColorPicker" showLabel="false" label="&#x200B;" />
           <control idMso="FormatPainter" showLabel="false" />
           <button idMso="EyedropperFill" showLabel="false" size="normal" />
-          <menu id="DesignMoreFormatting" label="More Formatting" imageMso="ShapeFillColorPicker" showLabel="false" itemSize="normal" screentip="More Formatting" size="normal">
-            <button id="PPTKCopyFormatting" tag="CTRL SHIFT C" label="Copy formatting" imageMso="FormatPainter" onAction="PPTK_RibbonShortcut" screentip="Copy Formatting" supertip="Copies formatting from the selected shape" />
-            <button id="PPTKPasteFormatting" tag="CTRL SHIFT V" label="Paste formatting" imageMso="FormatPainter" onAction="PPTK_RibbonShortcut" screentip="Paste Formatting" supertip="Applies the copied formatting to the selected shapes" />
+          <menu id="DesignMoreFormatting" label="More Formatting" image="pptk-format-more" showLabel="false" itemSize="normal" screentip="More Formatting" size="normal">
+            <button id="PPTKFixSlideColors" tag="Q" label="Fix Slide Colors" image="pptk-fix-colors" onAction="PPTK_RibbonShortcut" screentip="Fix Slide Colors" supertip="Harmonizes the current slide's colors with the presentation theme" />
+            <button id="PPTKCopyFormatting" tag="CTRL SHIFT C" label="Copy formatting" image="pptk-copy-format" onAction="PPTK_RibbonShortcut" screentip="Copy Formatting" supertip="Copies formatting from the selected shape" />
+            <button id="PPTKPasteFormatting" tag="CTRL SHIFT V" label="Paste formatting" image="pptk-paste-format" onAction="PPTK_RibbonShortcut" screentip="Paste Formatting" supertip="Applies the copied formatting to the selected shapes" />
             <gallery idMso="ShapeStylesGallery" showLabel="false" label="&#x200B;" />
             <gallery idMso="GradientGallery" showLabel="false" label="&#x200B;" />
             <button idMso="ObjectPictureFill" showLabel="false" />
@@ -25,7 +26,10 @@
           </menu>
         </group>
         <group id="Reuse" label="Reuse">
-          <button id="SaveSelectedSlidesButton" label="Save selected slides" imageMso="FileSaveAs" showLabel="false" tag="\" onAction="PPTK_RibbonShortcut" supertip="Saves the selected slides as a new presentation" screentip="Save Selected Slides" size="normal" />
+          <button id="SaveSelectedSlidesButton" label="Save selected slides" image="pptk-save-slides" showLabel="false" tag="\" onAction="PPTK_RibbonShortcut" supertip="Saves the selected slides as a new presentation" screentip="Save Selected Slides" size="normal" />
+          <button id="EmailSelectedSlidesButton" label="Email Slides" image="pptk-email-slides" showLabel="false" onAction="PPTK_EmailSelectedSlides" supertip="Opens an unsent Outlook draft with the selected slides attached" screentip="Email Slides" size="normal" />
+          <button id="SaveToLibraryButton" label="Save to Library" image="pptk-library-save" showLabel="false" onAction="PPTK_SaveToLibrary" supertip="Saves the selected slides as a reusable library entry" screentip="Save to Library" size="normal" />
+          <button id="OpenSlideLibraryButton" label="Open Slide Library" image="pptk-library-open" showLabel="false" onAction="PPTK_OpenSlideLibrary" supertip="Opens the slide library to search and insert saved slides" screentip="Open Slide Library" size="normal" />
         </group>
         <group id="Insert" label="Insert">
           <toggleButton idMso="TextBoxInsert" showLabel="false" size="normal" />
@@ -33,12 +37,12 @@
           <button idMso="PictureInsertFromFile" showLabel="false" size="normal" />
           <button idMso="ScreenClipping" showLabel="false" size="normal" />
           <box id="PPTKInsertRow1" boxStyle="horizontal">
-            <button id="PPTKInsertT" tag="T" imageMso="TextBoxInsert" label="Text" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Inserts a PPTK text box and enters text editing" screentip="Text (T)" size="normal" />
-            <button id="PPTKInsertN" tag="N" imageMso="SlideNew" label="New slide" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Inserts a slide after the current slide using the same layout" screentip="New slide (N)" size="normal" />
-            <button id="PPTKInsertI" tag="I" imageMso="IconInsertFromFile" label="Icon" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Opens the PowerPoint icon library" screentip="Insert Icon (I)" size="normal" />
-            <button id="PPTKEncloseIcons" tag="E" imageMso="ShapeOval" label="Enclose" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Draws a circle around the selected icon. Press again to add a fill." screentip="Enclose Icons (E)" size="normal" />
+            <button id="PPTKInsertT" tag="T" image="pptk-text" label="Text" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Inserts a PPTK text box and enters text editing" screentip="Text (T)" size="normal" />
+            <button id="PPTKInsertN" tag="N" image="pptk-new-slide" label="New slide" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Inserts a slide after the current slide using the same layout" screentip="New slide (N)" size="normal" />
+            <button id="PPTKInsertI" tag="I" image="pptk-insert-icon" label="Icon" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Opens the PowerPoint icon library" screentip="Insert Icon (I)" size="normal" />
+            <button id="PPTKEncloseIcons" tag="E" image="pptk-enclose" label="Enclose" showLabel="false" onAction="PPTK_RibbonShortcut" supertip="Draws a circle around the selected icon. Press again to add a fill." screentip="Enclose Icons (E)" size="normal" />
           </box>
-          <menu id="InsertMoreMenu" label="More" imageMso="PasteAlternative" showLabel="false" itemSize="normal" screentip="More" size="normal">
+          <menu id="InsertMoreMenu" label="More" image="pptk-insert-more" showLabel="false" itemSize="normal" screentip="More" size="normal">
             <splitButton id="PastePngSplitButton" showLabel="false">
               <button idMso="PastePng" showLabel="false" />
               <menu id="PasteJpegMenu" itemSize="normal" supertip="Opens the tools for pasting content as JPEG" screentip="Paste as JPEG">
@@ -46,6 +50,11 @@
               </menu>
             </splitButton>
             <button idMso="DateAndTimeInsert" showLabel="false" />
+            <menuSeparator id="separatorInsertTk" />
+            <button id="PPTKAddRightTK" tag="CTRL 4" label="Add Right TK" image="pptk-tk-right" onAction="PPTK_RibbonShortcut" screentip="Add Right TK" supertip="Inserts an editable TK placeholder to the right of the selection" />
+            <button id="PPTKAddLeftTK" tag="CTRL 7" label="Add Left TK" image="pptk-tk-left" onAction="PPTK_RibbonShortcut" screentip="Add Left TK" supertip="Inserts an editable TK placeholder to the left of the selection" />
+            <button id="PPTKAddTopTK" tag="CTRL 6" label="Add Top TK" image="pptk-tk-top" onAction="PPTK_RibbonShortcut" screentip="Add Top TK" supertip="Inserts an editable TK placeholder above the selection" />
+            <button id="PPTKAddBottomTK" tag="CTRL 5" label="Add Bottom TK" image="pptk-tk-bottom" onAction="PPTK_RibbonShortcut" screentip="Add Bottom TK" supertip="Inserts an editable TK placeholder below the selection" />
           </menu>
         </group>
         <group id="Text" label="Text">
@@ -66,7 +75,7 @@
             <toggleButton idMso="AlignCenter" showLabel="false" size="normal" />
             <toggleButton idMso="AlignRight" showLabel="false" size="normal" />
             <control idMso="BulletsGallery" showLabel="false" />
-            <menu id="TextMoreMenu" label="More" imageMso="MenuView2" showLabel="false" itemSize="normal" screentip="More" size="normal">
+            <menu id="TextMoreMenu" label="More" image="pptk-text-more" showLabel="false" itemSize="normal" screentip="More" size="normal">
               <button idMso="ClearFormatting" showLabel="false" />
               <toggleButton idMso="Strikethrough" showLabel="false" />
               <control idMso="TextHighlightColorPickerLicensed" showLabel="false" />
@@ -84,85 +93,85 @@
               <toggleButton idMso="Shadow" showLabel="false" />
               <gallery idMso="CharacterSpacingGallery" showLabel="false" />
               <gallery idMso="ChangeCaseGallery" showLabel="false" />
-              <menu id="SpecialCharacterMenu" label="Special characters" imageMso="SymbolInsert" showLabel="false" supertip="Inserts commonly used special characters" screentip="Special characters">
+              <menu id="SpecialCharacterMenu" label="Special characters" image="pptk-special-char" showLabel="false" supertip="Inserts commonly used special characters" screentip="Special characters">
                 <button idMso="SymbolInsert" showLabel="false" />
               </menu>
               <menuSeparator id="TextMoreAdvancedSeparator" />
               <button idMso="ReplaceDialog" showLabel="false" />
-              <button id="PPTKPasteContentOnly" tag="CTRL SHIFT T" label="Paste content only" imageMso="PasteTextOnly" onAction="PPTK_RibbonShortcut" screentip="Paste Content Only" supertip="Pastes clipboard text into the selection and keeps its formatting" />
-              <button id="PPTKMergeText" tag=". T" label="Merge textboxes" imageMso="TextBoxInsert" onAction="PPTK_RibbonShortcut" screentip="Merge Textboxes" supertip="Merges the selected text into the first shape" />
-              <button id="PPTKRemoveMargins" tag="ALT ." label="Remove margins" imageMso="ParagraphMarks" onAction="PPTK_RibbonShortcut" screentip="Remove Margins" supertip="Sets the text margins of the selected shapes to zero" />
+              <button id="PPTKPasteContentOnly" tag="CTRL SHIFT T" label="Paste content only" image="pptk-paste-text" onAction="PPTK_RibbonShortcut" screentip="Paste Content Only" supertip="Pastes clipboard text into the selection and keeps its formatting" />
+              <button id="PPTKMergeText" tag=". T" label="Merge textboxes" image="pptk-merge-text" onAction="PPTK_RibbonShortcut" screentip="Merge Textboxes" supertip="Merges the selected text into the first shape" />
+              <button id="PPTKRemoveMargins" tag="ALT ." label="Remove margins" image="pptk-remove-margins" onAction="PPTK_RibbonShortcut" screentip="Remove Margins" supertip="Sets the text margins of the selected shapes to zero" />
             </menu>
           </box>
         </group>
         <group id="Align" label="Align">
           <box id="AlignDistributeBox" boxStyle="horizontal">
-            <button id="ObjectsAlignLeftsButton" label="Align left" showLabel="false" imageMso="ObjectsAlignLeft" onAction="ObjectsAlignLefts" supertip="Aligns the selected objects to the left" screentip="Align Left" size="normal" />
-            <button id="ObjectsAlignCentersButton" label="Align center" showLabel="false" imageMso="ObjectsAlignCenterHorizontal" onAction="ObjectsAlignCenters" supertip="Aligns the selected objects to the center" screentip="Align Center" size="normal" />
-            <button id="ObjectsAlignRightsButton" label="Align right" showLabel="false" imageMso="ObjectsAlignRight" onAction="ObjectsAlignRights" supertip="Aligns the selected objects to the right" screentip="Align Right" size="normal" />
+            <button id="ObjectsAlignLeftsButton" label="Align left" showLabel="false" image="pptk-align-left" onAction="ObjectsAlignLefts" supertip="Aligns the selected objects to the left" screentip="Align Left" size="normal" />
+            <button id="ObjectsAlignCentersButton" label="Align center" showLabel="false" image="pptk-align-center" onAction="ObjectsAlignCenters" supertip="Aligns the selected objects to the center" screentip="Align Center" size="normal" />
+            <button id="ObjectsAlignRightsButton" label="Align right" showLabel="false" image="pptk-align-right" onAction="ObjectsAlignRights" supertip="Aligns the selected objects to the right" screentip="Align Right" size="normal" />
           </box>
           <box id="AlignVerticalBox" boxStyle="horizontal">
-            <button id="ObjectsAlignTopsButton" label="Align top" showLabel="false" imageMso="ObjectsAlignTop" onAction="ObjectsAlignTops" supertip="Aligns the selected objects to the top" screentip="Align Top" size="normal" />
-            <button id="ObjectsAlignMiddlesButton" label="Align middle" showLabel="false" imageMso="ObjectsAlignMiddleVertical" onAction="ObjectsAlignMiddles" supertip="Aligns the selected objects to the middle" screentip="Align Middle" size="normal" />
-            <button id="ObjectsAlignBottomsButton" label="Align bottom" showLabel="false" imageMso="ObjectsAlignBottom" onAction="ObjectsAlignBottoms" supertip="Aligns the selected objects to the bottom" screentip="Align Bottom" size="normal" />
+            <button id="ObjectsAlignTopsButton" label="Align top" showLabel="false" image="pptk-align-top" onAction="ObjectsAlignTops" supertip="Aligns the selected objects to the top" screentip="Align Top" size="normal" />
+            <button id="ObjectsAlignMiddlesButton" label="Align middle" showLabel="false" image="pptk-align-middle" onAction="ObjectsAlignMiddles" supertip="Aligns the selected objects to the middle" screentip="Align Middle" size="normal" />
+            <button id="ObjectsAlignBottomsButton" label="Align bottom" showLabel="false" image="pptk-align-bottom" onAction="ObjectsAlignBottoms" supertip="Aligns the selected objects to the bottom" screentip="Align Bottom" size="normal" />
           </box>
         </group>
         <group id="Space" label="Space">
           <box id="SpaceRow1Box" boxStyle="horizontal">
-            <button id="ObjectsDistributeHorizontallyButton" label="Distribute horizontally" showLabel="false" imageMso="AlignDistributeHorizontally" onAction="ObjectsDistributeHorizontally" supertip="Evenly distributes the selected objects horizontally" screentip="Distribute Horizontally" size="normal" />
-            <button id="ObjectsDistributeVerticallyButton" imageMso="AlignDistributeVertically" label="Distribute vertically" showLabel="false" onAction="ObjectsDistributeVertically" supertip="Evenly distributes the selected objects vertically" screentip="Distribute Vertically" size="normal" />
+            <button id="ObjectsDistributeHorizontallyButton" label="Distribute horizontally" showLabel="false" image="pptk-dist-h" onAction="ObjectsDistributeHorizontally" supertip="Evenly distributes the selected objects horizontally" screentip="Distribute Horizontally" size="normal" />
+            <button id="ObjectsDistributeVerticallyButton" image="pptk-dist-v" label="Distribute vertically" showLabel="false" onAction="ObjectsDistributeVertically" supertip="Evenly distributes the selected objects vertically" screentip="Distribute Vertically" size="normal" />
           </box>
           <box id="SpaceRow2Box" boxStyle="horizontal">
-            <menu id="ObjectsResizeAndSpaceEvenly" label="Resize and space evenly" imageMso="AlignRelativeToPage" showLabel="false" supertip="Opens the tools for resizing and spacing the selected shapes evenly" screentip="Resize and Space Evenly" size="normal">
-              <button id="ResizeAndSpaceEvenHorizontal" label="Resize and space horizontally (equal spacing)" onAction="ResizeAndSpaceEvenHorizontal" supertip="Resizes and spaces the selected shapes horizontally with equal spacing" screentip="Resize and Space Horizontally" />
-              <button id="ResizeAndSpaceEvenHorizontalPreserveFirst" label="Resize and space horizontally (preserve first)" onAction="ResizeAndSpaceEvenHorizontalPreserveFirst" supertip="Resizes and spaces the selected shapes horizontally while preserving the first shape" screentip="Resize and Space Horizontally (Preserve First)" />
-              <button id="ResizeAndSpaceEvenHorizontalPreserveLast" label="Resize and space horizontally (preserve last)" onAction="ResizeAndSpaceEvenHorizontalPreserveLast" supertip="Resizes and spaces the selected shapes horizontally while preserving the last shape" screentip="Resize and Space Horizontally (Preserve Last)" />
-              <button id="ResizeAndSpaceEvenVertical" label="Resize and space vertically (equal spacing)" onAction="ResizeAndSpaceEvenVertical" supertip="Resizes and spaces the selected shapes vertically with equal spacing" screentip="Resize and Space Vertically" />
-              <button id="ResizeAndSpaceEvenVerticalPreserveFirst" label="Resize and space vertically (preserve first)" onAction="ResizeAndSpaceEvenVerticalPreserveFirst" supertip="Resizes and spaces the selected shapes vertically while preserving the first shape" screentip="Resize and Space Vertically (Preserve First)" />
-              <button id="ResizeAndSpaceEvenVerticalPreserveLast" label="Resize and space vertically (preserve last)" onAction="ResizeAndSpaceEvenVerticalPreserveLast" supertip="Resizes and spaces the selected shapes vertically while preserving the last shape" screentip="Resize and Space Vertically (Preserve Last)" />
+            <menu id="ObjectsResizeAndSpaceEvenly" label="Resize and space evenly" image="pptk-resize-space" showLabel="false" supertip="Opens the tools for resizing and spacing the selected shapes evenly" screentip="Resize and Space Evenly" size="normal">
+              <button id="ResizeAndSpaceEvenHorizontal" label="Resize and space horizontally (equal spacing)" onAction="ResizeAndSpaceEvenHorizontal" supertip="Resizes and spaces the selected shapes horizontally with equal spacing" screentip="Resize and Space Horizontally" image="pptk-resize-h" />
+              <button id="ResizeAndSpaceEvenHorizontalPreserveFirst" label="Resize and space horizontally (preserve first)" onAction="ResizeAndSpaceEvenHorizontalPreserveFirst" supertip="Resizes and spaces the selected shapes horizontally while preserving the first shape" screentip="Resize and Space Horizontally (Preserve First)" image="pptk-resize-h-first" />
+              <button id="ResizeAndSpaceEvenHorizontalPreserveLast" label="Resize and space horizontally (preserve last)" onAction="ResizeAndSpaceEvenHorizontalPreserveLast" supertip="Resizes and spaces the selected shapes horizontally while preserving the last shape" screentip="Resize and Space Horizontally (Preserve Last)" image="pptk-resize-h-last" />
+              <button id="ResizeAndSpaceEvenVertical" label="Resize and space vertically (equal spacing)" onAction="ResizeAndSpaceEvenVertical" supertip="Resizes and spaces the selected shapes vertically with equal spacing" screentip="Resize and Space Vertically" image="pptk-resize-v" />
+              <button id="ResizeAndSpaceEvenVerticalPreserveFirst" label="Resize and space vertically (preserve first)" onAction="ResizeAndSpaceEvenVerticalPreserveFirst" supertip="Resizes and spaces the selected shapes vertically while preserving the first shape" screentip="Resize and Space Vertically (Preserve First)" image="pptk-resize-v-first" />
+              <button id="ResizeAndSpaceEvenVerticalPreserveLast" label="Resize and space vertically (preserve last)" onAction="ResizeAndSpaceEvenVerticalPreserveLast" supertip="Resizes and spaces the selected shapes vertically while preserving the last shape" screentip="Resize and Space Vertically (Preserve Last)" image="pptk-resize-v-last" />
             </menu>
-            <menu id="SpaceGapsMenu" label="Gaps" imageMso="AlignDistributeHorizontally" showLabel="false" itemSize="normal" screentip="Gaps" size="normal">
+            <menu id="SpaceGapsMenu" label="Gaps" image="pptk-gaps" showLabel="false" itemSize="normal" screentip="Gaps" size="normal">
               <splitButton id="ObjectsRemoveSpaceHorizontalSplitButton" showLabel="false">
-                <button id="ObjectsRemoveSpaceHorizontal" imageMso="ObjectsAlignDistributeHorizontallyRemove" label="Remove horizontal gap between shapes (direction left)" showLabel="false" onAction="ObjectsRemoveSpacingHorizontal" supertip="Removes the horizontal gap between the selected shapes toward the left" screentip="Remove Horizontal Gap" />
+                <button id="ObjectsRemoveSpaceHorizontal" image="pptk-gap-h-left" label="Remove horizontal gap between shapes (direction left)" showLabel="false" onAction="ObjectsRemoveSpacingHorizontal" supertip="Removes the horizontal gap between the selected shapes toward the left" screentip="Remove Horizontal Gap" />
                 <menu id="ObjectsRemoveSpaceHorizontalMenu" itemSize="normal" supertip="Opens the tools for removing the horizontal gap between shapes" screentip="Remove Horizontal Gap">
-                  <button id="ObjectsRemoveSpaceHorizontalRight" imageMso="ObjectsAlignDistributeHorizontallyRemove" label="Remove horizontal gap between shapes (direction right)" showLabel="false" onAction="ObjectsRemoveSpacingHorizontalRight" supertip="Removes the horizontal gap between the selected shapes toward the right" screentip="Remove Horizontal Gap" />
+                  <button id="ObjectsRemoveSpaceHorizontalRight" image="pptk-gap-h-right" label="Remove horizontal gap between shapes (direction right)" showLabel="false" onAction="ObjectsRemoveSpacingHorizontalRight" supertip="Removes the horizontal gap between the selected shapes toward the right" screentip="Remove Horizontal Gap" />
                 </menu>
               </splitButton>
-              <button id="ObjectsIncreaseSpacingHorizontal" imageMso="HorizontalSpacingIncrease" label="Increase horizontal gap between shapes" showLabel="false" onAction="ObjectsIncreaseSpacingHorizontal" supertip="Increases the horizontal gap between the selected shapes" screentip="Increase Horizontal Gap" />
-              <button id="ObjectsDecreaseSpacingHorizontal" imageMso="HorizontalSpacingDecrease" label="Decrease horizontal gap between shapes" showLabel="false" onAction="ObjectsDecreaseSpacingHorizontal" supertip="Decreases the horizontal gap between the selected shapes" screentip="Decrease Horizontal Gap" />
+              <button id="ObjectsIncreaseSpacingHorizontal" image="pptk-gap-h-inc" label="Increase horizontal gap between shapes" showLabel="false" onAction="ObjectsIncreaseSpacingHorizontal" supertip="Increases the horizontal gap between the selected shapes" screentip="Increase Horizontal Gap" />
+              <button id="ObjectsDecreaseSpacingHorizontal" image="pptk-gap-h-dec" label="Decrease horizontal gap between shapes" showLabel="false" onAction="ObjectsDecreaseSpacingHorizontal" supertip="Decreases the horizontal gap between the selected shapes" screentip="Decrease Horizontal Gap" />
               <splitButton id="ObjectsRemoveSpaceVerticalSplitButton" showLabel="false">
-                <button id="ObjectsRemoveSpaceVertical" imageMso="ObjectsAlignDistributeVerticallyRemove" label="Remove vertical gap between shapes (direction up)" showLabel="false" onAction="ObjectsRemoveSpacingVertical" supertip="Removes the vertical gap between the selected shapes upward" screentip="Remove Vertical Gap" />
+                <button id="ObjectsRemoveSpaceVertical" image="pptk-gap-v-up" label="Remove vertical gap between shapes (direction up)" showLabel="false" onAction="ObjectsRemoveSpacingVertical" supertip="Removes the vertical gap between the selected shapes upward" screentip="Remove Vertical Gap" />
                 <menu id="ObjectsRemoveSpaceVerticalMenu" itemSize="normal" supertip="Opens the tools for removing the vertical gap between shapes" screentip="Remove Vertical Gap">
-                  <button id="ObjectsRemoveSpaceVerticalDown" imageMso="ObjectsAlignDistributeVerticallyRemove" label="Remove vertical gap between shapes (direction down)" showLabel="false" onAction="ObjectsRemoveSpacingVerticalDown" supertip="Removes the vertical gap between the selected shapes downward" screentip="Remove Vertical Gap" />
+                  <button id="ObjectsRemoveSpaceVerticalDown" image="pptk-gap-v-down" label="Remove vertical gap between shapes (direction down)" showLabel="false" onAction="ObjectsRemoveSpacingVerticalDown" supertip="Removes the vertical gap between the selected shapes downward" screentip="Remove Vertical Gap" />
                 </menu>
               </splitButton>
-              <button id="ObjectsIncreaseSpacingVertical" imageMso="VerticalSpacingIncrease" label="Increase vertical gap between shapes" showLabel="false" onAction="ObjectsIncreaseSpacingVertical" supertip="Increases the vertical gap between the selected shapes" screentip="Increase Vertical Gap" />
-              <button id="ObjectsDecreaseSpacingVertical" imageMso="VerticalSpacingDecrease" label="Decrease vertical gap between shapes" showLabel="false" onAction="ObjectsDecreaseSpacingVertical" supertip="Decreases the vertical gap between the selected shapes" screentip="Decrease Vertical Gap" />
+              <button id="ObjectsIncreaseSpacingVertical" image="pptk-gap-v-inc" label="Increase vertical gap between shapes" showLabel="false" onAction="ObjectsIncreaseSpacingVertical" supertip="Increases the vertical gap between the selected shapes" screentip="Increase Vertical Gap" />
+              <button id="ObjectsDecreaseSpacingVertical" image="pptk-gap-v-dec" label="Decrease vertical gap between shapes" showLabel="false" onAction="ObjectsDecreaseSpacingVertical" supertip="Decreases the vertical gap between the selected shapes" screentip="Decrease Vertical Gap" />
             </menu>
           </box>
         </group>
         <group id="Shape" label="Shape">
-          <menu id="PPTKChangeShapeMenu" label="Change shape" showLabel="false" imageMso="ShapeChangeShapeGallery" size="normal" itemSize="normal" screentip="Change shape">
+          <menu id="PPTKChangeShapeMenu" label="Change shape" showLabel="false" image="pptk-change-shape" size="normal" itemSize="normal" screentip="Change shape">
             <gallery idMso="ShapeChangeShapeGallery" showLabel="false" />
           </menu>
           <box id="ShapeRow1" boxStyle="horizontal">
             <control idMso="ShapeWidth" showLabel="false" />
-            <button id="ObjectsSameWidthButton" imageMso="ColumnWidth" label="Set same width" showLabel="false" onAction="ObjectsSameWidth" supertip="Sets all selected objects to the same width" screentip="Same Width" size="normal" />
-            <button id="ObjectsSameHeightButton" imageMso="RowHeight" label="Set same height" showLabel="false" onAction="ObjectsSameHeight" supertip="Sets all selected objects to the same height" screentip="Same Height" size="normal" />
+            <button id="ObjectsSameWidthButton" image="pptk-same-width" label="Set same width" showLabel="false" onAction="ObjectsSameWidth" supertip="Sets all selected objects to the same width" screentip="Same Width" size="normal" />
+            <button id="ObjectsSameHeightButton" image="pptk-same-height" label="Set same height" showLabel="false" onAction="ObjectsSameHeight" supertip="Sets all selected objects to the same height" screentip="Same Height" size="normal" />
             <button idMso="ObjectBringForward" showLabel="false" size="normal" />
           </box>
           <box id="ShapeRow2" boxStyle="horizontal">
             <control idMso="ShapeHeight" showLabel="false" />
-            <button id="ObjectsSameHeightAndWidthButton" imageMso="SizeToControlHeightAndWidth" label="Set same height and width" showLabel="false" onAction="ObjectsSameHeightAndWidth" supertip="Sets all selected objects to the same height and width" screentip="Same Height and Width" size="normal" />
+            <button id="ObjectsSameHeightAndWidthButton" image="pptk-same-size" label="Set same height and width" showLabel="false" onAction="ObjectsSameHeightAndWidth" supertip="Sets all selected objects to the same height and width" screentip="Same Height and Width" size="normal" />
             <splitButton id="ObjectsSwapPositionSplitButton" size="normal" showLabel="false">
-              <button id="ObjectsSwapPosition" imageMso="CircularReferences" label="Swap position of two shapes" showLabel="false" onAction="ObjectsSwapPosition" supertip="Swaps the positions of the two selected shapes" screentip="Swap Position" />
-              <menu id="ObjectsSwapPositionMenu" label="Swap position of two shapes" imageMso="CircularReferences" showLabel="false" supertip="Opens the tools for swapping the positions of two shapes" screentip="Swap Position">
-                <button id="ObjectsSwapPositionCentered" imageMso="CircularReferences" label="Swap position of two shapes (centered)" showLabel="false" onAction="ObjectsSwapPositionCentered" supertip="Swaps the positions of the two selected shapes while centering them" screentip="Swap Position (Centered)" />
-                <button id="PPTKSwapText" tag="CTRL /" label="Swap text" imageMso="ReplaceDialog" onAction="PPTK_RibbonShortcut" screentip="Swap Text" supertip="Swaps the text of the two selected shapes" />
+              <button id="ObjectsSwapPosition" image="pptk-swap" label="Swap position of two shapes" showLabel="false" onAction="ObjectsSwapPosition" supertip="Swaps the positions of the two selected shapes" screentip="Swap Position" />
+              <menu id="ObjectsSwapPositionMenu" label="Swap position of two shapes" image="pptk-swap" showLabel="false" supertip="Opens the tools for swapping the positions of two shapes" screentip="Swap Position">
+                <button id="ObjectsSwapPositionCentered" image="pptk-swap-center" label="Swap position of two shapes (centered)" showLabel="false" onAction="ObjectsSwapPositionCentered" supertip="Swaps the positions of the two selected shapes while centering them" screentip="Swap Position (Centered)" />
+                <button id="PPTKSwapText" tag="CTRL /" label="Swap text" image="pptk-swap-text" onAction="PPTK_RibbonShortcut" screentip="Swap Text" supertip="Swaps the text of the two selected shapes" />
               </menu>
             </splitButton>
             <button idMso="ObjectSendBackward" showLabel="false" size="normal" />
-            <menu id="ShapeMoreMenu" label="More" imageMso="ShapesMoreShapes" showLabel="false" itemSize="normal" screentip="More" size="normal">
+            <menu id="ShapeMoreMenu" label="More" image="pptk-shape-more" showLabel="false" itemSize="normal" screentip="More" size="normal">
               <menu idMso="CombineShapesMenu" showLabel="false" />
               <button idMso="ObjectBringToFront" showLabel="false" />
               <button idMso="ObjectSendToBack" showLabel="false" />
@@ -170,55 +179,65 @@
               <button idMso="ObjectFlipVertical" showLabel="false" />
               <button idMso="ObjectRotateLeft90" showLabel="false" />
               <button idMso="ObjectRotateRight90" showLabel="false" />
-              <button id="ObjectsSizeToTallest" imageMso="RowHeight" label="Size to tallest" showLabel="true" onAction="ObjectsSizeToTallest" supertip="Sizes all selected objects to the tallest one" screentip="Size to Tallest" />
-              <button id="ObjectsSizeShortest" imageMso="RowHeight" label="Size to shortest" showLabel="true" onAction="ObjectsSizeToShortest" supertip="Sizes all selected objects to the shortest one" screentip="Size to Shortest" />
-              <button id="ObjectsSizeToWidest" imageMso="ColumnWidth" label="Size to widest" showLabel="true" onAction="ObjectsSizeToWidest" supertip="Sizes all selected objects to the widest one" screentip="Size to Widest" />
-              <button id="ObjectsSizeNarrowest" imageMso="ColumnWidth" label="Size to narrowest" showLabel="true" onAction="ObjectsSizeToNarrowest" supertip="Sizes all selected objects to the narrowest one" screentip="Size to Narrowest" />
+              <button id="ObjectsSizeToTallest" image="pptk-size-tall" label="Size to tallest" showLabel="true" onAction="ObjectsSizeToTallest" supertip="Sizes all selected objects to the tallest one" screentip="Size to Tallest" />
+              <button id="ObjectsSizeShortest" image="pptk-size-short" label="Size to shortest" showLabel="true" onAction="ObjectsSizeToShortest" supertip="Sizes all selected objects to the shortest one" screentip="Size to Shortest" />
+              <button id="ObjectsSizeToWidest" image="pptk-size-wide" label="Size to widest" showLabel="true" onAction="ObjectsSizeToWidest" supertip="Sizes all selected objects to the widest one" screentip="Size to Widest" />
+              <button id="ObjectsSizeNarrowest" image="pptk-size-narrow" label="Size to narrowest" showLabel="true" onAction="ObjectsSizeToNarrowest" supertip="Sizes all selected objects to the narrowest one" screentip="Size to Narrowest" />
+              <menuSeparator id="separatorShapeGrid" />
+              <button id="PPTKAddRightColumn" tag="CTRL 2" label="Add Right Column" image="pptk-col-add" onAction="PPTK_RibbonShortcut" screentip="Add Right Column" supertip="Duplicates the rightmost column of the selected grid" />
+              <button id="PPTKAddBottomRow" tag="CTRL 3" label="Add Bottom Row" image="pptk-row-add" onAction="PPTK_RibbonShortcut" screentip="Add Bottom Row" supertip="Duplicates the bottom row of the selected grid" />
+              <button id="PPTKDeleteRightColumn" tag="ALT 2" label="Delete Right Column" image="pptk-col-del" onAction="PPTK_RibbonShortcut" screentip="Delete Right Column" supertip="Deletes the rightmost column of the selected grid" />
+              <button id="PPTKDeleteBottomRow" tag="ALT 3" label="Delete Bottom Row" image="pptk-row-del" onAction="PPTK_RibbonShortcut" screentip="Delete Bottom Row" supertip="Deletes the bottom row of the selected grid" />
               <toggleButton idMso="ObjectEditPoints" showLabel="false" />
             </menu>
           </box>
         </group>
         <group id="SmartAlign" label="Smart Align">
           <box id="SmartAlignRow1Box" boxStyle="horizontal">
-            <button id="ObjectsArrangeShapesButton" imageMso="SlidesPerPage9Slides" label="Arrange shapes" showLabel="false" onAction="ArrangeShapes" supertip="Arranges the selected shapes into a structured layout" screentip="Arrange Shapes" size="normal" />
+            <button id="ObjectsArrangeShapesButton" image="pptk-arrange" label="Arrange shapes" showLabel="false" onAction="ArrangeShapes" supertip="Arranges the selected shapes into a structured layout" screentip="Arrange Shapes" size="normal" />
           </box>
           <box id="SmartAlignRow2Box" boxStyle="horizontal">
-            <menu id="ObjectsStretchMenu" label="Stretch shapes" imageMso="DrawingCanvasExpand" showLabel="false" supertip="Opens the tools for stretching multiple shapes toward a chosen edge" screentip="Stretch Shapes" size="normal">
-              <button id="ObjectsStretchLeft" label="Stretch shapes to left" onAction="ObjectsStretchLeft" supertip="Stretches the selected shapes toward the left" screentip="Stretch Left" />
-              <button id="ObjectsStretchRight" label="Stretch shapes to right" onAction="ObjectsStretchRight" supertip="Stretches the selected shapes toward the right" screentip="Stretch Right" />
-              <button id="ObjectsStretchTop" label="Stretch shapes to top" onAction="ObjectsStretchTop" supertip="Stretches the selected shapes upward" screentip="Stretch Up" />
-              <button id="ObjectsStretchBottom" label="Stretch shapes to bottom" onAction="ObjectsStretchBottom" supertip="Stretches the selected shapes downward" screentip="Stretch Down" />
+            <menu id="ObjectsStretchMenu" label="Stretch shapes" image="pptk-stretch" showLabel="false" supertip="Opens the tools for stretching multiple shapes toward a chosen edge" screentip="Stretch Shapes" size="normal">
+              <button id="ObjectsStretchLeft" label="Stretch shapes to left" onAction="ObjectsStretchLeft" supertip="Stretches the selected shapes toward the left" screentip="Stretch Left" image="pptk-stretch-left" />
+              <button id="ObjectsStretchRight" label="Stretch shapes to right" onAction="ObjectsStretchRight" supertip="Stretches the selected shapes toward the right" screentip="Stretch Right" image="pptk-stretch-right" />
+              <button id="ObjectsStretchTop" label="Stretch shapes to top" onAction="ObjectsStretchTop" supertip="Stretches the selected shapes upward" screentip="Stretch Up" image="pptk-stretch-top" />
+              <button id="ObjectsStretchBottom" label="Stretch shapes to bottom" onAction="ObjectsStretchBottom" supertip="Stretches the selected shapes downward" screentip="Stretch Down" image="pptk-stretch-bottom" />
               <menuSeparator id="separatorObjectsStretchMenu" />
-              <button id="ObjectsStretchLeftShapeRight" label="Stretch shapes to the right edge of the leftmost shape" onAction="ObjectsStretchLeftShapeRight" supertip="Stretches the selected shapes to the right edge of the leftmost shape" screentip="Stretch to Leftmost Shape" />
-              <button id="ObjectsStretchRightShapeLeft" label="Stretch shapes to the left edge of the rightmost shape" onAction="ObjectsStretchRightShapeLeft" supertip="Stretches the selected shapes to the left edge of the rightmost shape" screentip="Stretch to Rightmost Shape" />
-              <button id="ObjectsStretchTopShapeBottom" label="Stretch shapes to the bottom edge of the topmost shape" onAction="ObjectsStretchTopShapeBottom" supertip="Stretches the selected shapes to the bottom edge of the topmost shape" screentip="Stretch to Topmost Shape" />
-              <button id="ObjectsStretchBottomShapeTop" label="Stretch shapes to the top edge of the bottommost shape" onAction="ObjectsStretchBottomShapeTop" supertip="Stretches the selected shapes to the top edge of the bottommost shape" screentip="Stretch to Bottommost Shape" />
+              <button id="ObjectsStretchLeftShapeRight" label="Stretch shapes to the right edge of the leftmost shape" onAction="ObjectsStretchLeftShapeRight" supertip="Stretches the selected shapes to the right edge of the leftmost shape" screentip="Stretch to Leftmost Shape" image="pptk-stretch-to-left" />
+              <button id="ObjectsStretchRightShapeLeft" label="Stretch shapes to the left edge of the rightmost shape" onAction="ObjectsStretchRightShapeLeft" supertip="Stretches the selected shapes to the left edge of the rightmost shape" screentip="Stretch to Rightmost Shape" image="pptk-stretch-to-right" />
+              <button id="ObjectsStretchTopShapeBottom" label="Stretch shapes to the bottom edge of the topmost shape" onAction="ObjectsStretchTopShapeBottom" supertip="Stretches the selected shapes to the bottom edge of the topmost shape" screentip="Stretch to Topmost Shape" image="pptk-stretch-to-top" />
+              <button id="ObjectsStretchBottomShapeTop" label="Stretch shapes to the top edge of the bottommost shape" onAction="ObjectsStretchBottomShapeTop" supertip="Stretches the selected shapes to the top edge of the bottommost shape" screentip="Stretch to Bottommost Shape" image="pptk-stretch-to-bottom" />
             </menu>
-            <menu id="SmartAlignMoreMenu" label="More" imageMso="GroupPosition" showLabel="false" itemSize="normal" screentip="More" size="normal">
+            <menu id="SmartAlignMoreMenu" label="More" image="pptk-align-more" showLabel="false" itemSize="normal" screentip="More" size="normal">
               <menu id="ObjectSetPositionMenu" itemSize="normal" supertip="Opens the tools for setting the position of shapes" screentip="Set Position">
                 <control idMso="ObjectSizeAndPositionDialog" showLabel="true" />
               </menu>
-              <button id="PPTKAlignShapeAngle" tag="A A" label="Align shape angle" imageMso="ObjectRotateRight90" onAction="PPTK_RibbonShortcut" screentip="Align Shape Angle" supertip="Copies the first selected shape's rotation onto the other selected shapes" />
+              <button id="PPTKAlignShapeAngle" tag="A A" label="Align shape angle" image="pptk-align-angle" onAction="PPTK_RibbonShortcut" screentip="Align Shape Angle" supertip="Copies the first selected shape's rotation onto the other selected shapes" />
+              <menuSeparator id="separatorSmartAlignCommands" />
+              <button id="PPTKAlignProcess" tag="A P" label="Align Process" image="pptk-process" onAction="PPTK_RibbonShortcut" screentip="Align Process" supertip="Arranges the selected shapes into an evenly spaced process" />
+              <button id="PPTKAlignMatrix" tag="A X" label="Align Matrix" image="pptk-matrix" onAction="PPTK_RibbonShortcut" screentip="Align Matrix" supertip="Arranges the selected shapes into a chosen grid" />
+              <button id="PPTKAlignCentral" tag="A Z" label="Align Central" image="pptk-central" onAction="PPTK_RibbonShortcut" screentip="Align Central" supertip="Arranges the selected shapes around a center at a chosen radius" />
             </menu>
           </box>
         </group>
         <group id="PPTK" label="PPTK">
           <box id="PPTKShortcutCol1" boxStyle="vertical">
-            <button id="PPTKShortcutR" label="Rectangle" tag="R" imageMso="ShapeRectangle" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Rectangle" supertip="PPTK shortcut R" />
-            <button id="PPTKShortcutU" label="Rounded Rectangle" tag="U" imageMso="ShapeRoundedRectangle" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Rounded Rectangle" supertip="PPTK shortcut U" />
-            <button id="PPTKShortcutO" label="Oval" tag="O" imageMso="ShapeOval" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Oval" supertip="PPTK shortcut O" />
+            <button id="PPTKShortcutR" label="Rectangle" tag="R" image="pptk-shape-rect" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Rectangle" supertip="PPTK shortcut R" />
+            <button id="PPTKShortcutU" label="Rounded Rectangle" tag="U" image="pptk-shape-round" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Rounded Rectangle" supertip="PPTK shortcut U" />
+            <button id="PPTKShortcutO" label="Oval" tag="O" image="pptk-shape-oval" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Oval" supertip="PPTK shortcut O" />
           </box>
           <box id="PPTKShortcutCol2" boxStyle="vertical">
-            <button id="PPTKShortcutC" label="Chevron" tag="C" imageMso="ShapeChevron" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Chevron" supertip="PPTK shortcut C" />
-            <button id="PPTKShortcutP" label="Pentagon" tag="P" imageMso="ShapePentagon" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Pentagon" supertip="PPTK shortcut P" />
-            <button id="PPTKShortcutG" label="Triangle" tag="G" imageMso="ShapeIsoscelesTriangle" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Triangle" supertip="PPTK shortcut G" />
+            <button id="PPTKShortcutC" label="Chevron" tag="C" image="pptk-shape-chevron" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Chevron" supertip="PPTK shortcut C" />
+            <button id="PPTKShortcutP" label="Pentagon" tag="P" image="pptk-shape-pentagon" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Pentagon" supertip="PPTK shortcut P" />
+            <button id="PPTKShortcutG" label="Triangle" tag="G" image="pptk-shape-triangle" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Triangle" supertip="PPTK shortcut G" />
           </box>
           <box id="PPTKShortcutCol3" boxStyle="vertical">
-            <button id="PPTKShortcutM" label="Parallelogram" tag="M" imageMso="ShapeParallelogram" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Parallelogram" supertip="PPTK shortcut M" />
+            <button id="PPTKShortcutM" label="Parallelogram" tag="M" image="pptk-shape-para" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Parallelogram" supertip="PPTK shortcut M" />
+            <button id="PPTKSmartBar" label="Smart Bar" tag="CTRL K" image="pptk-smart-bar" onAction="PPTK_RibbonShortcut" showLabel="false" size="normal" screentip="Smart Bar" supertip="Opens the PPTK command search. Ctrl+K or Ctrl+Space." />
           </box>
         </group>
         <group id="Tools" label="Tools">
-          <menu id="ToolsTableMenu" label="Table" imageMso="TableInsert" showLabel="false" itemSize="normal" screentip="Table" size="normal">
+          <menu id="ToolsTableMenu" label="Table" image="pptk-table" showLabel="false" itemSize="normal" screentip="Table" size="normal">
             <gallery idMso="TableInsertGallery" showLabel="false" label="&#x200B;" />
             <control idMso="ShadingColorPicker" showLabel="false" label="&#x200B;" />
             <gallery idMso="TableBorderPenColorPicker" showLabel="false" label="&#x200B;" />
@@ -239,10 +258,10 @@
             <button idMso="TableColumnsDistribute" showLabel="false" />
           </menu>
           <toggleButton idMso="SelectionPane" showLabel="false" size="normal" />
-          <menu id="ToolsMoreMenu" label="More Tools" imageMso="AdvancedFileProperties" showLabel="false" itemSize="normal" screentip="More Tools" size="normal">
+          <menu id="ToolsMoreMenu" label="More Tools" image="pptk-tools" showLabel="false" itemSize="normal" screentip="More Tools" size="normal">
             <button idMso="FileSaveAsPdfOrXps" showLabel="false" />
             <button idMso="ObjectSaveAsPicture" imageMso="PictureReset" showLabel="false" />
-            <menu id="CopyStorylineMenu" label="Copy storyline/slide note" imageMso="SpeakerNotes" showLabel="false" supertip="Opens the tools for copying slide notes or storyline content to Word or the clipboard" screentip="Copy Storyline / Notes">
+            <menu id="CopyStorylineMenu" label="Copy storyline/slide note" image="pptk-storyline" showLabel="false" supertip="Opens the tools for copying slide notes or storyline content to Word or the clipboard" screentip="Copy Storyline / Notes">
               <button idMso="CreateHandoutsInWord" />
             </menu>
             <button idMso="FileNewDefault" showLabel="false" />

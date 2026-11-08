@@ -60,7 +60,9 @@ public class ShortcutGateTests
     {
         Assert.False(ShortcutGate.Decide("T", modified: true, injected: false, FocusKind.Pane, Surface.Canvas).Dispatch);
         Assert.False(ShortcutGate.Decide("T", modified: false, injected: true, FocusKind.Pane, Surface.Canvas).Dispatch);
-        Assert.False(ShortcutGate.Decide("Q", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
+        Assert.True(ShortcutGate.Decide("Q", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
+        Assert.False(ShortcutGate.Decide("Q", false, false, FocusKind.Pane, Surface.Text).Dispatch);
+        Assert.False(ShortcutGate.Decide("Q", false, false, FocusKind.Pane, Surface.Slides).Dispatch);
     }
 
     [Fact]
@@ -76,8 +78,8 @@ public class ShortcutGateTests
         Assert.Equal("M", ShortcutGate.TokenForVirtualKey(0x4D));
         Assert.Equal("N", ShortcutGate.TokenForVirtualKey(0x4E));
         Assert.Equal("E", ShortcutGate.TokenForVirtualKey(0x45));
+        Assert.Equal("Q", ShortcutGate.TokenForVirtualKey(0x51));
         Assert.Null(ShortcutGate.TokenForVirtualKey(0x41));
-        Assert.Null(ShortcutGate.TokenForVirtualKey(0x51));
         Assert.False(ShortcutGate.Decide("E", modified: true, injected: false, FocusKind.Pane, Surface.Canvas).Dispatch);
         Assert.False(ShortcutGate.Decide("E", false, false, FocusKind.Pane, Surface.Text).Dispatch);
         Assert.True(ShortcutGate.Decide("E", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);

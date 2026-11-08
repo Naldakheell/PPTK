@@ -14,7 +14,15 @@ internal static class FocusProbe
     static bool _cachedIsPowerPoint;
     static uint _cachedPid;
 
-    public readonly record struct Probe(bool IsPowerPoint, FocusKind Focus, uint ProcessId, string Detail);
+    public readonly record struct Probe(
+        bool IsPowerPoint,
+        FocusKind Focus,
+        uint ProcessId,
+        string Detail,
+        nint FrameWindow = 0,
+        bool FrameClassMatches = false,
+        bool MenuOrDialog = false,
+        bool TextEditInFrame = false);
 
     public static Probe Inspect()
     {
@@ -31,11 +39,11 @@ internal static class FocusProbe
         }
 
         if (!_cachedIsPowerPoint)
-            return new Probe(false, FocusKind.Outside, _cachedPid, "not PowerPoint");
+            return new Probe(false, FocusKind.Outside, _cachedPid, "not PowerPoint", foreground);
 
         string frame = ClassName(foreground);
         if (!frame.Equals("PPTFrameClass", StringComparison.Ordinal))
-            return new Probe(true, FocusKind.NotFrame, _cachedPid, "class=" + frame);
+            return new Probe(true, FocusKind.NotFrame, _cachedPid, "class=" + frame, foreground, false, IsDialogClass(frame));
 
         uint threadId = NativeMethods.GetWindowThreadProcessId(foreground, out _);
         var info = new NativeMethods.GuiThreadInfo
@@ -43,13 +51,13 @@ internal static class FocusProbe
             cbSize = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.GuiThreadInfo>(),
         };
         if (!NativeMethods.GetGUIThreadInfo(threadId, ref info))
-            return new Probe(true, FocusKind.Uncertain, _cachedPid, "gui thread unavailable");
+            return new Probe(true, FocusKind.Uncertain, _cachedPid, "gui thread unavailable", foreground, true);
 
         if ((info.flags & (NativeMethods.GuiInMenuMode | NativeMethods.GuiSystemMenuMode | NativeMethods.GuiPopupMenuMode)) != 0)
-            return new Probe(true, FocusKind.MenuOrDialog, _cachedPid, "menu mode");
+            return new Probe(true, FocusKind.MenuOrDialog, _cachedPid, "menu mode", foreground, true, true);
 
         if (info.hwndFocus == IntPtr.Zero)
-            return new Probe(true, FocusKind.Uncertain, _cachedPid, "no focus window");
+            return new Probe(true, FocusKind.Uncertain, _cachedPid, "no focus window", foreground, true);
 
         bool sawPane = false;
         var chain = new StringBuilder();
@@ -60,16 +68,27 @@ internal static class FocusProbe
             if (chain.Length > 0) chain.Append('/');
             chain.Append(name);
             if (IsBlockedClass(name))
-                return new Probe(true, FocusKind.RibbonOrEdit, _cachedPid, "class=" + name);
+            {
+                return new Probe(
+                    true,
+                    FocusKind.RibbonOrEdit,
+                    _cachedPid,
+                    "class=" + name,
+                    foreground,
+                    true,
+                    IsDialogClass(name),
+                    IsTextEditClass(name));
+            }
+
             if (name is "paneClassDC" or "mdiClass") sawPane = true;
             if (hwnd == foreground) break;
             hwnd = NativeMethods.GetParent(hwnd);
         }
 
         if (!sawPane)
-            return new Probe(true, FocusKind.Uncertain, _cachedPid, "chain=" + chain);
+            return new Probe(true, FocusKind.Uncertain, _cachedPid, "chain=" + chain, foreground, true);
 
-        return new Probe(true, FocusKind.Pane, _cachedPid, "chain=" + chain);
+        return new Probe(true, FocusKind.Pane, _cachedPid, "chain=" + chain, foreground, true);
     }
 
     public static void Write(TextWriter writer)
@@ -103,6 +122,21 @@ internal static class FocusProbe
         int length = NativeMethods.GetClassName(hwnd, buffer, buffer.Capacity);
         return length > 0 ? buffer.ToString() : "";
     }
+
+    static bool IsTextEditClass(string name) => name switch
+    {
+        "Edit"
+            or "RichEdit20A"
+            or "RichEdit20W"
+            or "RichEdit50W"
+            or "RichEditD2DPT"
+            or "RICHEDIT"
+            or "RICHEDIT60W" => true,
+        _ => false,
+    };
+
+    static bool IsDialogClass(string name) =>
+        name is "#32770" or "NUIDialog" || name.StartsWith("bosa_sdm", StringComparison.Ordinal);
 
     static bool IsBlockedClass(string name) => name switch
     {

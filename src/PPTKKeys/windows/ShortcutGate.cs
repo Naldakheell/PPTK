@@ -93,7 +93,7 @@ public static class ShortcutGate
     };
 
     public static bool IsToken(string? token) =>
-        token is "T" or "R" or "U" or "O" or "C" or "P" or "G" or "M" or "N" or "E";
+        token is "T" or "R" or "U" or "O" or "C" or "P" or "G" or "M" or "N" or "E" or "Q";
 
     public static string? TokenForVirtualKey(int virtualKey) => virtualKey switch
     {
@@ -107,6 +107,7 @@ public static class ShortcutGate
         0x4D => "M",
         0x4E => "N",
         0x45 => "E",
+        0x51 => "Q",
         _ => null,
     };
 
@@ -296,7 +297,15 @@ public static class ShortcutChords
 {
     public static bool IsChordToken(string? token) => token is
         "/" or "CTRL /" or "CTRL SHIFT C" or "CTRL SHIFT V" or "CTRL SHIFT T" or "ALT ." or "CTRL ]" or "CTRL [" or
-        "CTRL SHIFT ]" or "CTRL SHIFT [";
+        "CTRL SHIFT ]" or "CTRL SHIFT [" or
+        "CTRL 2" or "CTRL 3" or "ALT 2" or "ALT 3" or
+        "CTRL 4" or "CTRL 5" or "CTRL 6" or "CTRL 7" or
+        "CTRL K" or "CTRL SPACE";
+
+    public static bool IsModifiedChordKey(int virtualKey) => virtualKey is
+        0x32 or 0x33 or 0x34 or 0x35 or 0x36 or 0x37 or
+        0x62 or 0x63 or 0x64 or 0x65 or 0x66 or 0x67 or
+        0x20 or 0x4B;
 
     public static string? Token(
         KeyMark mark,
@@ -333,6 +342,22 @@ public static class ShortcutChords
             return "CTRL SHIFT V";
         if (virtualKey == 0x54 && ctrl && shift && !alt)
             return "CTRL SHIFT T";
+
+        if (shift || win) return null;
+        int digit = virtualKey switch
+        {
+            0x32 or 0x62 => 2,
+            0x33 or 0x63 => 3,
+            0x34 or 0x64 => 4,
+            0x35 or 0x65 => 5,
+            0x36 or 0x66 => 6,
+            0x37 or 0x67 => 7,
+            _ => 0,
+        };
+        if (digit != 0 && ctrl && !alt) return "CTRL " + digit;
+        if ((digit is 2 or 3) && alt && !ctrl) return "ALT " + digit;
+        if (virtualKey == 0x4B && ctrl && !alt) return "CTRL K";
+        if (virtualKey == 0x20 && ctrl && !alt) return "CTRL SPACE";
         return null;
     }
 }
@@ -378,7 +403,7 @@ public static class ShortcutSequence
         0x14 or 0x90 or 0x91;
 
     public static bool IsSequenceToken(string? token) => token is
-        "A L" or "A R" or "A T" or "A B" or "A M" or "A C" or "A A" or
+        "A L" or "A R" or "A T" or "A B" or "A M" or "A C" or "A A" or "A P" or "A X" or "A Z" or
         "S W" or "S H" or "S S" or
         "D H" or "D V" or
         "H +" or "H -" or
@@ -431,6 +456,9 @@ public static class ShortcutSequence
             ('A', SequenceSymbol.Letter, 'M', false) => "A M",
             ('A', SequenceSymbol.Letter, 'C', false) => "A C",
             ('A', SequenceSymbol.Letter, 'A', false) => "A A",
+            ('A', SequenceSymbol.Letter, 'P', false) => "A P",
+            ('A', SequenceSymbol.Letter, 'X', false) => "A X",
+            ('A', SequenceSymbol.Letter, 'Z', false) => "A Z",
             ('S', SequenceSymbol.Letter, 'W', false) => "S W",
             ('S', SequenceSymbol.Letter, 'H', false) => "S H",
             ('S', SequenceSymbol.Letter, 'S', false) => "S S",

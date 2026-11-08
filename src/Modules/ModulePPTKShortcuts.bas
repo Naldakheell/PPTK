@@ -11,7 +11,12 @@ Option Explicit
 ' Ctrl+Shift+] and Ctrl+Shift+[ move the selection one z-order step.
 ' I opens the Windows Insert Icon command. IconsPane is not used.
 ' E encloses a selected SVG icon in one circle, then toggles a fill on that circle.
-' \ saves the selected slides as a new PPTX. Library and email are ignored.
+' \ saves the selected slides as a new PPTX. Email Slides is a ribbon button, not a shortcut.
+' Slide Library is not a shortcut.
+' Q harmonizes the current slide onto its theme. A P, A X, and A Z arrange shapes.
+' Ctrl+2/3 and Alt+2/3 add or delete a recognized grid edge.
+' Ctrl+4 through Ctrl+7 insert a local TK placeholder.
+' Ctrl+K and Ctrl+Space open the Smart Bar.
 
 Private Const PPTK_TAG As String = "PPTK_SHORTCUT"
 Private Const PPTK_W_STANDARD As Single = 150
@@ -22,6 +27,9 @@ Private Const PPTK_W_TEXT As Single = 300
 Private Const PPTK_H_TEXT As Single = 50
 Private Const PPTK_NUDGE As Single = 12
 Private Const PPTK_NUDGE_LIMIT As Long = 40
+Private PPTK_OutlookApp As Object
+Private PPTK_OutlookMail As Object
+Private PPTK_OutlookStarted As Boolean
 
 Public Sub PPTK_DispatchShortcut(ByVal token As String)
     Dim normalized As String
@@ -105,6 +113,32 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
             PPTK_ExecuteMso "ObjectSendBackward"
         Case "\"
             PPTK_SaveSelectedSlides
+        Case "Q"
+            PPTK_FixSlideColors
+        Case "A P"
+            PPTK_AlignProcess
+        Case "A X"
+            PPTK_AlignMatrix
+        Case "A Z"
+            PPTK_AlignCentral
+        Case "CTRL 2"
+            PPTK_AddRightColumn
+        Case "CTRL 3"
+            PPTK_AddBottomRow
+        Case "ALT 2"
+            PPTK_DeleteRightColumn
+        Case "ALT 3"
+            PPTK_DeleteBottomRow
+        Case "CTRL 4"
+            PPTK_AddRightTK
+        Case "CTRL 5"
+            PPTK_AddBottomTK
+        Case "CTRL 6"
+            PPTK_AddTopTK
+        Case "CTRL 7"
+            PPTK_AddLeftTK
+        Case "CTRL K", "CTRL SPACE"
+            PPTK_ShowSmartBar
         Case Else
     End Select
 End Sub
@@ -847,6 +881,103 @@ Failed:
     End If
 End Sub
 
+Public Sub PPTK_EmailSelectedSlides(Optional ByVal control As IRibbonControl)
+    Dim sourceWindow As DocumentWindow
+    Dim source As Presentation
+    Dim selected As SlideRange
+    Dim indexes() As Long
+    Dim attachmentPath As String
+    Dim tempPath As String
+    Dim copyPres As Presentation
+    Dim previousAlerts As PpAlertLevel
+    Dim capturedSaved As Boolean
+    Dim haveSaved As Boolean
+    Dim alertsChanged As Boolean
+    Dim failure As Long
+
+    On Error GoTo Failed
+    If Application.Presentations.Count < 1 Then Exit Sub
+    Set sourceWindow = ActiveWindow
+    If sourceWindow Is Nothing Then Exit Sub
+    If sourceWindow.Selection.Type <> ppSelectionSlides Then
+        MsgBox "Select one or more slides, then use Email Slides.", vbExclamation
+        Exit Sub
+    End If
+    Set selected = sourceWindow.Selection.SlideRange
+    If selected Is Nothing Then Exit Sub
+    If selected.Count < 1 Then
+        MsgBox "Select one or more slides, then use Email Slides.", vbExclamation
+        Exit Sub
+    End If
+    Set source = sourceWindow.Presentation
+    If source Is Nothing Then Exit Sub
+
+    PPTK_CollectSlideIndexes selected, indexes
+    attachmentPath = PPTK_EmailAttachmentPath(source, indexes)
+    If Len(attachmentPath) = 0 Then Err.Raise 5
+    If PPTK_SameFile(source, attachmentPath) Then Err.Raise 5
+
+    tempPath = PPTK_TempCopyPath()
+    If StrComp(tempPath, attachmentPath, vbTextCompare) = 0 Then Err.Raise 5
+    PPTK_DeleteIfExists tempPath
+    capturedSaved = source.Saved
+    haveSaved = True
+    previousAlerts = Application.DisplayAlerts
+    source.SaveCopyAs tempPath, ppSaveAsOpenXMLPresentation
+    source.Saved = capturedSaved
+    Set copyPres = Presentations.Open(tempPath, msoFalse, msoFalse, msoFalse)
+    If copyPres Is Nothing Then Err.Raise 5
+    If Not PPTK_IsTempName(copyPres.Name) Then Err.Raise 5
+    If StrComp(copyPres.FullName, source.FullName, vbTextCompare) = 0 Then Err.Raise 5
+
+    Application.DisplayAlerts = ppAlertsNone
+    alertsChanged = True
+    PPTK_KeepSlideIndexes copyPres, indexes
+    copyPres.SaveAs attachmentPath, ppSaveAsOpenXMLPresentation
+    Application.DisplayAlerts = previousAlerts
+    alertsChanged = False
+    If Not PPTK_PathExists(attachmentPath) Then Err.Raise 5
+    If copyPres.Slides.Count <> (UBound(indexes) - LBound(indexes) + 1) Then Err.Raise 5
+    PPTK_DeleteIfExists tempPath
+    copyPres.Saved = True
+    copyPres.Close
+    Set copyPres = Nothing
+    PPTK_DeleteIfExists tempPath
+    PPTK_RestoreSelection sourceWindow, source, indexes
+
+    If PPTK_DisplayOutlookDraft(PPTK_EmailSubject(source), attachmentPath) Then
+        ' A draft opened by starting Classic Outlook still has the temp file open.
+        ' Leave that file in place. An already-running Outlook has copied it.
+        If Not PPTK_OutlookStarted Then PPTK_DeleteEmailTemp attachmentPath, source
+        Exit Sub
+    End If
+    PPTK_RevealEmailFile attachmentPath
+    Exit Sub
+
+Failed:
+    failure = Err.Number
+    On Error Resume Next
+    If alertsChanged Then Application.DisplayAlerts = previousAlerts
+    If haveSaved Then source.Saved = capturedSaved
+    If Not copyPres Is Nothing Then
+        If PPTK_IsTempName(copyPres.Name) Or StrComp(copyPres.FullName, attachmentPath, vbTextCompare) = 0 Then
+            copyPres.Saved = True
+            copyPres.Close
+        End If
+        Set copyPres = Nothing
+    End If
+    PPTK_DeleteIfExists tempPath
+    If Len(attachmentPath) > 0 Then
+        If PPTK_PathExists(attachmentPath) And Not PPTK_SameFile(source, attachmentPath) Then
+            PPTK_RevealEmailFile attachmentPath
+            Exit Sub
+        End If
+    End If
+    If failure <> 1004 And failure <> 4198 And failure <> 18 Then
+        MsgBox "Could not export the selected slides. The open presentation was not changed.", vbExclamation
+    End If
+End Sub
+
 Private Sub PPTK_CollectSlideIndexes(ByVal selected As SlideRange, ByRef indexes() As Long)
     Dim index As Long
     ReDim indexes(1 To selected.Count)
@@ -1034,4 +1165,200 @@ Private Sub PPTK_DeleteIfExists(ByVal path As String)
         Err.Clear
         DoEvents
     Next attempt
+End Sub
+
+Private Function PPTK_PathExists(ByVal path As String) As Boolean
+    If Len(path) = 0 Then Exit Function
+    PPTK_PathExists = (Len(Dir$(path)) > 0)
+End Function
+
+Private Function PPTK_EmailSubject(ByVal source As Presentation) As String
+    Dim subjectText As String
+    subjectText = Trim$(PPTK_BaseName(source.Name))
+    If Len(subjectText) = 0 Then subjectText = "Slides"
+    If Len(subjectText) > 200 Then subjectText = Left$(subjectText, 200)
+    PPTK_EmailSubject = subjectText
+End Function
+
+Private Function PPTK_LeafName(ByVal path As String) As String
+    Dim slash As Long
+    slash = InStrRev(path, "\")
+    If slash > 0 Then
+        PPTK_LeafName = Mid$(path, slash + 1)
+    Else
+        PPTK_LeafName = path
+    End If
+End Function
+
+Private Function PPTK_EmailAttachmentPath(ByVal source As Presentation, ByRef indexes() As Long) As String
+    Dim suggested As String
+    Dim leaf As String
+    Dim stem As String
+    Dim folder As String
+    Dim candidate As String
+    Dim suffix As Long
+    Dim dot As Long
+    suggested = PPTK_SuggestedPath(source, indexes)
+    leaf = PPTK_LeafName(suggested)
+    dot = InStrRev(leaf, ".")
+    If dot > 1 Then
+        stem = Left$(leaf, dot - 1)
+    Else
+        stem = "Slides"
+        leaf = stem & ".pptx"
+    End If
+    folder = Environ$("TEMP")
+    If Len(folder) = 0 Then folder = CurDir$
+    If Right$(folder, 1) <> "\" Then folder = folder & "\"
+    candidate = folder & leaf
+    suffix = 2
+    Do While PPTK_PathExists(candidate) Or PPTK_SameFile(source, candidate)
+        candidate = folder & stem & " " & CStr(suffix) & ".pptx"
+        suffix = suffix + 1
+        If suffix > 100 Then Err.Raise 5
+    Loop
+    PPTK_EmailAttachmentPath = candidate
+End Function
+
+Private Function PPTK_DisplayOutlookDraft(ByVal subjectText As String, ByVal attachmentPath As String) As Boolean
+    Dim outlookApp As Object
+    Dim mailItem As Object
+    Dim added As Object
+    Dim leaf As String
+
+    On Error GoTo Failed
+    PPTK_DisplayOutlookDraft = False
+    If Not PPTK_PathExists(attachmentPath) Then Exit Function
+    leaf = PPTK_LeafName(attachmentPath)
+
+    On Error Resume Next
+    Set outlookApp = GetObject(, "Outlook.Application")
+    Err.Clear
+    On Error GoTo Failed
+    If outlookApp Is Nothing Then
+        Set outlookApp = CreateObject("Outlook.Application")
+        PPTK_OutlookStarted = True
+    Else
+        PPTK_OutlookStarted = False
+    End If
+    If outlookApp Is Nothing Then Exit Function
+    ' Opening the MAPI session keeps a Classic Outlook instance alive after Display.
+    outlookApp.GetNamespace("MAPI")
+
+    Set mailItem = outlookApp.CreateItem(0)
+    If mailItem Is Nothing Then Exit Function
+    mailItem.Subject = subjectText
+    Set added = mailItem.Attachments.Add(attachmentPath)
+    If added Is Nothing Then GoTo Failed
+    If added.Size < 1 Then GoTo Failed
+    If mailItem.Attachments.Count < 1 Then GoTo Failed
+    If StrComp(added.FileName, leaf, vbTextCompare) <> 0 Then GoTo Failed
+    Set PPTK_OutlookApp = outlookApp
+    Set PPTK_OutlookMail = mailItem
+    mailItem.Display
+    PPTK_DisplayOutlookDraft = True
+    Exit Function
+Failed:
+    On Error Resume Next
+    If Not mailItem Is Nothing Then mailItem.Close 1
+    PPTK_DisplayOutlookDraft = False
+End Function
+
+Private Sub PPTK_DeleteEmailTemp(ByVal path As String, ByVal source As Presentation)
+    Dim folder As String
+    Dim attempt As Long
+    If Len(path) = 0 Then Exit Sub
+    If Not source Is Nothing Then
+        If PPTK_SameFile(source, path) Then Exit Sub
+    End If
+    folder = Environ$("TEMP")
+    If Len(folder) = 0 Then Exit Sub
+    If Right$(folder, 1) <> "\" Then folder = folder & "\"
+    If StrComp(Left$(path, Len(folder)), folder, vbTextCompare) <> 0 Then Exit Sub
+    If LCase$(Right$(path, 5)) <> ".pptx" Then Exit Sub
+    For attempt = 1 To 20
+        On Error Resume Next
+        If Len(Dir$(path)) = 0 Then Exit Sub
+        Kill path
+        If Err.Number = 0 Then Exit Sub
+        Err.Clear
+        DoEvents
+    Next attempt
+End Sub
+
+Private Function PPTK_EnsureFolder(ByVal folder As String) As Boolean
+    On Error GoTo Failed
+    If Len(folder) = 0 Then Exit Function
+    If Len(Dir$(folder, vbDirectory)) > 0 Then
+        PPTK_EnsureFolder = True
+        Exit Function
+    End If
+    MkDir folder
+    PPTK_EnsureFolder = (Len(Dir$(folder, vbDirectory)) > 0)
+    Exit Function
+Failed:
+    PPTK_EnsureFolder = False
+End Function
+
+Private Function PPTK_EmailFallbackFolder() As String
+    Dim profile As String
+    Dim candidate As String
+    profile = Environ$("USERPROFILE")
+    If Len(profile) = 0 Then Exit Function
+    candidate = profile & "\Documents\PPTK Email"
+    If PPTK_EnsureFolder(candidate) Then
+        PPTK_EmailFallbackFolder = candidate & "\"
+        Exit Function
+    End If
+    candidate = profile & "\Desktop\PPTK Email"
+    If PPTK_EnsureFolder(candidate) Then
+        PPTK_EmailFallbackFolder = candidate & "\"
+    End If
+End Function
+
+Private Sub PPTK_RevealEmailFile(ByVal attachmentPath As String)
+    Dim folder As String
+    Dim destination As String
+    Dim leaf As String
+    Dim stem As String
+    Dim dot As Long
+    Dim suffix As Long
+    Dim copied As Boolean
+
+    If Len(attachmentPath) = 0 Then Exit Sub
+    If Not PPTK_PathExists(attachmentPath) Then Exit Sub
+    folder = PPTK_EmailFallbackFolder()
+    leaf = PPTK_LeafName(attachmentPath)
+    destination = attachmentPath
+    If Len(folder) > 0 Then
+        dot = InStrRev(leaf, ".")
+        If dot > 1 Then
+            stem = Left$(leaf, dot - 1)
+        Else
+            stem = leaf
+        End If
+        destination = folder & leaf
+        suffix = 2
+        Do While PPTK_PathExists(destination)
+            destination = folder & stem & " " & CStr(suffix) & ".pptx"
+            suffix = suffix + 1
+            If suffix > 100 Then Exit Do
+        Loop
+        On Error Resume Next
+        FileCopy attachmentPath, destination
+        copied = (Err.Number = 0 And PPTK_PathExists(destination))
+        Err.Clear
+        On Error GoTo 0
+        If copied Then
+            PPTK_DeleteEmailTemp attachmentPath, Nothing
+        Else
+            destination = attachmentPath
+        End If
+    End If
+    On Error Resume Next
+    Shell "explorer.exe /select,""" & destination & """", vbNormalFocus
+    On Error GoTo 0
+    MsgBox "Classic Outlook could not open a draft." & vbCrLf & vbCrLf & _
+        "The slides were saved here:" & vbCrLf & destination & vbCrLf & vbCrLf & _
+        "Attach that file to your email yourself.", vbExclamation
 End Sub

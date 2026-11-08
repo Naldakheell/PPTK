@@ -19,6 +19,9 @@ public class SequenceTests
     [InlineData('A', 'M', "A M")]
     [InlineData('A', 'C', "A C")]
     [InlineData('A', 'A', "A A")]
+    [InlineData('A', 'P', "A P")]
+    [InlineData('A', 'X', "A X")]
+    [InlineData('A', 'Z', "A Z")]
     [InlineData('S', 'W', "S W")]
     [InlineData('S', 'H', "S H")]
     [InlineData('S', 'S', "S S")]
@@ -224,5 +227,25 @@ public class SequenceTests
         Assert.Null(ShortcutChords.Token(KeyMark.None, 0x43, true, false, false, false));
         Assert.Null(ShortcutChords.Token(KeyMark.None, 0x56, true, false, false, false));
         Assert.Null(ShortcutChords.Token(KeyMark.None, 0x43, true, true, true, false));
+        Assert.Equal("CTRL 2", ShortcutChords.Token(KeyMark.None, 0x32, true, false, false, false));
+        Assert.Equal("CTRL 3", ShortcutChords.Token(KeyMark.None, 0x63, true, false, false, false));
+        Assert.Equal("ALT 2", ShortcutChords.Token(KeyMark.None, 0x32, false, false, true, false));
+        Assert.Equal("ALT 3", ShortcutChords.Token(KeyMark.None, 0x33, false, false, true, false));
+        Assert.Equal("CTRL 4", ShortcutChords.Token(KeyMark.None, 0x34, true, false, false, false));
+        Assert.Equal("CTRL 5", ShortcutChords.Token(KeyMark.None, 0x35, true, false, false, false));
+        Assert.Equal("CTRL 6", ShortcutChords.Token(KeyMark.None, 0x36, true, false, false, false));
+        Assert.Equal("CTRL 7", ShortcutChords.Token(KeyMark.None, 0x37, true, false, false, false));
+        Assert.Equal("CTRL K", ShortcutChords.Token(KeyMark.None, 0x4B, true, false, false, false));
+        Assert.Equal("CTRL SPACE", ShortcutChords.Token(KeyMark.None, 0x20, true, false, false, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.None, 0x32, true, true, false, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.None, 0x32, true, false, true, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.None, 0x32, false, false, false, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.None, 0x4B, false, false, false, false));
+        Assert.True(ShortcutChords.IsChordToken("CTRL 2"));
+        Assert.True(ShortcutGate.IsRunnable("CTRL K"));
+        Assert.True(ShortcutGate.IsRunnable("A P"));
+        Assert.True(ShortcutSequence.IsSequenceToken("A X"));
+        Assert.True(ShortcutSequence.IsSequenceToken("A Z"));
+        Assert.False(ShortcutGate.IsToken("A P"));
     }
 }
