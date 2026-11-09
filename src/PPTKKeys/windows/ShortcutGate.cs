@@ -383,18 +383,19 @@ public readonly record struct SequenceState(char Prefix, uint ArmedAt)
 public readonly record struct SequenceResult(SequenceState State, bool Swallow, string? Token, bool Reprocess);
 
 /// <summary>
-/// Two-key sequences. A, S, D, H, V, and period arm only when the caller says the slide canvas is legal.
+/// Two-key sequences. A, S, D, H, V, X, and period arm only when the caller says the slide canvas is legal.
 /// The second key must arrive within one second. Escape, an invalid second key, or a lost canvas cancels.
 /// Shift+plus and the minus key complete spacing. Shift+minus and shifted letters do not.
-/// Period then T merges text. A shifted period is not the prefix unless that shift is what types the period.
+/// Period then T merges text. X then T unifies shape type.
+/// A shifted period is not the prefix unless that shift is what types the period.
 /// </summary>
 public static class ShortcutSequence
 {
     public const uint TimeoutMs = 1000;
 
-    public static bool IsPrefixLetter(char letter) => letter is 'A' or 'S' or 'D' or 'H' or 'V';
+    public static bool IsPrefixLetter(char letter) => letter is 'A' or 'S' or 'D' or 'H' or 'V' or 'X';
 
-    public static bool IsPrefixVirtualKey(int virtualKey) => virtualKey is 0x41 or 0x53 or 0x44 or 0x48 or 0x56;
+    public static bool IsPrefixVirtualKey(int virtualKey) => virtualKey is 0x41 or 0x53 or 0x44 or 0x48 or 0x56 or 0x58;
 
     public static bool IsModifierVirtualKey(int virtualKey) => virtualKey is
         0x10 or 0x11 or 0x12 or
@@ -408,7 +409,7 @@ public static class ShortcutSequence
         "D H" or "D V" or
         "H +" or "H -" or
         "V +" or "V -" or
-        ". T";
+        ". T" or "X T";
 
     public static bool Expired(uint now, uint armedAt) => now - armedAt >= TimeoutMs;
 
@@ -468,6 +469,7 @@ public static class ShortcutSequence
             ('H', SequenceSymbol.Minus, _, false) => "H -",
             ('V', SequenceSymbol.Plus, _, _) => "V +",
             ('V', SequenceSymbol.Minus, _, false) => "V -",
+            ('X', SequenceSymbol.Letter, 'T', false) => "X T",
             ('.', SequenceSymbol.Letter, 'T', false) => ". T",
             _ => null,
         };

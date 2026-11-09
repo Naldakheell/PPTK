@@ -100,7 +100,7 @@
               <button idMso="ReplaceDialog" showLabel="false" />
               <button id="PPTKPasteContentOnly" tag="CTRL SHIFT T" label="Paste content only" image="pptk-paste-text" onAction="PPTK_RibbonShortcut" screentip="Paste Content Only" supertip="Pastes clipboard text into the selection and keeps its formatting" />
               <button id="PPTKMergeText" tag=". T" label="Merge textboxes" image="pptk-merge-text" onAction="PPTK_RibbonShortcut" screentip="Merge Textboxes" supertip="Merges the selected text into the first shape" />
-              <button id="PPTKRemoveMargins" tag="ALT ." label="Remove margins" image="pptk-remove-margins" onAction="PPTK_RibbonShortcut" screentip="Remove Margins" supertip="Sets the text margins of the selected shapes to zero" />
+              <button id="PPTKRemoveMargins" tag="ALT ." label="Remove margins" image="pptk-remove-margins" onAction="PPTK_RibbonShortcut" screentip="Remove Margins" supertip="Sets the text margins of the selected shapes and table cells to zero. Alt+." />
             </menu>
           </box>
         </group>
@@ -153,6 +153,7 @@
         <group id="Shape" label="Shape">
           <menu id="PPTKChangeShapeMenu" label="Change shape" showLabel="false" image="pptk-change-shape" size="normal" itemSize="normal" screentip="Change shape">
             <gallery idMso="ShapeChangeShapeGallery" showLabel="false" />
+            <button id="PPTKUnifyShapeType" tag="X T" label="Unify Shape Type" image="pptk-unify" onAction="PPTK_RibbonShortcut" screentip="Unify Shape Type" supertip="Changes the selected shapes to the first AutoShape type. Positions, sizes, text, and rotation stay. X then T." />
           </menu>
           <box id="ShapeRow1" boxStyle="horizontal">
             <control idMso="ShapeWidth" showLabel="false" />
@@ -184,10 +185,19 @@
               <button id="ObjectsSizeToWidest" image="pptk-size-wide" label="Size to widest" showLabel="true" onAction="ObjectsSizeToWidest" supertip="Sizes all selected objects to the widest one" screentip="Size to Widest" />
               <button id="ObjectsSizeNarrowest" image="pptk-size-narrow" label="Size to narrowest" showLabel="true" onAction="ObjectsSizeToNarrowest" supertip="Sizes all selected objects to the narrowest one" screentip="Size to Narrowest" />
               <menuSeparator id="separatorShapeGrid" />
-              <button id="PPTKAddRightColumn" tag="CTRL 2" label="Add Right Column" image="pptk-col-add" onAction="PPTK_RibbonShortcut" screentip="Add Right Column" supertip="Duplicates the rightmost column of the selected grid" />
-              <button id="PPTKAddBottomRow" tag="CTRL 3" label="Add Bottom Row" image="pptk-row-add" onAction="PPTK_RibbonShortcut" screentip="Add Bottom Row" supertip="Duplicates the bottom row of the selected grid" />
-              <button id="PPTKDeleteRightColumn" tag="ALT 2" label="Delete Right Column" image="pptk-col-del" onAction="PPTK_RibbonShortcut" screentip="Delete Right Column" supertip="Deletes the rightmost column of the selected grid" />
-              <button id="PPTKDeleteBottomRow" tag="ALT 3" label="Delete Bottom Row" image="pptk-row-del" onAction="PPTK_RibbonShortcut" screentip="Delete Bottom Row" supertip="Deletes the bottom row of the selected grid" />
+              <menu id="PPTKGridMenu" label="Rows and columns" image="pptk-matrix" showLabel="true" itemSize="normal" screentip="Rows and columns">
+                <button id="PPTKAddRightColumn" tag="CTRL 2" label="Add Column &#x2014; Keep Bounds" image="pptk-col-add" onAction="PPTK_RibbonShortcut" screentip="Add Column &#x2014; Keep Bounds" supertip="Duplicates the rightmost column and fits every column inside the original width. Ctrl+2." />
+                <button id="PPTKAddBottomRow" tag="CTRL 3" label="Add Row &#x2014; Keep Bounds" image="pptk-row-add" onAction="PPTK_RibbonShortcut" screentip="Add Row &#x2014; Keep Bounds" supertip="Duplicates the bottom row and fits every row inside the original height. Ctrl+3." />
+                <button id="PPTKDeleteRightColumn" tag="ALT 2" label="Delete Column &#x2014; Keep Bounds" image="pptk-col-del" onAction="PPTK_RibbonShortcut" screentip="Delete Column &#x2014; Keep Bounds" supertip="Deletes the rightmost column and expands the rest to the original width. Alt+2." />
+                <button id="PPTKDeleteBottomRow" tag="ALT 3" label="Delete Row &#x2014; Keep Bounds" image="pptk-row-del" onAction="PPTK_RibbonShortcut" screentip="Delete Row &#x2014; Keep Bounds" supertip="Deletes the bottom row and expands the rest to the original height. Alt+3." />
+                <menuSeparator id="separatorGridLegacy" />
+                <button id="PPTKAddRightColumnExpand" label="Add Column &#x2014; Expand" image="pptk-col-expand" onAction="PPTK_RibbonAddRightColumnExpand" screentip="Add Column &#x2014; Expand" supertip="Duplicates the rightmost column beyond the original width." />
+                <button id="PPTKAddBottomRowExpand" label="Add Row &#x2014; Expand" image="pptk-row-expand" onAction="PPTK_RibbonAddBottomRowExpand" screentip="Add Row &#x2014; Expand" supertip="Duplicates the bottom row beyond the original height." />
+                <button id="PPTKDeleteRightColumnShrink" label="Delete Column &#x2014; Shrink" image="pptk-col-shrink" onAction="PPTK_RibbonDeleteRightColumnShrink" screentip="Delete Column &#x2014; Shrink" supertip="Deletes the rightmost column and leaves the layout smaller." />
+                <button id="PPTKDeleteBottomRowShrink" label="Delete Row &#x2014; Shrink" image="pptk-row-shrink" onAction="PPTK_RibbonDeleteBottomRowShrink" screentip="Delete Row &#x2014; Shrink" supertip="Deletes the bottom row and leaves the layout shorter." />
+              </menu>
+              <button id="PPTKFlipCurrentSlide" label="Flip Current Slide" image="pptk-flip-slide" showLabel="true" onAction="PPTK_RibbonFlipCurrentSlide" screentip="Flip Current Slide" supertip="Mirrors this slide horizontally and keeps text readable." />
+              <button id="PPTKFlipEntirePresentation" label="Flip Entire Presentation" image="pptk-flip-deck" showLabel="true" onAction="PPTK_RibbonFlipEntirePresentation" screentip="Flip Entire Presentation" supertip="Mirrors every slide horizontally and keeps text readable. Masters and notes stay unchanged." />
               <toggleButton idMso="ObjectEditPoints" showLabel="false" />
             </menu>
           </box>
@@ -212,7 +222,7 @@
               <menu id="ObjectSetPositionMenu" itemSize="normal" supertip="Opens the tools for setting the position of shapes" screentip="Set Position">
                 <control idMso="ObjectSizeAndPositionDialog" showLabel="true" />
               </menu>
-              <button id="PPTKAlignShapeAngle" tag="A A" label="Align shape angle" image="pptk-align-angle" onAction="PPTK_RibbonShortcut" screentip="Align Shape Angle" supertip="Copies the first selected shape's rotation onto the other selected shapes" />
+              <button id="PPTKMatchCornerRoundness" tag="A A" label="Match Corner Roundness" image="pptk-corner" onAction="PPTK_RibbonShortcut" screentip="Match Corner Roundness" supertip="Copies the first rounded rectangle's corner radius onto the other selected rounded rectangles. A then A." />
               <menuSeparator id="separatorSmartAlignCommands" />
               <button id="PPTKAlignProcess" tag="A P" label="Align Process" image="pptk-process" onAction="PPTK_RibbonShortcut" screentip="Align Process" supertip="Arranges the selected shapes into an evenly spaced process" />
               <button id="PPTKAlignMatrix" tag="A X" label="Align Matrix" image="pptk-matrix" onAction="PPTK_RibbonShortcut" screentip="Align Matrix" supertip="Arranges the selected shapes into a chosen grid" />

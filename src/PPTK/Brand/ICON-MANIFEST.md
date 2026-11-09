@@ -111,7 +111,15 @@ Edit each control by its `id`. Do not search-and-replace an `imageMso` value: se
 | Smart Align | `ObjectsStretchTopShapeBottom` | add |  | `pptk-stretch-to-top` | icons/16/pptk-stretch-to-top.png |
 | Smart Align | `ObjectsStretchBottomShapeTop` | add |  | `pptk-stretch-to-bottom` | icons/16/pptk-stretch-to-bottom.png |
 | Smart Align | `SmartAlignMoreMenu` | replace | GroupPosition | `pptk-align-more` | icons/16/pptk-align-more.png |
-| Smart Align | `PPTKAlignShapeAngle` | replace | ObjectRotateRight90 | `pptk-align-angle` | icons/16/pptk-align-angle.png |
+| Smart Align | `PPTKMatchCornerRoundness` | add |  | `pptk-corner` | icons/16/pptk-corner.png |
+| Shape | `PPTKUnifyShapeType` | add |  | `pptk-unify` | icons/16/pptk-unify.png |
+| Shape | `PPTKGridMenu` | add |  | `pptk-matrix` | icons/16/pptk-matrix.png |
+| Shape | `PPTKAddRightColumnExpand` | add |  | `pptk-col-expand` | icons/16/pptk-col-expand.png |
+| Shape | `PPTKAddBottomRowExpand` | add |  | `pptk-row-expand` | icons/16/pptk-row-expand.png |
+| Shape | `PPTKDeleteRightColumnShrink` | add |  | `pptk-col-shrink` | icons/16/pptk-col-shrink.png |
+| Shape | `PPTKDeleteBottomRowShrink` | add |  | `pptk-row-shrink` | icons/16/pptk-row-shrink.png |
+| Shape | `PPTKFlipCurrentSlide` | add |  | `pptk-flip-slide` | icons/16/pptk-flip-slide.png |
+| Shape | `PPTKFlipEntirePresentation` | add |  | `pptk-flip-deck` | icons/16/pptk-flip-deck.png |
 | Smart Align | `PPTKAlignProcess` | replace | ShapeChevron | `pptk-process` | icons/16/pptk-process.png |
 | Smart Align | `PPTKAlignMatrix` | replace | TableInsert | `pptk-matrix` | icons/16/pptk-matrix.png |
 | Smart Align | `PPTKAlignCentral` | replace | GroupPosition | `pptk-central` | icons/16/pptk-central.png |

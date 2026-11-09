@@ -12,3 +12,17 @@ build-tools*
 *.user
 *.suo
 ~$*
+
+# git checkout-index temp files
+.merge_file_*
+
+# VBA UserForm designer import logs. Tracked logs stay tracked.
+src/Forms/*.log
+
+# Hash-named extra PPTKKeys publish folders. Canonical binary is release/win-x64.
+src/PPTKKeys/windows/release/*-win-x64/
+
+# Failed Smart Bar visual-redesign intermediates
+src/PPTK-WINDOWS-FINAL-MODERN*
+src/PPTK.modern.ppam
+src/SmartBar-redesign.png

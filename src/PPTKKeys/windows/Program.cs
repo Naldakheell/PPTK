@@ -75,7 +75,7 @@ internal sealed class HelperApp
         Console.WriteLine("Mapped keys: T R U O C P G M N E Q");
         Console.WriteLine("Canvas key: I opens Insert Icon");
         Console.WriteLine("Canvas key: E encloses the selected icon");
-        Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C/A/P/X/Z, S W/H/S, D H/V, H +/-, V +/-, . T");
+        Console.WriteLine("Canvas sequences (1s): A L/R/T/B/M/C/A/P/X/Z, S W/H/S, D H/V, H +/-, V +/-, . T, X T");
         Console.WriteLine("Canvas chords: /  Ctrl+/  Ctrl+Shift+C  Ctrl+Shift+V  Ctrl+Shift+T  Alt+.  Ctrl+[  Ctrl+]  Ctrl+Shift+[  Ctrl+Shift+]");
         Console.WriteLine("Canvas chords: Ctrl+2/3 Alt+2/3 Ctrl+4/5/6/7 Ctrl+K Ctrl+Space");
         Console.WriteLine("PowerPoint selection is cached outside the hook. Ctrl+C stops the helper.");
@@ -114,7 +114,7 @@ internal sealed class HelperApp
 
         bool sequencesArm = probe.Focus == FocusKind.Pane && snapshot.Surface == Surface.Canvas;
         Console.WriteLine(sequencesArm
-            ? "sequences=arm-on-canvas A S D H V ."
+            ? "sequences=arm-on-canvas A S D H V X ."
             : "sequences=pass");
         Console.WriteLine(sequencesArm
             ? "chords=canvas / Ctrl+/ Ctrl+Shift+C/V Alt+. Ctrl+[/] Ctrl+Shift+[/]"
@@ -249,7 +249,10 @@ internal sealed class HelperApp
                 bool allowPasteContent = chord == "CTRL SHIFT T"
                     && probe.Focus == FocusKind.Pane
                     && _session.EffectiveSurface == Surface.Text;
-                if (!allowCanvas && !allowPasteContent) return Next(nCode, wParam, lParam);
+                bool allowRemoveMargins = chord == "ALT ."
+                    && probe.Focus == FocusKind.Pane
+                    && _session.EffectiveSurface == Surface.Text;
+                if (!allowCanvas && !allowPasteContent && !allowRemoveMargins) return Next(nCode, wParam, lParam);
                 if (!PostToken(chord)) return Next(nCode, wParam, lParam);
                 _heldVirtualKey = vk;
                 _lastPass = "";

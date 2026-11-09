@@ -520,6 +520,53 @@ function Icon-RowDel($g, $k) {
     Stroke-Rect $g $k 2 11 9 4 $script:Ink 1.2
     Fill-Rect $g $k 4 11.5 5 3 $script:Cyan
 }
+function Icon-ColExpand($g, $k) {
+    Fill-Rect $g $k 1 3 3 3 $script:Ink
+    Fill-Rect $g $k 5 3 3 3 $script:Ink
+    Fill-Rect $g $k 1 8 3 3 $script:Ink
+    Fill-Rect $g $k 5 8 3 3 $script:Ink
+    Fill-Rect $g $k 10 1 5 14 $script:Cyan
+}
+function Icon-RowExpand($g, $k) {
+    Fill-Rect $g $k 2 1 4 3 $script:Ink
+    Fill-Rect $g $k 8 1 4 3 $script:Ink
+    Fill-Rect $g $k 2 5 4 3 $script:Ink
+    Fill-Rect $g $k 8 5 4 3 $script:Ink
+    Fill-Rect $g $k 1 11 14 4 $script:Cyan
+}
+function Icon-ColShrink($g, $k) {
+    Fill-Rect $g $k 1 2 5 5 $script:Ink
+    Fill-Rect $g $k 1 9 5 5 $script:Ink
+    Fill-Rect $g $k 8 4 3 8 $script:Cyan
+    Fill-Rect $g $k 12 6 3 1.4 $script:Ink
+}
+function Icon-RowShrink($g, $k) {
+    Fill-Rect $g $k 2 1 5 5 $script:Ink
+    Fill-Rect $g $k 9 1 5 5 $script:Ink
+    Fill-Rect $g $k 4 8 8 3 $script:Cyan
+    Fill-Rect $g $k 6 12 4 1.4 $script:Ink
+}
+function Icon-Corner($g, $k) {
+    Fill-Round $g $k 1 3 8 10 2.4 $script:Cyan
+    Fill-Rect $g $k 3 6 4 4 $script:Cyan
+    Fill-Round $g $k 8 2 7 6 2.2 $script:Ink
+}
+function Icon-Unify($g, $k) {
+    Fill-Rect $g $k 1 1 5 5 $script:Ink
+    Fill-Ellipse $g $k 1 9 5 5 $script:Ink
+    Fill-Round $g $k 7 3 8 10 2.2 $script:Cyan
+    Fill-Rect $g $k 9 6 4 4 $script:Cyan
+}
+function Icon-FlipSlide($g, $k) {
+    Fill-Rect $g $k 1 3 5 10 $script:Ink
+    Fill-Rect $g $k 10 3 5 10 $script:Cyan
+    Fill-Rect $g $k 7 7 2 2 $script:Cyan
+}
+function Icon-FlipDeck($g, $k) {
+    Fill-Rect $g $k 1 1 9 4 $script:Ink
+    Fill-Rect $g $k 3 6 9 4 $script:Ink
+    Fill-Rect $g $k 5 11 10 4 $script:Cyan
+}
 function Icon-Arrange($g, $k) {
     Fill-Rect $g $k 2 2 5 5 $script:Cyan
     Fill-Rect $g $k 9 2 5 5 $script:Ink
@@ -718,6 +765,14 @@ $Draw = @{
     'pptk-row-add' = { param($g, $k) Icon-RowAdd $g $k }
     'pptk-col-del' = { param($g, $k) Icon-ColDel $g $k }
     'pptk-row-del' = { param($g, $k) Icon-RowDel $g $k }
+    'pptk-col-expand' = { param($g, $k) Icon-ColExpand $g $k }
+    'pptk-row-expand' = { param($g, $k) Icon-RowExpand $g $k }
+    'pptk-col-shrink' = { param($g, $k) Icon-ColShrink $g $k }
+    'pptk-row-shrink' = { param($g, $k) Icon-RowShrink $g $k }
+    'pptk-corner' = { param($g, $k) Icon-Corner $g $k }
+    'pptk-unify' = { param($g, $k) Icon-Unify $g $k }
+    'pptk-flip-slide' = { param($g, $k) Icon-FlipSlide $g $k }
+    'pptk-flip-deck' = { param($g, $k) Icon-FlipDeck $g $k }
     'pptk-arrange' = { param($g, $k) Icon-Arrange $g $k }
     'pptk-stretch' = { param($g, $k) Icon-Stretch $g $k }
     'pptk-stretch-left' = { param($g, $k) Icon-StretchLeft $g $k }
@@ -823,7 +878,15 @@ $Map = @(
     @{ Id = 'ObjectsStretchTopShapeBottom'; Group = 'Smart Align'; Label = 'Stretch shapes to the bottom edge of the topmost shape'; Kind = 'button'; Action = 'add'; ImageMso = ''; Image = 'pptk-stretch-to-top' }
     @{ Id = 'ObjectsStretchBottomShapeTop'; Group = 'Smart Align'; Label = 'Stretch shapes to the top edge of the bottommost shape'; Kind = 'button'; Action = 'add'; ImageMso = ''; Image = 'pptk-stretch-to-bottom' }
     @{ Id = 'SmartAlignMoreMenu'; Group = 'Smart Align'; Label = 'More'; Kind = 'menu'; Action = 'replace'; ImageMso = 'GroupPosition'; Image = 'pptk-align-more' }
-    @{ Id = 'PPTKAlignShapeAngle'; Group = 'Smart Align'; Label = 'Align shape angle'; Kind = 'button'; Action = 'replace'; ImageMso = 'ObjectRotateRight90'; Image = 'pptk-align-angle' }
+    @{ Id = 'PPTKMatchCornerRoundness'; Group = 'Smart Align'; Label = 'Match Corner Roundness'; Kind = 'button'; Action = 'add'; ImageMso = ''; Image = 'pptk-corner' }
+    @{ Id = 'PPTKUnifyShapeType'; Group = 'Shape'; Label = 'Unify Shape Type'; Kind = 'button'; Action = 'add'; ImageMso = ''; Image = 'pptk-unify' }
+    @{ Id = 'PPTKGridMenu'; Group = 'Shape'; Label = 'Rows and columns'; Kind = 'menu'; Action = 'add'; ImageMso = ''; Image = 'pptk-matrix' }
+    @{ Id = 'PPTKAddRightColumnExpand'; Group = 'Shape'; Label = 'Add Column — Expand'; Kind = 'button'; Action = 'add'; ImageMso = ''; Image = 'pptk-col-expand' }
+    @{ Id = 'PPTKAddBottomRowExpand'; Group = 'Shape'; Label = 'Add Row — Expand'; Kind = 'button'; Action = 'add'; ImageMso = ''; Image = 'pptk-row-expand' }
+    @{ Id = 'PPTKDeleteRightColumnShrink'; Group = 'Shape'; Label = 'Delete Column — Shrink'; Kind = 'button'; Action = 'add'; ImageMso = ''; Image = 'pptk-col-shrink' }
+    @{ Id = 'PPTKDeleteBottomRowShrink'; Group = 'Shape'; Label = 'Delete Row — Shrink'; Kind = 'button'; Action = 'add'; ImageMso = ''; Image = 'pptk-row-shrink' }
+    @{ Id = 'PPTKFlipCurrentSlide'; Group = 'Shape'; Label = 'Flip Current Slide'; Kind = 'button'; Action = 'add'; ImageMso = ''; Image = 'pptk-flip-slide' }
+    @{ Id = 'PPTKFlipEntirePresentation'; Group = 'Shape'; Label = 'Flip Entire Presentation'; Kind = 'button'; Action = 'add'; ImageMso = ''; Image = 'pptk-flip-deck' }
     @{ Id = 'PPTKAlignProcess'; Group = 'Smart Align'; Label = 'Align Process'; Kind = 'button'; Action = 'replace'; ImageMso = 'ShapeChevron'; Image = 'pptk-process' }
     @{ Id = 'PPTKAlignMatrix'; Group = 'Smart Align'; Label = 'Align Matrix'; Kind = 'button'; Action = 'replace'; ImageMso = 'TableInsert'; Image = 'pptk-matrix' }
     @{ Id = 'PPTKAlignCentral'; Group = 'Smart Align'; Label = 'Align Central'; Kind = 'button'; Action = 'replace'; ImageMso = 'GroupPosition'; Image = 'pptk-central' }

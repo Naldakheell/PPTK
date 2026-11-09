@@ -27,6 +27,7 @@ public class SequenceTests
     [InlineData('S', 'S', "S S")]
     [InlineData('D', 'H', "D H")]
     [InlineData('D', 'V', "D V")]
+    [InlineData('X', 'T', "X T")]
     public void Letter_sequences_dispatch_on_the_canvas(char prefix, char second, string token)
     {
         SequenceResult armed = Tap(SequenceState.Idle, Letter(prefix), 1000, allowArm: true);
@@ -89,7 +90,7 @@ public class SequenceTests
     [Fact]
     public void Prefixes_do_not_arm_off_the_canvas()
     {
-        foreach (char prefix in new[] { 'A', 'S', 'D', 'H', 'V' })
+        foreach (char prefix in new[] { 'A', 'S', 'D', 'H', 'V', 'X' })
         {
             SequenceResult typed = Tap(SequenceState.Idle, Letter(prefix), 10, allowArm: false);
             Assert.False(typed.Swallow);
@@ -167,6 +168,89 @@ public class SequenceTests
         Assert.False(ShortcutGate.Decide("A L", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
         Assert.True(ShortcutGate.Decide("R", false, false, FocusKind.Pane, Surface.Canvas).Dispatch);
         Assert.True(ShortcutGate.Decide("N", false, false, FocusKind.Pane, Surface.Slides).Dispatch);
+    }
+
+    [Fact]
+    public void X_then_T_unifies_shape_type_only_on_the_canvas()
+    {
+        Assert.True(ShortcutSequence.IsPrefixLetter('X'));
+        Assert.True(ShortcutSequence.IsPrefixVirtualKey(0x58));
+        Assert.True(ShortcutSequence.IsSequenceToken("X T"));
+        Assert.True(ShortcutSequence.IsSequenceToken("A A"));
+        Assert.True(ShortcutGate.IsRunnable("X T"));
+        Assert.Equal("X T", ShortcutSequence.Match('X', Letter('T')));
+        Assert.Null(ShortcutSequence.Match('X', Letter('T', shift: true)));
+        Assert.Null(ShortcutSequence.Match('X', Letter('T', ctrl: true)));
+
+        SequenceResult armed = Tap(SequenceState.Idle, Letter('X'), 1000, allowArm: true);
+        Assert.True(armed.Swallow);
+        Assert.Null(armed.Token);
+        Assert.Equal('X', armed.State.Prefix);
+
+        SequenceResult unified = Tap(armed.State, Letter('T'), 1500, allowArm: true);
+        Assert.Equal("X T", unified.Token);
+        Assert.True(unified.Swallow);
+        Assert.False(unified.State.IsArmed);
+
+        SequenceResult offCanvas = Tap(SequenceState.Idle, Letter('X'), 1000, allowArm: false);
+        Assert.False(offCanvas.Swallow);
+        Assert.False(offCanvas.State.IsArmed);
+        Assert.Null(offCanvas.Token);
+
+        SequenceResult stillOff = Tap(offCanvas.State, Letter('T'), 1200, allowArm: false);
+        Assert.False(stillOff.Swallow);
+        Assert.Null(stillOff.Token);
+        Assert.False(stillOff.State.IsArmed);
+    }
+
+    [Fact]
+    public void Lone_X_arms_for_one_second_then_expires()
+    {
+        const uint armedAt = 5000;
+        SequenceResult armed = Tap(SequenceState.Idle, Letter('X'), armedAt, allowArm: true);
+        Assert.True(armed.State.IsArmed);
+        Assert.Equal('X', armed.State.Prefix);
+        Assert.True(armed.Swallow);
+        Assert.Null(armed.Token);
+
+        SequenceResult inTime = Tap(
+            armed.State,
+            Letter('T'),
+            armedAt + ShortcutSequence.TimeoutMs - 1,
+            allowArm: true);
+        Assert.Equal("X T", inTime.Token);
+        Assert.True(inTime.Swallow);
+        Assert.False(inTime.State.IsArmed);
+
+        SequenceResult armedAgain = Tap(SequenceState.Idle, Letter('X'), armedAt, allowArm: true);
+        SequenceResult late = Tap(
+            armedAgain.State,
+            Letter('T'),
+            armedAt + ShortcutSequence.TimeoutMs,
+            allowArm: true);
+        Assert.Null(late.Token);
+        Assert.False(late.Swallow);
+        Assert.False(late.State.IsArmed);
+
+        SequenceResult rectangle = Tap(armedAgain.State, Letter('R'), armedAt + 100, allowArm: true);
+        Assert.Null(rectangle.Token);
+        Assert.False(rectangle.Swallow);
+        Assert.False(rectangle.State.IsArmed);
+    }
+
+    [Fact]
+    public void Align_pairs_period_T_and_alt_period_stay()
+    {
+        Assert.Equal("A X", Tap(Tap(SequenceState.Idle, Letter('A'), 10, true).State, Letter('X'), 20, true).Token);
+        Assert.Equal("A A", Tap(Tap(SequenceState.Idle, Letter('A'), 10, true).State, Letter('A'), 20, true).Token);
+        Assert.Equal("A T", Tap(Tap(SequenceState.Idle, Letter('A'), 10, true).State, Letter('T'), 20, true).Token);
+
+        SequencePress period = ShortcutSequence.PressFromLayout(0xBE, false, false, false, false, '.');
+        Assert.Equal(". T", Tap(Tap(SequenceState.Idle, period, 10, true).State, Letter('T'), 20, true).Token);
+
+        Assert.Equal("ALT .", ShortcutChords.Token(KeyMark.Period, 0xBE, false, false, true, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.Period, 0xBE, true, false, true, false));
+        Assert.Null(ShortcutChords.Token(KeyMark.Period, 0xBE, false, false, false, false));
     }
 
     [Fact]

@@ -13,12 +13,17 @@
   <Relationship Id="pptk-change-shape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-change-shape.png"/>
   <Relationship Id="pptk-col-add" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-col-add.png"/>
   <Relationship Id="pptk-col-del" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-col-del.png"/>
+  <Relationship Id="pptk-col-expand" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-col-expand.png"/>
+  <Relationship Id="pptk-col-shrink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-col-shrink.png"/>
+  <Relationship Id="pptk-corner" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-corner.png"/>
   <Relationship Id="pptk-copy-format" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-copy-format.png"/>
   <Relationship Id="pptk-dist-h" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-dist-h.png"/>
   <Relationship Id="pptk-dist-v" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-dist-v.png"/>
   <Relationship Id="pptk-email-slides" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-email-slides.png"/>
   <Relationship Id="pptk-enclose" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-enclose.png"/>
   <Relationship Id="pptk-fix-colors" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-fix-colors.png"/>
+  <Relationship Id="pptk-flip-deck" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-flip-deck.png"/>
+  <Relationship Id="pptk-flip-slide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-flip-slide.png"/>
   <Relationship Id="pptk-format-more" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-format-more.png"/>
   <Relationship Id="pptk-gap-h-dec" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-gap-h-dec.png"/>
   <Relationship Id="pptk-gap-h-inc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-gap-h-inc.png"/>
@@ -49,6 +54,8 @@
   <Relationship Id="pptk-resize-v-last" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-resize-v-last.png"/>
   <Relationship Id="pptk-row-add" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-row-add.png"/>
   <Relationship Id="pptk-row-del" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-row-del.png"/>
+  <Relationship Id="pptk-row-expand" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-row-expand.png"/>
+  <Relationship Id="pptk-row-shrink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-row-shrink.png"/>
   <Relationship Id="pptk-same-height" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-same-height.png"/>
   <Relationship Id="pptk-same-size" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-same-size.png"/>
   <Relationship Id="pptk-same-width" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-same-width.png"/>
@@ -88,4 +95,5 @@
   <Relationship Id="pptk-tk-right" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-tk-right.png"/>
   <Relationship Id="pptk-tk-top" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-tk-top.png"/>
   <Relationship Id="pptk-tools" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-tools.png"/>
+  <Relationship Id="pptk-unify" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-unify.png"/>
 </Relationships>
