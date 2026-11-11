@@ -26,6 +26,18 @@ internal sealed class HelperApp
     readonly List<string> _tokens = new();
     SequenceState _sequence = SequenceState.Idle;
     int _heldVirtualKey;
+    // Hold-to-repeat (spacing only): the token the held key completed, whether a run of it
+    // is queued or running, whether that queued run came from a repeat, and when it was posted.
+    string? _heldToken;
+    bool _spacingInFlight;
+    bool _repeatQueued;
+    uint _lastRunAt;
+    // AltGr: Windows sends a synthetic Left Ctrl (scan 0x21D) with Right Alt on AltGr layouts.
+    bool _altGrCtrl;
+    bool _realLeftCtrl;
+    // Pacing after grid commands (see DispatchPacing).
+    bool _lastWasGrid;
+    uint _lastEndedAt;
     bool _capture;
     bool _hasReplayOrigin;
     ReplayOrigin _replayOrigin;
@@ -145,24 +157,45 @@ internal sealed class HelperApp
                 return Next(nCode, wParam, lParam);
             }
 
+            // Left Ctrl is either the real key or the one Windows adds for AltGr (Right Alt).
+            if (vk == 0xA2)
+            {
+                if (AltGrRule.IsSyntheticCtrl(vk, info.scanCode)) _altGrCtrl = down;
+                else _realLeftCtrl = down;
+            }
+
             if (up)
             {
                 if (vk == _heldVirtualKey)
                 {
                     _heldVirtualKey = 0;
+                    StopRepeat("release");
                     return Swallow();
                 }
 
                 return Next(nCode, wParam, lParam);
             }
 
-            if (vk == _heldVirtualKey) return Swallow();
+            if (vk == _heldVirtualKey)
+            {
+                // Windows auto-repeat of the key that ran a command. Only spacing runs again.
+                TryRepeat(vk, info.time);
+                return Swallow();
+            }
+
             if (ShortcutSequence.IsModifierVirtualKey(vk)) return Next(nCode, wParam, lParam);
+            if (_heldToken != null) StopRepeat("key");
 
             bool ctrl = IsDown(NativeMethods.VkControl);
             bool shift = IsDown(NativeMethods.VkShift);
             bool alt = IsDown(NativeMethods.VkMenu) || (info.flags & NativeMethods.LlkhfAltDown) != 0;
             bool win = IsDown(NativeMethods.VkLWin) || IsDown(NativeMethods.VkRWin);
+            if (ctrl && alt && AltGrRule.ActsAsAlt(
+                    _altGrCtrl,
+                    IsDown(0xA5),
+                    _realLeftCtrl || IsDown(0xA3),
+                    KeyLayout.TypesAltGr(vk, shift)))
+                ctrl = false;
             bool relevant = _capture
                 || _sequence.IsArmed
                 || ShortcutGate.TokenForVirtualKey(vk) != null
@@ -203,6 +236,13 @@ internal sealed class HelperApp
                 if (sequence.Token != null)
                 {
                     if (!PostToken(sequence.Token)) return Next(nCode, wParam, lParam);
+                    if (ShortcutRepeat.IsRepeatable(sequence.Token))
+                    {
+                        _heldToken = sequence.Token;
+                        _spacingInFlight = true;
+                        _lastRunAt = info.time;
+                    }
+
                     _heldVirtualKey = vk;
                     _lastPass = "";
                     return Swallow();
@@ -345,6 +385,7 @@ internal sealed class HelperApp
         {
             _capture = false;
             CancelSequence("error");
+            StopRepeat("error");
         }
 
         return NativeMethods.DefWindowProc(hwnd, message, wParam, lParam);
@@ -367,6 +408,7 @@ internal sealed class HelperApp
                 if (!probe.IsPowerPoint)
                 {
                     CancelSequence("app");
+                    StopRepeat("app");
                     ReplaceFocusHook(0);
                     return;
                 }
@@ -381,11 +423,14 @@ internal sealed class HelperApp
             {
                 if (hwnd == _lastFocus) return;
                 _lastFocus = hwnd;
-                if (_sequence.IsArmed)
+                if (_sequence.IsArmed || _heldToken != null)
                 {
                     FocusProbe.Probe focusProbe = FocusProbe.Inspect();
                     if (!focusProbe.IsPowerPoint || focusProbe.Focus != FocusKind.Pane)
+                    {
                         CancelSequence("focus");
+                        StopRepeat("focus");
+                    }
                 }
 
                 _session.Invalidate();
@@ -402,6 +447,21 @@ internal sealed class HelperApp
     {
         string? token = TakeToken();
         if (token == null || !ShortcutGate.IsRunnable(token)) return;
+        int wait = DispatchPacing.WaitMs(_lastWasGrid, unchecked((uint)Environment.TickCount - _lastEndedAt));
+        if (wait > 0) Thread.Sleep(wait);
+        try
+        {
+            DispatchToken(token);
+        }
+        finally
+        {
+            _lastWasGrid = DispatchPacing.IsGridToken(token);
+            _lastEndedAt = unchecked((uint)Environment.TickCount);
+        }
+    }
+
+    void DispatchToken(string token)
+    {
         if (token == "T")
         {
             try
@@ -419,7 +479,77 @@ internal sealed class HelperApp
             return;
         }
 
-        _session.Dispatch(token);
+        if (!ShortcutRepeat.IsRepeatable(token))
+        {
+            _session.Dispatch(token);
+            return;
+        }
+
+        if (token == _heldToken) _repeatQueued = false;
+        bool ok = false;
+        try
+        {
+            ok = _session.Dispatch(token);
+        }
+        finally
+        {
+            _spacingInFlight = false;
+            if (!ok) StopRepeat("error");
+        }
+    }
+
+    /// <summary>
+    /// A repeated key-down of the held spacing key. Runs the token again only on the slide
+    /// canvas, with the same key meaning, after the previous run finished and the interval passed.
+    /// </summary>
+    void TryRepeat(int vk, uint now)
+    {
+        if (_heldToken == null) return;
+        bool ctrl = IsDown(NativeMethods.VkControl);
+        bool shift = IsDown(NativeMethods.VkShift);
+        bool alt = IsDown(NativeMethods.VkMenu);
+        bool win = IsDown(NativeMethods.VkLWin) || IsDown(NativeMethods.VkRWin);
+        FocusProbe.Probe probe = FocusProbe.Inspect();
+        bool allowCanvas = probe.IsPowerPoint
+            && probe.Focus == FocusKind.Pane
+            && _session.EffectiveSurface == Surface.Canvas;
+        SequencePress press = ShortcutSequence.PressFromLayout(vk, ctrl, alt, win, shift, ProducedCharacter(vk, shift));
+        switch (ShortcutRepeat.Decide(_heldToken, press, allowCanvas, _spacingInFlight, now, _lastRunAt))
+        {
+            case RepeatStep.Stop:
+                StopRepeat(allowCanvas ? "key" : "focus");
+                return;
+            case RepeatStep.Repeat:
+                if (!PostToken(_heldToken))
+                {
+                    StopRepeat("queue");
+                    return;
+                }
+
+                _spacingInFlight = true;
+                _repeatQueued = true;
+                _lastRunAt = now;
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Ends hold-to-repeat. A repeat run that is queued but not started is dropped, so
+    /// releasing the key stops at once. The first run of the sequence is never dropped.
+    /// </summary>
+    void StopRepeat(string reason)
+    {
+        if (_heldToken == null) return;
+        if (_repeatQueued)
+        {
+            int index = _tokens.LastIndexOf(_heldToken);
+            if (index >= 0) _tokens.RemoveAt(index);
+            _repeatQueued = false;
+            _spacingInFlight = false;
+        }
+
+        _heldToken = null;
+        if (reason != "release") Console.Error.WriteLine("Repeat stopped " + reason);
     }
 
     void ReplayQueuedText()
@@ -657,7 +787,7 @@ internal sealed class StringBuilderPending
     }
 }
 
-internal static class Program
+internal static partial class Program
 {
     [STAThread]
     static int Main(string[] args)
@@ -665,12 +795,13 @@ internal static class Program
         string? command = args.Length > 0 ? args[0] : null;
         if (command is "--help" or "-h" or "/?")
         {
-            Console.WriteLine("Usage: PPTKKeys [--describe]");
+            Console.WriteLine("Usage: PPTKKeys [--describe | --layouts]");
             Console.WriteLine("Ctrl+C stops the listener.");
             return 0;
         }
 
         if (command == "--describe") return HelperApp.Describe();
+        if (command == "--layouts") return DescribeLayouts();
         if (command != null)
         {
             Console.Error.WriteLine("Unknown argument. Usage: PPTKKeys [--describe]");
@@ -708,6 +839,35 @@ internal static class Program
         {
             if (owned) mutex.ReleaseMutex();
         }
+    }
+}
+
+internal static partial class Program
+{
+    /// <summary>
+    /// Read-only: builds the punctuation tables for every installed layout and reports
+    /// which physical keys the punctuation shortcuts use. No hook, no PowerPoint.
+    /// </summary>
+    static int DescribeLayouts()
+    {
+        int count = NativeMethods.GetKeyboardLayoutList(0, null);
+        var layouts = new IntPtr[Math.Max(count, 0)];
+        if (count > 0) NativeMethods.GetKeyboardLayoutList(count, layouts);
+        Console.Error.WriteLine("physical US key -> shortcut: period=BE slash=BF open=DB close=DD; letters F=46 D=44 L=4C");
+        foreach (IntPtr layout in layouts)
+        {
+            KeyLayout.Build(layout);
+            Console.Error.WriteLine(
+                $"  {layout.ToInt64():X8} Alt+.={KeyLayout.IsPeriod(0xBE, false)} /={KeyLayout.IsSlash(0xBF, false)} " +
+                $"Ctrl+[={KeyLayout.IsOpenBracket(0xDB, false)} Ctrl+]={KeyLayout.IsCloseBracket(0xDD, false)} " +
+                $"Shift+F-is-[={KeyLayout.IsOpenBracket(0x46, true)} Shift+D-is-]={KeyLayout.IsCloseBracket(0x44, true)} " +
+                $"Shift+L-is-/={KeyLayout.IsSlash(0x4C, true)} punct-on-F={KeyLayout.IsPunctuation(0x46)} " +
+                $"RightAlt+.-is-Alt={AltGrRule.ActsAsAlt(true, true, false, KeyLayout.TypesAltGr(0xBE, false))} " +
+                $"RightAlt+2-is-Alt={AltGrRule.ActsAsAlt(true, true, false, KeyLayout.TypesAltGr(0x32, false))} " +
+                $"AltGr+S-typing-kept={KeyLayout.TypesAltGr(0x53, false)}");
+        }
+
+        return 0;
     }
 }
 

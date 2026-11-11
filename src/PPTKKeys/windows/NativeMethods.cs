@@ -190,6 +190,9 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern IntPtr GetKeyboardLayout(uint idThread);
 
+    [DllImport("user32.dll")]
+    public static extern int GetKeyboardLayoutList(int nBuff, [Out] IntPtr[]? lpList);
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern int ToUnicodeEx(
         uint wVirtKey,

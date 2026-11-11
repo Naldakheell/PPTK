@@ -1,7 +1,6 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} PPTKSmartBarForm 
-   BorderStyle     =   1  'Single
-   Caption         =   "PPTK Smart Bar"
+   Caption         =   "Smart Bar"
    ClientHeight    =   3040
    ClientLeft      =   110
    ClientTop       =   450
@@ -15,63 +14,114 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
+' Compact command palette. Layout from top to bottom:
+'   search icon, search field, ESC  |  divider  |  section name and count  |
+'   six command rows with a scrollbar  |  divider  |  key hints.
+' With an empty search the palette shows 3-5 commands for the current
+' PowerPoint selection (no selection, one shape, several shapes, a mixed
+' selection, a group, a table, or text editing) and an "All Commands" row
+' that opens the full registry. Typing always searches the whole registry;
+' clearing the search returns to the view that was open. Rows are a fixed pool of label controls that
+' are refilled while scrolling, so typing never creates or deletes controls.
+' Row icons are BMP pictures held by hidden Image controls in this form
+' (see PPTK_CommandIcon). The search icon is a Segoe Fluent Icons glyph.
+' No Win32 API is used.
+' The mouse wheel is not available to MSForms without Win32 calls, so the
+' list scrolls with a slim scrollbar (two labels: click the track to page,
+' drag the thumb), Up/Down, Page Up/Page Down, and Ctrl+Home/End.
+' A row runs the token stored in ModulePPTKSmartBar through PPTK_DispatchShortcut.
+' Sizes are VBA points.
 
-' Compact dark command palette.
-' Rows are labels inside fraResults. txtFilter keeps the live search.
-' A row runs the token already stored by ModulePPTKSmartBar.
-' Shortcut tokens go to PPTK_DispatchShortcut. PROC tokens call that public procedure.
-' Sizes are VBA points. Results are virtualized; the native scrollbar stays disabled.
+Private Const ColorPage As Long = 2103313       ' #111820
+Private Const ColorField As Long = 3549980      ' #1C2B36
+Private Const ColorSelected As Long = 5522213   ' #254354
+Private Const ColorAccent As Long = 15514147    ' #23BAEC
+Private Const ColorInk As Long = 16381424       ' #F0F5F9
+Private Const ColorMuted As Long = 13484463     ' #AFC1CD
+Private Const ColorLine As Long = 5457460       ' #344653
+Private Const ColorThumb As Long = 6706494      ' #3E5566
+Private Const ClientW As Single = 340
+Private Const Pad As Single = 14
+Private Const RowH As Single = 30
+Private Const VisibleRows As Long = 6
+Private Const ScrollW As Single = 4
+Private Const KeyW As Single = 76
+Private Const IconW As Single = 18
 
-Private Const ColorPage As Long = 2103312
-Private Const ColorField As Long = 3549980
-Private Const ColorAccent As Long = 15514147
-Private Const ColorSelected As Long = 5522212
-Private Const ColorInk As Long = 16513268
-Private Const ColorMuted As Long = 13352100
-Private Const ClientW As Single = 440
-Private Const ClientH As Single = 390
-Private Const Pad As Single = 18
-Private Const RowH As Single = 46
-Private Const VisibleRows As Long = 4
-Private Const KeyCol As Single = 76
-Private Const IconCol As Single = 28
-
+Private WithEvents ScrollTrack As MSForms.Label
+Private WithEvents ScrollThumb As MSForms.Label
+Private Dragging As Boolean
+Private DragStartY As Single
+Private DragStartFirst As Long
 Private RowHooks As Collection
 Private RowBg() As MSForms.Label
-Private RowBar() As MSForms.Label
 Private RowName() As MSForms.Label
 Private RowKey() As MSForms.Label
-Private RowIcon() As MSForms.Label
+Private RowIcon() As MSForms.Image
 Private ResultNames() As String
 Private ResultKeys() As String
 Private ResultTokens() As String
 Private ResultIcons() As String
-Private SelectedNames() As String
+Private SelectedShapes() As Object
 Private PoolCount As Long
 Private VisibleCount As Long
 Private ResultCount As Long
+Private TotalCount As Long
 Private SelectedIndex As Long
 Private FirstVisible As Long
-Private SelectedSlide As Long
 Private SelectedCount As Long
 Private Busy As Boolean
 Private Painting As Boolean
+Private ClientH As Single
+Private IconFont As String
+Private ViewAll As Boolean
+Private ContextKind As String
+Private Const NavAll As String = "NAV ALL"
+Private Const NavSuggest As String = "NAV SUGGEST"
 
 Private Sub UserForm_Initialize()
     Set RowHooks = New Collection
+    ' Segoe Fluent Icons ships with Windows 11. Windows 10 has the same codes in Segoe MDL2 Assets.
+    IconFont = "Segoe MDL2 Assets"
+    On Error Resume Next
+    If Len(Dir$(Environ$("WINDIR") & "\Fonts\SegoeIcons.ttf")) > 0 Then IconFont = "Segoe Fluent Icons"
+    On Error GoTo 0
+    TotalCount = PPTK_CommandCount
     PPTK_ApplyChrome
     PPTK_BuildPool
-    txtFilter.text = ""
-    PPTK_Refill
     PPTK_CaptureSelection
+    ContextKind = PPTK_DetectContext()
+    txtFilter.Text = ""
+    PPTK_Refill
 End Sub
 
 Private Sub UserForm_Activate()
+    Dim kind As String
     PPTK_Layout
     On Error Resume Next
     txtFilter.SetFocus
     On Error GoTo 0
     PPTK_CaptureSelection
+    ' A selection changed in PowerPoint while the palette was open updates the
+    ' suggestions, but only while they are shown.
+    kind = PPTK_DetectContext()
+    If kind <> ContextKind Then
+        ContextKind = kind
+        If Not ViewAll And Len(PPTK_Normalize(txtFilter.Text)) = 0 Then PPTK_Refill
+    End If
+End Sub
+
+' Called by PPTK_ShowSmartBar before the palette is shown. Reads the
+' PowerPoint selection once (read-only) and opens the suggested view.
+Public Sub PPTK_Open()
+    PPTK_CaptureSelection
+    ContextKind = PPTK_DetectContext()
+    ViewAll = False
+    If Len(txtFilter.Text) > 0 Then
+        txtFilter.Text = ""
+    Else
+        PPTK_Refill
+    End If
 End Sub
 
 Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
@@ -80,43 +130,81 @@ Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
 End Sub
 
 Private Sub txtFilter_Change()
-    lblCue.Visible = (Len(txtFilter.text) = 0)
+    lblCue.Visible = (Len(txtFilter.Text) = 0)
     PPTK_Refill
 End Sub
 
 Private Sub txtFilter_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
-    PPTK_HandleKey KeyCode
+    PPTK_HandleKey KeyCode, Shift
 End Sub
 
 Private Sub UserForm_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
-    PPTK_HandleKey KeyCode
+    PPTK_HandleKey KeyCode, Shift
 End Sub
 
 Private Sub fraResults_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
-    PPTK_HandleKey KeyCode
+    PPTK_HandleKey KeyCode, Shift
+End Sub
+
+Private Sub ScrollTrack_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    If Y < ScrollThumb.Top - ScrollTrack.Top Then
+        PPTK_ScrollTo FirstVisible - VisibleRows
+    ElseIf Y > ScrollThumb.Top - ScrollTrack.Top + ScrollThumb.Height Then
+        PPTK_ScrollTo FirstVisible + VisibleRows
+    End If
+    PPTK_FocusSearch
+End Sub
+
+Private Sub ScrollThumb_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    Dragging = True
+    DragStartY = ScrollThumb.Top + Y
+    DragStartFirst = FirstVisible
+End Sub
+
+Private Sub ScrollThumb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    Dim travel As Single
+    If Not Dragging Or (Button And 1) = 0 Then Exit Sub
+    travel = ScrollTrack.Height - ScrollThumb.Height
+    If travel <= 0 Then Exit Sub
+    PPTK_ScrollTo DragStartFirst + CLng((ScrollThumb.Top + Y - DragStartY) / travel * (PPTK_LastTop() - 1))
+End Sub
+
+Private Sub ScrollThumb_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    Dragging = False
+    PPTK_FocusSearch
 End Sub
 
 Private Sub lblCue_Click()
-    On Error Resume Next
-    txtFilter.SetFocus
+    PPTK_FocusSearch
 End Sub
 
 Private Sub lblField_Click()
-    On Error Resume Next
-    txtFilter.SetFocus
+    PPTK_FocusSearch
 End Sub
 
 Private Sub lblSearchEnter_Click()
-    On Error Resume Next
-    txtFilter.SetFocus
+    PPTK_FocusSearch
 End Sub
 
 Private Sub lblSearchIcon_Click()
-    On Error Resume Next
-    txtFilter.SetFocus
+    PPTK_FocusSearch
+End Sub
+
+Private Sub lblTitle_Click()
+    If Len(PPTK_Normalize(txtFilter.Text)) > 0 Then Exit Sub
+    PPTK_SetView Not ViewAll
+    PPTK_FocusSearch
+End Sub
+
+Private Sub lblEsc_Click()
+    Me.Hide
 End Sub
 
 Private Sub fraResults_Click()
+    PPTK_FocusSearch
+End Sub
+
+Private Sub PPTK_FocusSearch()
     On Error Resume Next
     txtFilter.SetFocus
 End Sub
@@ -138,94 +226,100 @@ Public Sub PPTK_RowClick(ByVal rowIndex As Long)
     PPTK_RunSelected
 End Sub
 
-Private Sub PPTK_HandleKey(ByVal KeyCode As MSForms.ReturnInteger)
-    If KeyCode = vbKeyEscape Then
-        KeyCode = 0
-        Me.Hide
-        Exit Sub
-    End If
-    If KeyCode = vbKeyReturn Then
-        KeyCode = 0
-        PPTK_RunSelected
-        Exit Sub
-    End If
-    If KeyCode = vbKeyDown Then
-        KeyCode = 0
-        If SelectedIndex < ResultCount Then PPTK_SelectRow SelectedIndex + 1, True
-    ElseIf KeyCode = vbKeyUp Then
-        KeyCode = 0
-        If SelectedIndex > 1 Then PPTK_SelectRow SelectedIndex - 1, True
-    End If
+Private Sub PPTK_HandleKey(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+    Dim ctrlDown As Boolean
+    ctrlDown = (Shift And 2) <> 0
+    Select Case KeyCode
+        Case vbKeyEscape
+            KeyCode = 0
+            Me.Hide
+        Case vbKeyReturn
+            KeyCode = 0
+            PPTK_RunSelected
+        Case vbKeyDown
+            KeyCode = 0
+            If SelectedIndex < ResultCount Then PPTK_SelectRow SelectedIndex + 1, True
+        Case vbKeyUp
+            KeyCode = 0
+            If SelectedIndex > 1 Then PPTK_SelectRow SelectedIndex - 1, True
+        Case vbKeyPageDown
+            KeyCode = 0
+            If ResultCount > 0 Then PPTK_SelectRow PPTK_Clamp(SelectedIndex + VisibleRows, 1, ResultCount), True
+        Case vbKeyPageUp
+            KeyCode = 0
+            If ResultCount > 0 Then PPTK_SelectRow PPTK_Clamp(SelectedIndex - VisibleRows, 1, ResultCount), True
+        Case vbKeyHome
+            If ctrlDown And ResultCount > 0 Then
+                KeyCode = 0
+                PPTK_SelectRow 1, True
+            End If
+        Case vbKeyEnd
+            If ctrlDown And ResultCount > 0 Then
+                KeyCode = 0
+                PPTK_SelectRow ResultCount, True
+            End If
+    End Select
 End Sub
 
+Private Function PPTK_Clamp(ByVal value As Long, ByVal low As Long, ByVal high As Long) As Long
+    If value < low Then value = low
+    If value > high Then value = high
+    PPTK_Clamp = value
+End Function
+
 Private Sub PPTK_ApplyChrome()
-    PPTK_StyleForm Me
     Me.Caption = "PPTK Smart Bar"
-    Me.width = ClientW
-    Me.height = ClientH
     Me.BackColor = ColorPage
     Me.ForeColor = ColorPage
-    Me.Font.name = "Segoe UI"
+    Me.Font.Name = "Segoe UI"
 
-    lblAccent.Visible = False
+    ' Controls kept from the earlier design that this layout does not use.
+    lblBadge.Visible = False
+    lblBrand.Visible = False
+    lblSearchEnter.Visible = False
+    lblHint.Visible = False
+    lblField.Visible = False
 
-    PPTK_Font lblEsc, 9, False, ColorMuted
+    PPTK_Font lblSearchIcon, 12, False, ColorAccent
+    lblSearchIcon.Font.Name = IconFont
+    lblSearchIcon.Caption = ChrW$(&HE721)
+    lblSearchIcon.TextAlign = fmTextAlignCenter
+    lblSearchIcon.BackStyle = fmBackStyleTransparent
+
+    txtFilter.BackColor = ColorPage
+    txtFilter.ForeColor = ColorInk
+    txtFilter.BorderStyle = fmBorderStyleNone
+    txtFilter.SpecialEffect = fmSpecialEffectFlat
+    txtFilter.Font.Name = "Segoe UI"
+    txtFilter.Font.Size = 12
+    txtFilter.Font.Weight = 400
+    txtFilter.Multiline = False
+    txtFilter.EnterKeyBehavior = False
+    txtFilter.TextAlign = fmTextAlignLeft
+
+    PPTK_Font lblCue, 12, False, ColorMuted
+    lblCue.Caption = "Search " & TotalCount & " commands..."
+    lblCue.TextAlign = fmTextAlignLeft
+    lblCue.BackStyle = fmBackStyleTransparent
+    lblCue.BorderStyle = fmBorderStyleNone
+
+    PPTK_Font lblEsc, 8, False, ColorMuted
     lblEsc.Caption = "ESC"
     lblEsc.TextAlign = fmTextAlignRight
     lblEsc.BackStyle = fmBackStyleTransparent
 
-    PPTK_Font lblTitle, 9, False, ColorMuted
-    lblTitle.Caption = "Command palette"
-    lblTitle.TextAlign = fmTextAlignLeft
+    PPTK_Line lblAccent
+    PPTK_Line lblFooterLine
+
+    ' Not bold: MSForms shares font objects between these labels, so a bold
+    ' label would turn every row bold. Capitals set the section apart.
+    PPTK_Font lblSection, 7.5, False, ColorMuted
+    lblSection.TextAlign = fmTextAlignLeft
+    lblSection.BackStyle = fmBackStyleTransparent
+
+    PPTK_Font lblTitle, 8, False, ColorMuted
+    lblTitle.TextAlign = fmTextAlignRight
     lblTitle.BackStyle = fmBackStyleTransparent
-
-    PPTK_Font lblBrand, 14, True, ColorInk
-    lblBrand.Caption = "PPTK"
-    lblBrand.TextAlign = fmTextAlignLeft
-    lblBrand.BackStyle = fmBackStyleTransparent
-
-    PPTK_Font lblBadge, 18, True, ColorPage
-    lblBadge.Caption = ChrW$(&H2318)
-    lblBadge.TextAlign = fmTextAlignCenter
-    lblBadge.BackStyle = fmBackStyleOpaque
-    lblBadge.BackColor = ColorAccent
-    lblBadge.BorderStyle = fmBorderStyleNone
-
-    lblField.Caption = ""
-    lblField.BackColor = ColorField
-    lblField.BorderStyle = fmBorderStyleSingle
-    lblField.BorderColor = ColorSelected
-    lblField.SpecialEffect = fmSpecialEffectFlat
-
-    PPTK_Font lblCue, 10, False, ColorMuted
-    lblCue.Caption = "Search commands..."
-    lblCue.TextAlign = fmTextAlignLeft
-    lblCue.BackColor = ColorField
-    lblCue.BackStyle = fmBackStyleOpaque
-    lblCue.BorderStyle = fmBorderStyleNone
-
-    PPTK_Font lblSearchEnter, 14, False, ColorMuted
-    lblSearchEnter.Caption = ChrW$(&H21B5)
-    lblSearchEnter.TextAlign = fmTextAlignCenter
-    lblSearchEnter.BackColor = ColorField
-    lblSearchEnter.BackStyle = fmBackStyleOpaque
-
-    PPTK_Font lblSearchIcon, 14, False, ColorAccent
-    lblSearchIcon.Caption = ChrW$(&H2315)
-    lblSearchIcon.TextAlign = fmTextAlignCenter
-    lblSearchIcon.BackColor = ColorField
-    lblSearchIcon.BackStyle = fmBackStyleOpaque
-
-    txtFilter.BackColor = ColorField
-    txtFilter.ForeColor = ColorInk
-    txtFilter.BorderStyle = fmBorderStyleNone
-    txtFilter.SpecialEffect = fmSpecialEffectFlat
-    txtFilter.Font.name = "Segoe UI"
-    txtFilter.Font.size = 12
-    txtFilter.Font.bold = False
-    txtFilter.Multiline = False
-    txtFilter.EnterKeyBehavior = False
-    txtFilter.TextAlign = fmTextAlignLeft
 
     fraResults.BackColor = ColorPage
     fraResults.BorderStyle = fmBorderStyleNone
@@ -238,191 +332,173 @@ Private Sub PPTK_ApplyChrome()
     On Error GoTo 0
 
     PPTK_Font lblEmpty, 10, False, ColorMuted
-    lblEmpty.Caption = "No matching commands"
+    lblEmpty.Caption = "No commands found"
     lblEmpty.TextAlign = fmTextAlignCenter
     lblEmpty.BackStyle = fmBackStyleTransparent
     lblEmpty.BorderStyle = fmBorderStyleNone
     lblEmpty.Visible = False
 
-    PPTK_Font lblSection, 8, True, ColorMuted
-    lblSection.Caption = "COMMANDS"
-    lblSection.TextAlign = fmTextAlignLeft
-    lblSection.BackStyle = fmBackStyleTransparent
-
-    lblFooterLine.Caption = ""
-    lblFooterLine.BackColor = ColorSelected
-    lblFooterLine.BackStyle = fmBackStyleOpaque
-    lblFooterLine.BorderStyle = fmBorderStyleNone
-
-    PPTK_Font lblRun, 9, False, ColorMuted
-    lblRun.Caption = "Run " & ChrW$(&H21B5)
-    lblRun.BackStyle = fmBackStyleTransparent
-
-    PPTK_Font lblNavigate, 9, False, ColorMuted
-    lblNavigate.Caption = "Navigate " & ChrW$(&H2193) & " " & ChrW$(&H2191)
-    lblNavigate.TextAlign = fmTextAlignRight
+    PPTK_Font lblNavigate, 8, False, ColorMuted
+    lblNavigate.Caption = ChrW$(&H2191) & ChrW$(&H2193) & "  Navigate"
+    lblNavigate.TextAlign = fmTextAlignLeft
     lblNavigate.BackStyle = fmBackStyleTransparent
 
-    lblHint.Caption = ""
-    lblHint.Visible = False
-    lblAccent.Caption = ""
-    lblAccent.Visible = False
+    PPTK_Font lblRun, 8, False, ColorMuted
+    lblRun.Caption = "Enter  to run"
+    lblRun.TextAlign = fmTextAlignRight
+    lblRun.BackStyle = fmBackStyleTransparent
+
+    Set ScrollTrack = Me.Controls.Add("Forms.Label.1", "dyn_track", True)
+    Set ScrollThumb = Me.Controls.Add("Forms.Label.1", "dyn_thumb", True)
+    ScrollTrack.Caption = ""
+    ScrollTrack.BackStyle = fmBackStyleOpaque
+    ScrollTrack.BackColor = ColorField
+    ScrollTrack.BorderStyle = fmBorderStyleNone
+    ScrollThumb.Caption = ""
+    ScrollThumb.BackStyle = fmBackStyleOpaque
+    ScrollThumb.BackColor = ColorThumb
+    ScrollThumb.BorderStyle = fmBorderStyleNone
+End Sub
+
+Private Sub PPTK_Line(ByVal target As MSForms.Label)
+    target.Caption = ""
+    target.BackColor = ColorLine
+    target.BackStyle = fmBackStyleOpaque
+    target.BorderStyle = fmBorderStyleNone
+    target.Visible = True
 End Sub
 
 Private Sub PPTK_Layout()
     Dim extraW As Single
     Dim extraH As Single
-    Dim widthNow As Single
-    Dim fieldTop As Single
-    Dim frameTop As Single
     Dim inner As Single
+    Dim y As Single
 
-    extraW = Me.width - Me.InsideWidth
-    extraH = Me.height - Me.InsideHeight
+    inner = ClientW - (Pad * 2)
+
+    ' Search row
+    y = 10
+    lblSearchIcon.Left = Pad - 2
+    lblSearchIcon.Top = y + 3
+    lblSearchIcon.Width = IconW
+    lblSearchIcon.Height = 18
+    lblEsc.Width = 30
+    lblEsc.Height = 14
+    lblEsc.Left = ClientW - Pad - lblEsc.Width
+    lblEsc.Top = y + 7
+    txtFilter.Left = Pad + IconW + 4
+    txtFilter.Top = y
+    txtFilter.Width = lblEsc.Left - txtFilter.Left - 8
+    txtFilter.Height = 24
+    lblCue.Left = txtFilter.Left + 8
+    lblCue.Top = y + 1
+    lblCue.Width = txtFilter.Width - 8
+    lblCue.Height = 18
+
+    lblAccent.Left = Pad
+    lblAccent.Top = 42
+    lblAccent.Width = inner
+    lblAccent.Height = 0.75
+
+    ' Section row
+    lblSection.Left = Pad
+    lblSection.Top = 52
+    lblSection.Width = inner / 2
+    lblSection.Height = 12
+    lblTitle.Width = inner / 2
+    lblTitle.Left = ClientW - Pad - lblTitle.Width
+    lblTitle.Top = 52
+    lblTitle.Height = 12
+
+    ' Results and scrollbar
+    fraResults.Left = Pad - 4
+    fraResults.Top = 70
+    fraResults.Width = inner + 4 - ScrollW - 6
+    fraResults.Height = RowH * VisibleRows
+    ScrollTrack.Left = ClientW - Pad - ScrollW
+    ScrollTrack.Top = fraResults.Top + 2
+    ScrollTrack.Width = ScrollW
+    ScrollTrack.Height = fraResults.Height - 4
+    ScrollThumb.Left = ScrollTrack.Left
+    ScrollThumb.Width = ScrollW
+
+    lblEmpty.Left = fraResults.Left
+    lblEmpty.Top = fraResults.Top + (fraResults.Height - 20) / 2
+    lblEmpty.Width = fraResults.Width
+    lblEmpty.Height = 20
+
+    ' Footer
+    lblFooterLine.Left = Pad
+    lblFooterLine.Top = fraResults.Top + fraResults.Height + 8
+    lblFooterLine.Width = inner
+    lblFooterLine.Height = 0.75
+    lblNavigate.Left = Pad
+    lblNavigate.Top = lblFooterLine.Top + 8
+    lblNavigate.Width = inner / 2
+    lblNavigate.Height = 14
+    lblRun.Width = inner / 2
+    lblRun.Left = ClientW - Pad - lblRun.Width
+    lblRun.Top = lblNavigate.Top
+    lblRun.Height = 14
+    ClientH = lblNavigate.Top + lblNavigate.Height + 10
+
+    ' Window size: client area plus the frame Office adds at the current scaling.
+    extraW = Me.Width - Me.InsideWidth
+    extraH = Me.Height - Me.InsideHeight
     If extraW < 0 Or extraW > 48 Then extraW = 0
     If extraH < 0 Or extraH > 80 Then extraH = 0
-    Me.width = ClientW + extraW
-    Me.height = ClientH + extraH
-    If Me.InsideWidth > 50 Then Me.width = Me.width + (ClientW - Me.InsideWidth)
-    If Me.InsideHeight > 50 Then Me.height = Me.height + (ClientH - Me.InsideHeight)
-    widthNow = Me.InsideWidth
-    If widthNow < 80 Then widthNow = ClientW
-    inner = widthNow - (Pad * 2)
+    Me.Width = ClientW + extraW
+    Me.Height = ClientH + extraH
 
-    lblBadge.width = 38
-    lblBadge.height = 34
-    lblBadge.left = Pad
-    lblBadge.Top = 10
-
-    lblBrand.width = 48
-    lblBrand.height = 24
-    lblBrand.left = lblBadge.left + lblBadge.width + 10
-    lblBrand.Top = 15
-
-    lblTitle.width = 110
-    lblTitle.height = 18
-    lblTitle.left = lblBrand.left + lblBrand.width + 8
-    lblTitle.Top = 20
-
-    lblEsc.width = 42
-    lblEsc.height = 18
-    lblEsc.left = widthNow - Pad - lblEsc.width
-    lblEsc.Top = 20
-
-    fieldTop = 60
-    lblField.left = Pad
-    lblField.Top = fieldTop
-    lblField.width = inner
-    lblField.height = 48
-
-    lblSearchIcon.left = lblField.left + 12
-    lblSearchIcon.Top = fieldTop + 13
-    lblSearchIcon.width = 24
-    lblSearchIcon.height = 22
-
-    lblSearchEnter.left = lblField.left + lblField.width - 36
-    lblSearchEnter.Top = fieldTop + 13
-    lblSearchEnter.width = 24
-    lblSearchEnter.height = 22
-
-    lblCue.left = lblField.left + 42
-    lblCue.Top = fieldTop + 14
-    lblCue.width = lblField.width - 84
-    lblCue.height = 20
-
-    txtFilter.left = lblField.left + 42
-    txtFilter.Top = fieldTop + 8
-    txtFilter.height = 30
-    txtFilter.width = lblField.width - 84
-    If txtFilter.width < 40 Then txtFilter.width = 40
-
-    lblHint.left = 0
-    lblHint.Top = 0
-    lblHint.width = 0
-    lblHint.height = 0
-    lblAccent.left = 0
-    lblAccent.Top = 0
-    lblAccent.width = 0
-    lblAccent.height = 0
-
-    lblSection.left = Pad
-    lblSection.Top = fieldTop + 61
-    lblSection.width = inner
-    lblSection.height = 16
-
-    frameTop = fieldTop + 82
-    fraResults.left = Pad
-    fraResults.Top = frameTop
-    fraResults.width = inner
-    fraResults.height = RowH * VisibleRows
-    fraResults.ScrollBars = fmScrollBarsNone
-    fraResults.KeepScrollBarsVisible = fmScrollBarsNone
-
-    lblEmpty.left = fraResults.left
-    lblEmpty.Top = fraResults.Top + (fraResults.height - 22) / 2
-    lblEmpty.width = fraResults.width
-    lblEmpty.height = 22
-
-    lblFooterLine.left = Pad
-    lblFooterLine.Top = fraResults.Top + fraResults.height + 14
-    lblFooterLine.width = inner
-    lblFooterLine.height = 1
-
-    lblRun.left = Pad
-    lblRun.Top = lblFooterLine.Top + 14
-    lblRun.width = 90
-    lblRun.height = 18
-
-    lblNavigate.left = widthNow - Pad - 120
-    lblNavigate.Top = lblRun.Top
-    lblNavigate.width = 120
-    lblNavigate.height = 18
-
-    lblField.ZOrder 1
     txtFilter.ZOrder 0
     lblCue.ZOrder 0
-    lblSearchEnter.ZOrder 0
-    lblSearchIcon.ZOrder 0
     lblEmpty.ZOrder 0
     PPTK_Reflow
+    PPTK_SyncScroll
 End Sub
 
-Private Sub PPTK_Font(ByVal target As Object, ByVal size As Single, ByVal bold As Boolean, ByVal color As Long)
-    target.Font.name = "Segoe UI"
-    target.Font.size = size
-    target.Font.bold = bold
+Private Sub PPTK_Font(ByVal target As MSForms.Label, ByVal size As Single, ByVal isBold As Boolean, ByVal color As Long)
+    target.Font.Name = "Segoe UI"
+    target.Font.Size = size
+    ' Weight only. On these labels MSForms turns Bold = False into weight 700.
+    If isBold Then target.Font.Weight = 600 Else target.Font.Weight = 400
     target.ForeColor = color
 End Sub
 
 Private Sub PPTK_BuildPool()
-    Dim needed As Long
     Dim index As Long
-    needed = VisibleRows
-    If PoolCount >= needed And Not RowHooks Is Nothing Then Exit Sub
+    If PoolCount >= VisibleRows Then Exit Sub
     Set RowHooks = New Collection
-    ReDim RowBg(1 To needed)
-    ReDim RowBar(1 To needed)
-    ReDim RowName(1 To needed)
-    ReDim RowKey(1 To needed)
-    ReDim RowIcon(1 To needed)
-    For index = 1 To needed
+    ReDim RowBg(1 To VisibleRows)
+    ReDim RowName(1 To VisibleRows)
+    ReDim RowKey(1 To VisibleRows)
+    ReDim RowIcon(1 To VisibleRows)
+    For index = 1 To VisibleRows
         Set RowBg(index) = PPTK_MakeLabel("dyn_bg_" & Format$(index, "00"))
-        Set RowBar(index) = PPTK_MakeLabel("dyn_bar_" & Format$(index, "00"))
+        Set RowIcon(index) = PPTK_MakeImage("dyn_img_" & Format$(index, "00"))
         Set RowName(index) = PPTK_MakeLabel("dyn_name_" & Format$(index, "00"))
         Set RowKey(index) = PPTK_MakeLabel("dyn_key_" & Format$(index, "00"))
-        Set RowIcon(index) = PPTK_MakeLabel("dyn_icon_" & Format$(index, "00"))
-        PPTK_PrepareRow index
+        PPTK_PrepareLabel RowBg(index)
+        RowIcon(index).BorderStyle = fmBorderStyleNone
+        RowIcon(index).BackStyle = fmBackStyleTransparent
+        RowIcon(index).PictureSizeMode = fmPictureSizeModeZoom
+        RowIcon(index).PictureAlignment = fmPictureAlignmentCenter
+        RowIcon(index).Visible = False
+        PPTK_PrepareLabel RowName(index)
+        PPTK_Font RowName(index), 10.5, False, ColorInk
+        PPTK_PrepareLabel RowKey(index)
+        PPTK_Font RowKey(index), 8.5, False, ColorMuted
+        RowKey(index).TextAlign = fmTextAlignRight
         PPTK_Bind RowBg(index), index
-        PPTK_Bind RowBar(index), index
+        PPTK_BindImage RowIcon(index), index
         PPTK_Bind RowName(index), index
         PPTK_Bind RowKey(index), index
-        PPTK_Bind RowIcon(index), index
     Next index
-    PoolCount = needed
+    PoolCount = VisibleRows
 End Sub
 
 Private Function PPTK_MakeLabel(ByVal controlName As String) As MSForms.Label
-    Dim existing As MSForms.control
+    Dim existing As MSForms.Control
     On Error Resume Next
     Set existing = fraResults.Controls(controlName)
     On Error GoTo 0
@@ -433,37 +509,28 @@ Private Function PPTK_MakeLabel(ByVal controlName As String) As MSForms.Label
     End If
 End Function
 
-Private Sub PPTK_PrepareRow(ByVal index As Long)
-    PPTK_PrepareLabel RowBg(index), False, False
-    PPTK_PrepareLabel RowBar(index), False, False
-    PPTK_PrepareLabel RowName(index), False, False
-    PPTK_Font RowName(index), 11, False, ColorInk
-    PPTK_PrepareLabel RowKey(index), True, False
-    PPTK_Font RowKey(index), 9, False, ColorMuted
-    RowKey(index).TextAlign = fmTextAlignCenter
-    PPTK_PrepareLabel RowIcon(index), False, False
-    PPTK_Font RowIcon(index), 12, False, ColorMuted
-    RowIcon(index).TextAlign = fmTextAlignCenter
-    RowBg(index).Visible = False
-    RowBar(index).Visible = False
-    RowName(index).Visible = False
-    RowKey(index).Visible = False
-    RowIcon(index).Visible = False
-End Sub
+Private Function PPTK_MakeImage(ByVal controlName As String) As MSForms.Image
+    Dim existing As MSForms.Control
+    On Error Resume Next
+    Set existing = fraResults.Controls(controlName)
+    On Error GoTo 0
+    If existing Is Nothing Then
+        Set PPTK_MakeImage = fraResults.Controls.Add("Forms.Image.1", controlName, True)
+    Else
+        Set PPTK_MakeImage = existing
+    End If
+End Function
 
-Private Sub PPTK_PrepareLabel(ByVal labelControl As MSForms.Label, ByVal alignRight As Boolean, ByVal wrapText As Boolean)
+Private Sub PPTK_PrepareLabel(ByVal labelControl As MSForms.Label)
     labelControl.Caption = ""
     labelControl.BorderStyle = fmBorderStyleNone
     labelControl.SpecialEffect = fmSpecialEffectFlat
     labelControl.BackStyle = fmBackStyleOpaque
     labelControl.BackColor = ColorPage
-    labelControl.WordWrap = wrapText
+    labelControl.WordWrap = False
     labelControl.AutoSize = False
-    If alignRight Then
-        labelControl.TextAlign = fmTextAlignRight
-    Else
-        labelControl.TextAlign = fmTextAlignLeft
-    End If
+    labelControl.TextAlign = fmTextAlignLeft
+    labelControl.Visible = False
 End Sub
 
 Private Sub PPTK_Bind(ByVal labelControl As MSForms.Label, ByVal index As Long)
@@ -473,6 +540,19 @@ Private Sub PPTK_Bind(ByVal labelControl As MSForms.Label, ByVal index As Long)
     RowHooks.Add hook
 End Sub
 
+Private Sub PPTK_BindImage(ByVal imageControl As MSForms.Image, ByVal index As Long)
+    Dim hook As PPTKSmartBarRow
+    Set hook = New PPTKSmartBarRow
+    hook.InitializeImage imageControl, Me, index
+    RowHooks.Add hook
+End Sub
+
+' Search: case-insensitive, extra spaces ignored. Ranks:
+' 0 exact name or shortcut, 1 name starts with the query, 2 name contains it,
+' 3 an alias word starts with it, 4 the shortcut contains it. Ties keep the
+' registry order. Search always covers the whole registry.
+' Empty search: the suggested view (3-5 commands and an "All Commands" row)
+' or the full registry in registry order, after a "Back to suggestions" row.
 Private Sub PPTK_Refill()
     Dim index As Long
     Dim commandName As String
@@ -480,39 +560,305 @@ Private Sub PPTK_Refill()
     Dim token As String
     Dim aliases As String
     Dim query As String
-    Dim found As Long
+    Dim ranks() As Long
+    Dim rank As Long
+    Dim picks() As String
 
     If PoolCount < 1 Then PPTK_BuildPool
     Painting = True
-    query = LCase$(Trim$(txtFilter.text))
-    found = 0
-    ReDim ResultNames(1 To PPTK_CommandCount)
-    ReDim ResultKeys(1 To PPTK_CommandCount)
-    ReDim ResultTokens(1 To PPTK_CommandCount)
-    ReDim ResultIcons(1 To PPTK_CommandCount)
-    For index = 1 To PPTK_CommandCount
-        PPTK_CommandAt index, commandName, shortcut, token, aliases
-        If PPTK_Matches(query, commandName, shortcut, aliases) Then
-            found = found + 1
-            ResultNames(found) = commandName
-            ResultKeys(found) = shortcut
-            ResultTokens(found) = token
-            ResultIcons(found) = PPTK_CommandGlyph(commandName)
-        End If
-    Next index
-    ResultCount = found
-    If found > 0 Then
-        SelectedIndex = 1
-        FirstVisible = 1
+    query = PPTK_Normalize(txtFilter.Text)
+    ReDim ResultNames(1 To TotalCount + 1)
+    ReDim ResultKeys(1 To TotalCount + 1)
+    ReDim ResultTokens(1 To TotalCount + 1)
+    ReDim ResultIcons(1 To TotalCount + 1)
+    ResultCount = 0
+
+    If Len(query) > 0 Then
+        ReDim ranks(1 To TotalCount)
+        For index = 1 To TotalCount
+            PPTK_CommandAt index, commandName, shortcut, token, aliases
+            ranks(index) = PPTK_Rank(query, commandName, shortcut, aliases)
+        Next index
+        For rank = 0 To 4
+            For index = 1 To TotalCount
+                If ranks(index) = rank Then
+                    PPTK_CommandAt index, commandName, shortcut, token, aliases
+                    PPTK_AddResult commandName, shortcut, token, PPTK_CommandIcon(commandName)
+                End If
+            Next index
+        Next rank
+        lblSection.Caption = "RESULTS"
+        lblTitle.Caption = ResultCount & " of " & TotalCount
+    ElseIf ViewAll Then
+        PPTK_AddResult "Back to suggestions", "", NavSuggest, ""
+        For index = 1 To TotalCount
+            PPTK_CommandAt index, commandName, shortcut, token, aliases
+            PPTK_AddResult commandName, shortcut, token, PPTK_CommandIcon(commandName)
+        Next index
+        lblSection.Caption = "ALL COMMANDS"
+        lblTitle.Caption = CStr(TotalCount)
     Else
-        SelectedIndex = 0
-        FirstVisible = 1
+        picks = Split(PPTK_Suggestions(ContextKind), "|")
+        For rank = LBound(picks) To UBound(picks)
+            index = PPTK_CommandIndex(picks(rank))
+            If index > 0 Then
+                PPTK_CommandAt index, commandName, shortcut, token, aliases
+                PPTK_AddResult commandName, shortcut, token, PPTK_CommandIcon(commandName)
+            End If
+        Next rank
+        PPTK_AddResult "All Commands", CStr(TotalCount), NavAll, "pptk_matrix"
+        lblSection.Caption = "SUGGESTED " & ChrW$(&HB7) & " " & UCase$(PPTK_ContextLabel(ContextKind))
+        lblTitle.Caption = "All " & TotalCount & " " & ChrW$(&H203A)
     End If
-    fraResults.Visible = (found > 0)
-    lblEmpty.Visible = (found = 0)
+
+    If ResultCount > 0 Then SelectedIndex = 1 Else SelectedIndex = 0
+    If ViewAll And Len(query) = 0 And ResultCount > 1 Then SelectedIndex = 2
+    FirstVisible = 1
+    fraResults.Visible = (ResultCount > 0)
+    lblEmpty.Visible = (ResultCount = 0)
     PPTK_RenderRows
+    PPTK_SyncScroll
     Painting = False
 End Sub
+
+Private Sub PPTK_AddResult(ByVal commandName As String, ByVal shortcut As String, ByVal token As String, ByVal icon As String)
+    ResultCount = ResultCount + 1
+    ResultNames(ResultCount) = commandName
+    ResultKeys(ResultCount) = shortcut
+    ResultTokens(ResultCount) = token
+    ResultIcons(ResultCount) = icon
+End Sub
+
+Private Function PPTK_CommandIndex(ByVal wanted As String) As Long
+    Dim index As Long
+    Dim commandName As String
+    Dim shortcut As String
+    Dim token As String
+    Dim aliases As String
+    For index = 1 To TotalCount
+        PPTK_CommandAt index, commandName, shortcut, token, aliases
+        If commandName = wanted Then
+            PPTK_CommandIndex = index
+            Exit Function
+        End If
+    Next index
+End Function
+
+Private Sub PPTK_SetView(ByVal showAll As Boolean)
+    ViewAll = showAll
+    PPTK_Refill
+End Sub
+
+' Current PowerPoint context, read once. Nothing here changes the selection.
+'   none   - nothing selected (or slides, or another view)
+'   text   - a text cursor or text selection in a shape
+'   table  - a table, its cells, or text inside it
+'   group  - one group (or shapes inside one group)
+'   one    - one shape
+'   multi  - two or more AutoShapes, text boxes, or placeholders
+'   mixed  - two or more objects that include pictures, tables, charts, groups...
+Private Function PPTK_DetectContext() As String
+    Dim rng As Object
+    Dim index As Long
+    Dim shapeKind As Long
+    Dim plain As Boolean
+    PPTK_DetectContext = "none"
+    On Error GoTo Done
+    If ActiveWindow Is Nothing Then Exit Function
+    Select Case ActiveWindow.Selection.Type
+        Case ppSelectionText
+            If ActiveWindow.Selection.ShapeRange(1).HasTable Then
+                PPTK_DetectContext = "table"
+            Else
+                PPTK_DetectContext = "text"
+            End If
+        Case ppSelectionShapes
+            If ActiveWindow.Selection.HasChildShapeRange Then
+                Set rng = ActiveWindow.Selection.ChildShapeRange
+                If rng.Count = 1 Then
+                    PPTK_DetectContext = "one"
+                    Exit Function
+                End If
+            Else
+                Set rng = ActiveWindow.Selection.ShapeRange
+            End If
+            If rng.Count = 1 Then
+                If rng(1).HasTable Then
+                    PPTK_DetectContext = "table"
+                ElseIf rng(1).Type = msoGroup Then
+                    PPTK_DetectContext = "group"
+                Else
+                    PPTK_DetectContext = "one"
+                End If
+            ElseIf rng.Count > 1 Then
+                plain = True
+                For index = 1 To rng.Count
+                    shapeKind = rng(index).Type
+                    If shapeKind <> msoAutoShape And shapeKind <> msoTextBox And shapeKind <> msoPlaceholder Then plain = False
+                    If rng(index).HasTable Then plain = False
+                Next index
+                If plain Then PPTK_DetectContext = "multi" Else PPTK_DetectContext = "mixed"
+            End If
+    End Select
+Done:
+End Function
+
+Private Function PPTK_ContextLabel(ByVal kind As String) As String
+    Select Case kind
+        Case "text": PPTK_ContextLabel = "Text editing"
+        Case "table": PPTK_ContextLabel = "Table"
+        Case "group": PPTK_ContextLabel = "Group"
+        Case "one": PPTK_ContextLabel = "One shape"
+        Case "multi": PPTK_ContextLabel = "Several shapes"
+        Case "mixed": PPTK_ContextLabel = "Mixed selection"
+        Case Else: PPTK_ContextLabel = "No selection"
+    End Select
+End Function
+
+' Deterministic suggestions per context: command names from the registry,
+' only commands that run in that context.
+Private Function PPTK_Suggestions(ByVal kind As String) As String
+    Select Case kind
+        Case "text"
+            PPTK_Suggestions = "Remove Margins|Paste Content Only|Increase Font Size|Decrease Font Size"
+        Case "table"
+            PPTK_Suggestions = "Add Right Column - Keep Bounds|Add Bottom Row - Keep Bounds|Delete Right Column - Keep Bounds|Delete Bottom Row - Keep Bounds|Remove Margins"
+        Case "group"
+            PPTK_Suggestions = "Remove Margins|Copy Formatting|Add Right TK|Add Bottom TK|Bring Forward"
+        Case "one"
+            PPTK_Suggestions = "Add Right TK|Add Bottom TK|Copy Formatting|Remove Margins|Bring Forward"
+        Case "multi"
+            PPTK_Suggestions = "Align Left|Align Top|Distribute Horizontally|Same Size|Unify Shape Type"
+        Case "mixed"
+            PPTK_Suggestions = "Align Left|Align Top|Distribute Horizontally|Same Width|Swap Shapes"
+        Case Else
+            PPTK_Suggestions = "Insert Textbox|Insert Rectangle|Insert New Slide|Insert Icon|Fix Slide Colors"
+    End Select
+End Function
+
+Private Function PPTK_Normalize(ByVal value As String) As String
+    value = LCase$(Trim$(value))
+    Do While InStr(value, "  ") > 0
+        value = Replace(value, "  ", " ")
+    Loop
+    PPTK_Normalize = value
+End Function
+
+' Returns 0-4 for a match, 99 for no match.
+Private Function PPTK_Rank(ByVal query As String, ByVal commandName As String, ByVal shortcut As String, ByVal aliases As String) As Long
+    Dim nameValue As String
+    Dim keyValue As String
+    Dim words() As String
+    Dim index As Long
+
+    If Len(query) = 0 Then
+        PPTK_Rank = 0
+        Exit Function
+    End If
+    PPTK_Rank = 99
+    nameValue = PPTK_Normalize(commandName)
+    keyValue = PPTK_Normalize(shortcut)
+    If nameValue = query Or (Len(keyValue) > 0 And keyValue = query) Then
+        PPTK_Rank = 0
+    ElseIf Left$(nameValue, Len(query)) = query Then
+        PPTK_Rank = 1
+    ElseIf InStr(1, nameValue, query, vbBinaryCompare) > 0 Then
+        PPTK_Rank = 2
+    Else
+        words = Split(PPTK_Normalize(aliases), " ")
+        For index = LBound(words) To UBound(words)
+            If Len(words(index)) > 0 And Left$(words(index), Len(query)) = query Then
+                PPTK_Rank = 3
+                Exit Function
+            End If
+        Next index
+        If Len(keyValue) > 0 And InStr(1, keyValue, query, vbBinaryCompare) > 0 Then PPTK_Rank = 4
+    End If
+End Function
+
+' Icon per command name. The pictures are hidden Image controls named
+' ico_<key> (normal row) and ico_<key>_sel (selected row), stored in this
+' form and built from src\PPTK\Brand\smartbar-icons\<key>.bmp and
+' <key>-sel.bmp by Build-PptkSmartBarIcons.ps1. Opaque BMPs are used because
+' a picture stored in a form loses GIF transparency and ICO colors.
+Private Function PPTK_CommandIcon(ByVal commandName As String) As String
+    Dim key As String
+    Select Case commandName
+        Case "Smart Bar": key = "pptk_smart_bar"
+        Case "Fix Slide Colors": key = "pptk_fix_colors"
+        Case "Find & Replace Colors": key = "pptk_replace_colors"
+        Case "Align Process": key = "pptk_process"
+        Case "Align Matrix": key = "pptk_matrix"
+        Case "Align Central": key = "pptk_central"
+        Case "Add Right Column - Keep Bounds": key = "sb_col_add_keep"
+        Case "Add Bottom Row - Keep Bounds": key = "sb_row_add_keep"
+        Case "Delete Right Column - Keep Bounds": key = "sb_col_del_keep"
+        Case "Delete Bottom Row - Keep Bounds": key = "sb_row_del_keep"
+        Case "Add Right TK": key = "pptk_tk_right"
+        Case "Add Bottom TK": key = "pptk_tk_bottom"
+        Case "Add Top TK": key = "pptk_tk_top"
+        Case "Add Left TK": key = "pptk_tk_left"
+        Case "Insert Textbox": key = "pptk_text"
+        Case "Insert Rectangle": key = "pptk_shape_rect"
+        Case "Insert Rounded Rectangle": key = "pptk_shape_round"
+        Case "Insert Oval": key = "pptk_shape_oval"
+        Case "Insert Chevron": key = "pptk_shape_chevron"
+        Case "Insert Pentagon": key = "pptk_shape_pentagon"
+        Case "Insert Triangle": key = "pptk_shape_triangle"
+        Case "Insert Parallelogram": key = "pptk_shape_para"
+        Case "Insert New Slide": key = "pptk_new_slide"
+        Case "Insert Icon": key = "pptk_insert_icon"
+        Case "Enclose Icons": key = "pptk_enclose"
+        Case "Align Left": key = "pptk_align_left"
+        Case "Align Right": key = "pptk_align_right"
+        Case "Align Top": key = "pptk_align_top"
+        Case "Align Bottom": key = "pptk_align_bottom"
+        Case "Align Middle": key = "pptk_align_middle"
+        Case "Align Center": key = "pptk_align_center"
+        Case "Match Corner Roundness": key = "sb_corner"
+        Case "Same Width": key = "pptk_same_width"
+        Case "Same Height": key = "pptk_same_height"
+        Case "Same Size": key = "pptk_same_size"
+        Case "Distribute Horizontally": key = "pptk_dist_h"
+        Case "Distribute Vertically": key = "pptk_dist_v"
+        Case "Swap Shapes": key = "pptk_swap"
+        Case "Swap Text": key = "pptk_swap_text"
+        Case "Merge Textboxes": key = "pptk_merge_text"
+        Case "Save Selected Slides": key = "pptk_save_slides"
+        Case "Increase Horizontal Spacing": key = "pptk_gap_h_inc"
+        Case "Decrease Horizontal Spacing": key = "pptk_gap_h_dec"
+        Case "Increase Vertical Spacing": key = "pptk_gap_v_inc"
+        Case "Decrease Vertical Spacing": key = "pptk_gap_v_dec"
+        Case "Copy Formatting": key = "pptk_copy_format"
+        Case "Paste Formatting": key = "pptk_paste_format"
+        Case "Paste Content Only": key = "pptk_paste_text"
+        Case "Remove Margins": key = "pptk_remove_margins"
+        Case "Increase Font Size": key = "sb_font_up"
+        Case "Decrease Font Size": key = "sb_font_down"
+        Case "Bring Forward": key = "sb_bring_forward"
+        Case "Send Backward": key = "sb_send_backward"
+        Case "Add Right Column - Expand Bounds": key = "sb_col_add_expand"
+        Case "Add Bottom Row - Expand Bounds": key = "sb_row_add_expand"
+        Case "Delete Right Column - Shrink Bounds": key = "sb_col_del_shrink"
+        Case "Delete Bottom Row - Shrink Bounds": key = "sb_row_del_shrink"
+        Case "Flip Current Slide": key = "sb_flip_slide"
+        Case "Flip Entire Presentation": key = "sb_flip_deck"
+        Case "Unify Shape Type": key = "sb_unify"
+        Case Else: key = ""
+    End Select
+    PPTK_CommandIcon = key
+End Function
+
+Private Function PPTK_IconPicture(ByVal key As String, ByVal isSelected As Boolean) As Object
+    On Error Resume Next
+    Set PPTK_IconPicture = Nothing
+    If Len(key) = 0 Then Exit Function
+    If isSelected Then
+        Set PPTK_IconPicture = Me.Controls("ico_" & key & "_sel").Picture
+    Else
+        Set PPTK_IconPicture = Me.Controls("ico_" & key).Picture
+    End If
+End Function
 
 Private Sub PPTK_RenderRows()
     Dim slot As Long
@@ -524,126 +870,58 @@ Private Sub PPTK_RenderRows()
             VisibleCount = VisibleCount + 1
             RowName(slot).Caption = ResultNames(resultIndex)
             RowKey(slot).Caption = ResultKeys(resultIndex)
-            RowIcon(slot).Caption = ResultIcons(resultIndex)
-            RowBg(slot).Visible = True
-            RowName(slot).Visible = True
-            RowKey(slot).Visible = True
-            RowIcon(slot).Visible = True
-            RowBar(slot).Visible = False
+            Set RowIcon(slot).Picture = PPTK_IconPicture(ResultIcons(resultIndex), resultIndex = SelectedIndex)
             PPTK_PaintRow slot, (resultIndex = SelectedIndex)
+            RowBg(slot).Visible = True
+            RowIcon(slot).Visible = (Len(ResultIcons(resultIndex)) > 0)
+            RowIcon(slot).ZOrder 0
+            RowName(slot).Visible = True
+            RowKey(slot).Visible = (Len(ResultKeys(resultIndex)) > 0)
         Else
             RowBg(slot).Visible = False
-            RowBar(slot).Visible = False
+            RowIcon(slot).Visible = False
             RowName(slot).Visible = False
             RowKey(slot).Visible = False
-            RowIcon(slot).Visible = False
         End If
     Next slot
-    PPTK_Reflow
-    For slot = 1 To VisibleCount
-        PPTK_FitKey slot
-    Next slot
 End Sub
-
-Private Sub PPTK_FitKey(ByVal index As Long)
-    Dim needed As Single
-    Dim rowWidth As Single
-    If index < 1 Or index > PoolCount Then Exit Sub
-    If Len(RowKey(index).Caption) = 0 Then
-        RowKey(index).width = 0
-        Exit Sub
-    End If
-    RowKey(index).AutoSize = True
-    needed = RowKey(index).width + 18
-    RowKey(index).AutoSize = False
-    If needed < 40 Then needed = 40
-    If needed > KeyCol Then needed = KeyCol
-    rowWidth = PPTK_ContentWidth()
-    RowKey(index).width = needed
-    RowKey(index).height = 22
-    RowKey(index).left = rowWidth - 12 - needed
-    RowKey(index).TextAlign = fmTextAlignCenter
-End Sub
-
-Private Function PPTK_CommandGlyph(ByVal commandName As String) As String
-    Dim value As String
-    value = LCase$(commandName)
-    If InStr(value, "matrix") > 0 Then
-        PPTK_CommandGlyph = ChrW$(&H25A6)
-    ElseIf InStr(value, "column") > 0 Then
-        PPTK_CommandGlyph = ChrW$(&H25A5)
-    ElseIf InStr(value, "row") > 0 Then
-        PPTK_CommandGlyph = ChrW$(&H25A4)
-    ElseIf InStr(value, "size") > 0 Or InStr(value, "stretch") > 0 Then
-        PPTK_CommandGlyph = ChrW$(&H2197)
-    ElseIf InStr(value, "color") > 0 Then
-        PPTK_CommandGlyph = ChrW$(&H25C9)
-    Else
-        PPTK_CommandGlyph = ChrW$(&H203A)
-    End If
-End Function
-
-Private Function PPTK_Matches(ByVal query As String, ByVal commandName As String, ByVal shortcut As String, ByVal aliases As String) As Boolean
-    If Len(query) = 0 Then
-        PPTK_Matches = True
-    Else
-        PPTK_Matches = InStr(1, LCase$(commandName), query, vbTextCompare) > 0 _
-            Or InStr(1, LCase$(shortcut), query, vbTextCompare) > 0 _
-            Or InStr(1, LCase$(aliases), query, vbTextCompare) > 0
-    End If
-End Function
 
 Private Sub PPTK_Reflow()
     Dim index As Long
     Dim rowWidth As Single
-    Dim iconLeft As Single
+    Dim nameLeft As Single
     Dim keyLeft As Single
-    Dim nameWidth As Single
+    Dim rowTop As Single
 
     If PoolCount < 1 Then Exit Sub
-    rowWidth = PPTK_ContentWidth()
-    iconLeft = 12
-    keyLeft = rowWidth - 12 - KeyCol
-    nameWidth = keyLeft - (iconLeft + IconCol) - 16
-    If nameWidth < 20 Then nameWidth = 20
+    rowWidth = fraResults.Width
+    nameLeft = 6 + IconW + 8
+    keyLeft = rowWidth - 8 - KeyW
     For index = 1 To PoolCount
-        RowBg(index).left = 0
-        RowBg(index).Top = (index - 1) * RowH
-        RowBg(index).width = rowWidth
-        RowBg(index).height = RowH
-        RowBar(index).left = 0
-        RowBar(index).Top = (index - 1) * RowH
-        RowBar(index).width = 0
-        RowBar(index).height = RowH
-        RowIcon(index).left = iconLeft
-        RowIcon(index).Top = (index - 1) * RowH + 12
-        RowIcon(index).width = IconCol
-        RowIcon(index).height = 22
-        RowName(index).left = iconLeft + IconCol + 8
-        RowName(index).Top = (index - 1) * RowH + 12
-        RowName(index).width = nameWidth
-        RowName(index).height = 22
-        RowKey(index).left = keyLeft
-        RowKey(index).Top = (index - 1) * RowH + 12
-        RowKey(index).width = KeyCol
-        RowKey(index).height = 22
-        RowKey(index).TextAlign = fmTextAlignCenter
+        rowTop = (index - 1) * RowH
+        RowBg(index).Left = 0
+        RowBg(index).Top = rowTop
+        RowBg(index).Width = rowWidth
+        RowBg(index).Height = RowH
+        RowIcon(index).Left = 6
+        RowIcon(index).Top = rowTop + 7
+        RowIcon(index).Width = 16
+        RowIcon(index).Height = 16
+        RowName(index).Left = nameLeft
+        RowName(index).Top = rowTop + 6
+        RowName(index).Width = keyLeft - nameLeft - 4
+        RowName(index).Height = 18
+        RowKey(index).Left = keyLeft
+        RowKey(index).Top = rowTop + 8
+        RowKey(index).Width = KeyW
+        RowKey(index).Height = 15
     Next index
     On Error Resume Next
     fraResults.ScrollTop = 0
-    fraResults.ScrollLeft = 0
-    fraResults.ScrollHeight = fraResults.height
+    fraResults.ScrollHeight = fraResults.Height
     fraResults.ScrollWidth = rowWidth
     On Error GoTo 0
 End Sub
-
-Private Function PPTK_ContentWidth() As Single
-    Dim inner As Single
-    inner = fraResults.InsideWidth
-    If inner < 40 Then inner = fraResults.width
-    PPTK_ContentWidth = inner - 2
-    If PPTK_ContentWidth < 40 Then PPTK_ContentWidth = 40
-End Function
 
 Private Sub PPTK_SelectRow(ByVal rowIndex As Long, ByVal scrollIntoView As Boolean)
     If rowIndex < 1 Or rowIndex > ResultCount Then Exit Sub
@@ -651,21 +929,17 @@ Private Sub PPTK_SelectRow(ByVal rowIndex As Long, ByVal scrollIntoView As Boole
     If scrollIntoView Then PPTK_EnsureVisible
     Painting = True
     PPTK_RenderRows
+    PPTK_SyncScroll
     Painting = False
 End Sub
 
-Private Sub PPTK_PaintRow(ByVal index As Long, ByVal selected As Boolean)
+Private Sub PPTK_PaintRow(ByVal index As Long, ByVal isSelected As Boolean)
     Dim fill As Long
     If index < 1 Or index > PoolCount Then Exit Sub
-    If selected Then fill = ColorSelected Else fill = ColorPage
+    If isSelected Then fill = ColorSelected Else fill = ColorPage
     RowBg(index).BackColor = fill
     RowName(index).BackColor = fill
-    RowIcon(index).BackColor = fill
-    RowKey(index).BackColor = ColorField
-    RowName(index).ForeColor = ColorInk
-    RowKey(index).ForeColor = ColorMuted
-    RowIcon(index).ForeColor = IIf(selected, ColorAccent, ColorMuted)
-    RowBar(index).Visible = False
+    RowKey(index).BackColor = fill
 End Sub
 
 Private Sub PPTK_EnsureVisible()
@@ -678,12 +952,54 @@ Private Sub PPTK_EnsureVisible()
     If FirstVisible < 1 Then FirstVisible = 1
 End Sub
 
+Private Function PPTK_LastTop() As Long
+    PPTK_LastTop = ResultCount - VisibleRows + 1
+    If PPTK_LastTop < 1 Then PPTK_LastTop = 1
+End Function
+
+' Sizes and places the thumb for the current first row. The scrollbar is
+' hidden when every result fits.
+Private Sub PPTK_SyncScroll()
+    Dim travel As Single
+    Dim lastTop As Long
+    If ScrollTrack Is Nothing Then Exit Sub
+    lastTop = PPTK_LastTop()
+    If FirstVisible > lastTop Then FirstVisible = lastTop
+    ScrollTrack.Visible = (ResultCount > VisibleRows)
+    ScrollThumb.Visible = ScrollTrack.Visible
+    If Not ScrollTrack.Visible Then Exit Sub
+    ScrollThumb.Height = ScrollTrack.Height * VisibleRows / ResultCount
+    If ScrollThumb.Height < 18 Then ScrollThumb.Height = 18
+    travel = ScrollTrack.Height - ScrollThumb.Height
+    If lastTop > 1 Then
+        ScrollThumb.Top = ScrollTrack.Top + travel * (FirstVisible - 1) / (lastTop - 1)
+    Else
+        ScrollThumb.Top = ScrollTrack.Top
+    End If
+End Sub
+
+' Scrolls the list without changing the selected command.
+Private Sub PPTK_ScrollTo(ByVal firstRow As Long)
+    firstRow = PPTK_Clamp(firstRow, 1, PPTK_LastTop())
+    If firstRow = FirstVisible Then Exit Sub
+    FirstVisible = firstRow
+    Painting = True
+    PPTK_RenderRows
+    PPTK_SyncScroll
+    Painting = False
+End Sub
+
 Private Sub PPTK_RunSelected()
     Dim token As String
     If Busy Then Exit Sub
     If SelectedIndex < 1 Or SelectedIndex > ResultCount Then Exit Sub
-    Busy = True
     token = ResultTokens(SelectedIndex)
+    If token = NavAll Or token = NavSuggest Then
+        PPTK_SetView (token = NavAll)
+        PPTK_FocusSearch
+        Exit Sub
+    End If
+    Busy = True
     Me.Hide
     If Len(token) = 0 Then
         Busy = False
@@ -705,7 +1021,7 @@ Private Sub PPTK_ExecuteToken(ByVal token As String)
     Dim trimmed As String
     Dim procName As String
     trimmed = Trim$(token)
-    If UCase$(left$(trimmed, 5)) = "PROC " Then
+    If UCase$(Left$(trimmed, 5)) = "PROC " Then
         procName = Trim$(Mid$(trimmed, 6))
         If Len(procName) = 0 Then Exit Sub
         Application.Run procName
@@ -714,31 +1030,35 @@ Private Sub PPTK_ExecuteToken(ByVal token As String)
     End If
 End Sub
 
+' The selection is kept as shape references, not names: names can repeat on a
+' slide, and shapes selected inside a group must stay the group's children.
 Private Sub PPTK_CaptureSelection()
     Dim index As Long
+    Dim range As ShapeRange
     SelectedCount = 0
     On Error GoTo Clean
     If ActiveWindow.Selection.Type <> ppSelectionShapes Then Exit Sub
-    SelectedCount = ActiveWindow.Selection.ShapeRange.count
-    If SelectedCount < 1 Then Exit Sub
-    ReDim SelectedNames(1 To SelectedCount)
-    For index = 1 To SelectedCount
-        SelectedNames(index) = ActiveWindow.Selection.ShapeRange(index).name
+    If ActiveWindow.Selection.HasChildShapeRange Then
+        Set range = ActiveWindow.Selection.ChildShapeRange
+    Else
+        Set range = ActiveWindow.Selection.ShapeRange
+    End If
+    If range.Count < 1 Then Exit Sub
+    ReDim SelectedShapes(1 To range.Count)
+    For index = 1 To range.Count
+        Set SelectedShapes(index) = range(index)
     Next index
-    SelectedSlide = ActiveWindow.view.Slide.SlideIndex
+    SelectedCount = range.Count
 Clean:
 End Sub
 
 Private Sub PPTK_RestoreSelection()
     Dim index As Long
-    Dim sld As Slide
     If SelectedCount < 1 Then Exit Sub
     On Error GoTo Clean
-    Set sld = ActivePresentation.Slides(SelectedSlide)
-    sld.Shapes(SelectedNames(1)).Select
+    SelectedShapes(1).Select msoTrue
     For index = 2 To SelectedCount
-        sld.Shapes(SelectedNames(index)).Select False
+        SelectedShapes(index).Select msoFalse
     Next index
 Clean:
 End Sub
-

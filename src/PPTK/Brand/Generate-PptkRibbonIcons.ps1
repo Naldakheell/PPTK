@@ -1,7 +1,9 @@
 # Builds the PPTK cyan ribbon icon set and the integration manifest.
 # Does not edit CustomUI.xml, the PPTM, forms, or command modules.
 param(
-    [string]$OnlyIcon = ''
+    [string]$OnlyIcon = '',
+    # With -OnlyIcon: also write icons\<Size>\<name>.png (e.g. 64 for a collapsed group image).
+    [int]$Size = 0
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
@@ -169,6 +171,14 @@ function Icon-FixColors($g, $k) {
     Fill-Ellipse $g $k 1 6 3 4 $script:Ink
     Fill-Ellipse $g $k 6 4 4 8 $script:Cyan
     Fill-Ellipse $g $k 12 6 3 4 $script:Ink
+}
+# Find & Replace Colors: an ink source swatch, an elbow arrow, a cyan target swatch.
+function Icon-ReplaceColors($g, $k) {
+    Fill-Rect $g $k 1 1 6 6 $script:Ink
+    Fill-Rect $g $k 9 9 6 6 $script:Cyan
+    Stroke-Line $g $k 8.5 4 11.5 4 $script:Ink 1.5
+    Stroke-Line $g $k 11.5 4 11.5 5.5 $script:Ink 1.5
+    Fill-Arrow $g $k 9.5 5 4 3.5 'D' $script:Ink
 }
 function Icon-CopyFormat($g, $k) {
     Fill-Poly $g $k $script:Ink ([single[]]@(4, 8, 7, 11, 13, 4, 10, 1))
@@ -705,6 +715,7 @@ function Icon-Storyline($g, $k) {
 $Draw = @{
     'pptk-format-more' = { param($g, $k) Icon-FormatMore $g $k }
     'pptk-fix-colors' = { param($g, $k) Icon-FixColors $g $k }
+    'pptk-replace-colors' = { param($g, $k) Icon-ReplaceColors $g $k }
     'pptk-copy-format' = { param($g, $k) Icon-CopyFormat $g $k }
     'pptk-paste-format' = { param($g, $k) Icon-PasteFormat $g $k }
     'pptk-save-slides' = { param($g, $k) Icon-SaveSlides $g $k }
@@ -964,6 +975,13 @@ if ($OnlyIcon -ne '') {
     Save-Png $oneLarge (Join-Path $Icon32 "$OnlyIcon.png")
     $oneSmall.Dispose()
     $oneLarge.Dispose()
+    if ($Size -gt 0) {
+        $dir = Join-Path $Root "icons\$Size"
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        $oneSized = New-IconBitmap $Size $Draw[$OnlyIcon]
+        Save-Png $oneSized (Join-Path $dir "$OnlyIcon.png")
+        $oneSized.Dispose()
+    }
     Write-Output "Generated $OnlyIcon"
     exit 0
 }

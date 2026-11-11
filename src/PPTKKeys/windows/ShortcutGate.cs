@@ -517,3 +517,80 @@ public static class ShortcutSequence
         return Advance(SequenceState.Idle, press, now, allowArm);
     }
 }
+
+/// <summary>
+/// Punctuation shortcuts resolved from the keyboard layout. Letter keys are positional
+/// shortcuts on every layout, so punctuation never maps onto a letter key. A US punctuation
+/// key whose layout types a letter there (Arabic 101: the period key types ز) keeps its
+/// US punctuation meaning, the same physical-key rule the letter shortcuts use.
+/// </summary>
+public static class LayoutRule
+{
+    public static bool IsLetterKey(int virtualKey) => virtualKey is >= 0x41 and <= 0x5A;
+
+    public static bool KeepsUsPunctuation(char producedUnshifted) => char.IsLetter(producedUnshifted);
+}
+
+/// <summary>
+/// Right Alt on a layout with AltGr (Arabic 101, most European layouts) reaches the hook as a
+/// synthetic Left Ctrl (scan code 0x21D) plus Right Alt. PPTK's Alt chords (Alt+., Alt+2, Alt+3)
+/// treat that as plain Alt only when no real Ctrl key is held and the layout types no AltGr
+/// character on the key, so AltGr typing and real Ctrl+Alt are left to the layout.
+/// </summary>
+public static class AltGrRule
+{
+    public const uint SyntheticCtrlScanCode = 0x21D;
+
+    public static bool IsSyntheticCtrl(int virtualKey, uint scanCode) =>
+        virtualKey == 0xA2 && scanCode == SyntheticCtrlScanCode;
+
+    public static bool ActsAsAlt(bool syntheticCtrlHeld, bool rightAltHeld, bool realCtrlHeld, bool keyTypesAltGrCharacter) =>
+        syntheticCtrlHeld && rightAltHeld && !realCtrlHeld && !keyTypesAltGrCharacter;
+}
+
+/// <summary>
+/// PowerPoint (mso20win32client.dll) crashed in QA when Ctrl+2 started immediately after
+/// Alt+2 finished (0 ms gap); 30 ms and more never crashed. After a grid command the next
+/// queued command waits until GapMs has passed. Nothing else is delayed.
+/// </summary>
+public static class DispatchPacing
+{
+    public const uint GapMs = 100;
+
+    public static bool IsGridToken(string? token) => token is "CTRL 2" or "CTRL 3" or "ALT 2" or "ALT 3";
+
+    public static int WaitMs(bool lastWasGrid, uint elapsedSinceLastEnd) =>
+        lastWasGrid && elapsedSinceLastEnd < GapMs ? (int)(GapMs - elapsedSinceLastEnd) : 0;
+}
+
+public enum RepeatStep
+{
+    Stop = 0,
+    Wait = 1,
+    Repeat = 2,
+}
+
+/// <summary>
+/// Hold-to-repeat for the four spacing sequences only. Windows key auto-repeat drives it:
+/// each repeated key-down of the held second key may run the token again. Nothing else repeats.
+/// </summary>
+public static class ShortcutRepeat
+{
+    /// <summary>Floor between two runs, so a fast repeat rate cannot overshoot.</summary>
+    public const uint MinIntervalMs = 50;
+
+    public static bool IsRepeatable(string? token) => token is "H +" or "H -" or "V +" or "V -";
+
+    /// <summary>
+    /// Stop when the token is not repeatable, the canvas is gone, or the held key no longer
+    /// completes the same sequence (Shift or a modifier changed). Wait while the previous run
+    /// is still queued or running, or inside the minimum interval.
+    /// </summary>
+    public static RepeatStep Decide(string? heldToken, SequencePress press, bool allowCanvas, bool inFlight, uint now, uint lastRunAt)
+    {
+        if (!IsRepeatable(heldToken) || !allowCanvas) return RepeatStep.Stop;
+        if (ShortcutSequence.Match(heldToken![0], press) != heldToken) return RepeatStep.Stop;
+        if (inFlight || now - lastRunAt < MinIntervalMs) return RepeatStep.Wait;
+        return RepeatStep.Repeat;
+    }
+}

@@ -33,8 +33,14 @@ Option Explicit
 '   Neutral accents are not hue targets. Brightness is the luminance
 '   difference, clamped to +/- 0.55, so light and dark shades stay apart.
 '   After a text color is applied, a contrast ratio below 3 against the
-'   shape fill (or the page color, when the fill is transparent) replaces
-'   that text with Dark 1 on a light surface or Light 1 on a dark surface.
+'   surface behind the text replaces that text with Dark 1 on a light surface
+'   or Light 1 on a dark surface. The surface is the shape's own solid fill;
+'   for a shape with no fill, the topmost lower shape under the text's center
+'   with a solid fill (fully transparent fills are looked through), else the
+'   slide's own solid background. A picture, gradient, pattern, chart, table,
+'   SmartArt, or semi-transparent fill behind the text, or a non-solid slide
+'   background, is unknown: the text keeps its theme mapping and no contrast
+'   color is forced.
 '
 ' Undo:
 '   The procedure makes one pass of object-model writes. PowerPoint does not
@@ -49,6 +55,8 @@ Private Const DarkNeutralLuminance As Double = 0.28
 Private Const MaxBrightness As Double = 0.55
 Private Const MinimumContrast As Double = 3#
 Private Const InvisibleTransparency As Single = 0.98
+Private Const SeeThroughTransparency As Single = 0.5
+Private Const UnknownLuminance As Double = -1#
 
 Private PalDark1 As Long
 Private PalLight1 As Long
@@ -64,7 +72,7 @@ Public Sub PPTK_FixSlideColors()
     On Error GoTo Clean
     If Not PPTK_CurrentSlide(sld) Then Exit Sub
     If Not PPTK_LoadPalette(sld) Then Exit Sub
-    PageLuminance = PPTK_Luminance(PalLight1)
+    PageLuminance = PPTK_SlideBackgroundLuminance(sld)
     PPTK_RecolorOwnBackground sld
 
     For i = 1 To sld.Shapes.Count
@@ -112,6 +120,16 @@ Private Sub PPTK_ReadScheme(ByVal scheme As Object)
     PalAccent(6) = scheme(msoThemeAccent6).RGB
 End Sub
 
+' The slide's effective background when it is a visible solid fill; otherwise unknown.
+Private Function PPTK_SlideBackgroundLuminance(ByVal sld As Slide) As Double
+    PPTK_SlideBackgroundLuminance = UnknownLuminance
+    On Error GoTo Clean
+    If sld.Background.Fill.Visible <> msoTrue Then Exit Function
+    If sld.Background.Fill.Type <> msoFillSolid Then Exit Function
+    PPTK_SlideBackgroundLuminance = PPTK_Luminance(sld.Background.Fill.ForeColor.RGB)
+Clean:
+End Function
+
 Private Sub PPTK_RecolorOwnBackground(ByVal sld As Slide)
     On Error Resume Next
     If sld.FollowMasterBackground Then Exit Sub
@@ -143,7 +161,7 @@ Private Sub PPTK_RecolorShape(ByVal shp As Shape)
     End If
 
     If shp.HasTable Then
-        PPTK_RecolorTable shp.Table
+        PPTK_RecolorTable shp.Table, PPTK_BehindLuminance(shp)
         Exit Sub
     End If
 
@@ -158,7 +176,7 @@ Private Sub PPTK_RecolorShape(ByVal shp As Shape)
     End If
 
     Dim fillLuminance As Double
-    fillLuminance = PageLuminance
+    fillLuminance = PPTK_BehindLuminance(shp)
     PPTK_RecolorFill shp, fillLuminance
     PPTK_RecolorLine shp
     PPTK_RecolorText shp, fillLuminance
@@ -181,17 +199,18 @@ Private Sub PPTK_RecolorFill(ByVal shp As Shape, ByRef fillLuminance As Double)
     If shp.Fill.Transparency >= InvisibleTransparency Then Exit Sub
     Select Case shp.Fill.Type
         Case msoFillSolid
-            If PPTK_PaintFormat(shp.Fill.ForeColor) Then
-                fillLuminance = PPTK_Luminance(shp.Fill.ForeColor.RGB)
-            ElseIf shp.Fill.ForeColor.Type = msoColorTypeScheme Then
-                fillLuminance = PPTK_Luminance(shp.Fill.ForeColor.RGB)
-            End If
+            ' The text sits on this fill whether or not the fill was recolored
+            ' (mid-grays and scheme colors are left as they are).
+            PPTK_PaintFormat shp.Fill.ForeColor
+            fillLuminance = PPTK_Luminance(shp.Fill.ForeColor.RGB)
         Case msoFillGradient
             Dim stopIndex As Long
             For stopIndex = 1 To shp.Fill.GradientStops.Count
                 PPTK_PaintFormat shp.Fill.GradientStops(stopIndex).Color
             Next stopIndex
+            fillLuminance = UnknownLuminance
         Case Else
+            fillLuminance = UnknownLuminance
     End Select
 Clean:
 End Sub
@@ -239,6 +258,7 @@ Private Sub PPTK_PaintTextRun(ByVal rng As TextRange, ByVal startAt As Long, ByV
     If count < 1 Then Exit Sub
     Set fmt = rng.Characters(startAt, count).Font.Color
     If Not PPTK_PaintFormat(fmt) Then Exit Sub
+    If backgroundLuminance < 0 Then Exit Sub
     If ThemeNeedsContrast(PPTK_Luminance(fmt.RGB), backgroundLuminance) Then
         If backgroundLuminance >= 0.5 Then
             fmt.ObjectThemeColor = msoThemeColorDark1
@@ -262,7 +282,7 @@ Private Function ThemeNeedsContrast(ByVal textLuminance As Double, ByVal backgro
     ThemeNeedsContrast = (lighter + 0.05) / (darker + 0.05) < MinimumContrast
 End Function
 
-Private Sub PPTK_RecolorTable(ByVal tbl As Table)
+Private Sub PPTK_RecolorTable(ByVal tbl As Table, ByVal behindLuminance As Double)
     Dim r As Long
     Dim c As Long
     Dim cellShape As Shape
@@ -274,7 +294,7 @@ Private Sub PPTK_RecolorTable(ByVal tbl As Table)
             On Error Resume Next
             Set cellShape = tbl.Cell(r, c).Shape
             If Not cellShape Is Nothing Then
-                fillLuminance = PageLuminance
+                fillLuminance = behindLuminance
                 PPTK_RecolorFill cellShape, fillLuminance
                 PPTK_RecolorCellBorders tbl.Cell(r, c)
                 PPTK_RecolorText cellShape, fillLuminance
@@ -336,6 +356,79 @@ Private Sub PPTK_RecolorSmartArt(ByVal shp As Shape)
     Next nodeIndex
 Clean:
 End Sub
+
+' Luminance of what is behind a shape that shows no fill of its own: the topmost
+' lower shape whose box contains the shape's center (earlier group siblings first,
+' then top-level shapes below), else the page. Unknown (-1) when that surface is
+' a picture, gradient, pattern, chart, table, SmartArt, or semi-transparent fill.
+Private Function PPTK_BehindLuminance(ByVal shp As Shape) As Double
+    Dim cx As Single
+    Dim cy As Single
+    Dim topShape As Shape
+    Dim sld As Object
+    Dim index As Long
+    Dim candidate As Shape
+    Dim lum As Double
+    Dim state As Long
+
+    PPTK_BehindLuminance = UnknownLuminance
+    On Error GoTo Clean
+    cx = shp.Left + shp.Width / 2
+    cy = shp.Top + shp.Height / 2
+    Set topShape = shp
+    If shp.Child = msoTrue Then
+        Set topShape = shp.ParentGroup
+        For index = topShape.GroupItems.Count To 1 Step -1
+            Set candidate = topShape.GroupItems(index)
+            If candidate.ZOrderPosition < shp.ZOrderPosition Then
+                state = PPTK_SurfaceAt(candidate, cx, cy, lum)
+                If state = 1 Then PPTK_BehindLuminance = lum: Exit Function
+                If state = -1 Then Exit Function
+            End If
+        Next index
+    End If
+    Set sld = topShape.Parent
+    For index = sld.Shapes.Count To 1 Step -1
+        Set candidate = sld.Shapes(index)
+        If candidate.ZOrderPosition < topShape.ZOrderPosition Then
+            state = PPTK_SurfaceAt(candidate, cx, cy, lum)
+            If state = 1 Then PPTK_BehindLuminance = lum: Exit Function
+            If state = -1 Then Exit Function
+        End If
+    Next index
+    PPTK_BehindLuminance = PageLuminance
+Clean:
+End Function
+
+' 1 = solid surface (lum set), 0 = not under the point or see-through, -1 = unknown surface.
+Private Function PPTK_SurfaceAt(ByVal shp As Shape, ByVal x As Single, ByVal y As Single, ByRef lum As Double) As Long
+    Dim index As Long
+    Dim state As Long
+    PPTK_SurfaceAt = 0
+    On Error GoTo Unknown
+    If shp.Visible <> msoTrue Then Exit Function
+    If x < shp.Left Or x > shp.Left + shp.Width Or y < shp.Top Or y > shp.Top + shp.Height Then Exit Function
+    If shp.Type = msoGroup Then
+        For index = shp.GroupItems.Count To 1 Step -1
+            state = PPTK_SurfaceAt(shp.GroupItems(index), x, y, lum)
+            If state <> 0 Then
+                PPTK_SurfaceAt = state
+                Exit Function
+            End If
+        Next index
+        Exit Function
+    End If
+    If PPTK_IsImageLike(shp) Or shp.HasChart Or shp.HasTable Or shp.HasSmartArt Then GoTo Unknown
+    If shp.Fill.Visible <> msoTrue Then Exit Function
+    If shp.Fill.Transparency >= InvisibleTransparency Then Exit Function
+    If shp.Fill.Type <> msoFillSolid Then GoTo Unknown
+    If shp.Fill.Transparency > SeeThroughTransparency Then GoTo Unknown
+    lum = PPTK_Luminance(shp.Fill.ForeColor.RGB)
+    PPTK_SurfaceAt = 1
+    Exit Function
+Unknown:
+    PPTK_SurfaceAt = -1
+End Function
 
 Private Function PPTK_PaintFormat(ByVal fmt As ColorFormat) As Boolean
     Dim slot As MsoThemeColorIndex

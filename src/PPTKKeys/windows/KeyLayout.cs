@@ -25,6 +25,7 @@ internal static class KeyLayout
     static Chord[] _openBracket = DefaultOpenBracket;
     static Chord[] _closeBracket = DefaultCloseBracket;
     static Chord[] _backslash = DefaultBackslash;
+    static Chord[] _altGr = [];
     static IntPtr _layout = IntPtr.Zero;
 
     public static bool IsPlus(int virtualKey, bool shift)
@@ -59,6 +60,9 @@ internal static class KeyLayout
 
     public static bool IsBackslash(int virtualKey, bool shift) => Matches(Volatile.Read(ref _backslash), virtualKey, shift);
 
+    /// <summary>The layout types a character for this key with AltGr (Ctrl+Alt).</summary>
+    public static bool TypesAltGr(int virtualKey, bool shift) => Matches(Volatile.Read(ref _altGr), virtualKey, shift);
+
     public static bool IsPunctuation(int virtualKey) =>
         Contains(Volatile.Read(ref _slash), virtualKey)
         || Contains(Volatile.Read(ref _period), virtualKey)
@@ -76,7 +80,12 @@ internal static class KeyLayout
         IntPtr layout = NativeMethods.GetKeyboardLayout(threadId);
         if (layout == _layout && layout != IntPtr.Zero) return;
         _layout = layout;
+        Build(layout);
+    }
 
+    /// <summary>Scans one layout and publishes its tables. Also used by --layouts.</summary>
+    public static void Build(IntPtr layout)
+    {
         var plus = new List<Chord>();
         var minus = new List<Chord>();
         var slash = new List<Chord>();
@@ -84,9 +93,13 @@ internal static class KeyLayout
         var openBracket = new List<Chord>();
         var closeBracket = new List<Chord>();
         var backslash = new List<Chord>();
+        var altGr = new List<Chord>();
         for (int virtualKey = 0x20; virtualKey <= 0xFE; virtualKey++)
         {
             if (ShortcutSequence.IsModifierVirtualKey(virtualKey)) continue;
+            // Control codes (Ctrl+[ is ESC) are not typed text, so they do not count as AltGr characters.
+            if (Produced(virtualKey, false, layout, altGr: true) >= ' ') Add(altGr, virtualKey, false);
+            if (Produced(virtualKey, true, layout, altGr: true) >= ' ') Add(altGr, virtualKey, true);
             Consider(plus, virtualKey, shift: false, '+', layout);
             Consider(plus, virtualKey, shift: true, '+', layout);
             Consider(minus, virtualKey, shift: false, '-', layout);
@@ -116,6 +129,10 @@ internal static class KeyLayout
         if (period.Count == 0) Add(period, 0xBE, false);
         if (openBracket.Count == 0) Add(openBracket, 0xDB, false);
         if (closeBracket.Count == 0) Add(closeBracket, 0xDD, false);
+        KeepUsKey(period, 0xBE, layout);
+        KeepUsKey(slash, 0xBF, layout);
+        KeepUsKey(openBracket, 0xDB, layout);
+        KeepUsKey(closeBracket, 0xDD, layout);
 
         Volatile.Write(ref _plus, plus.ToArray());
         Volatile.Write(ref _minus, minus.ToArray());
@@ -125,8 +142,19 @@ internal static class KeyLayout
         Volatile.Write(ref _closeBracket, closeBracket.ToArray());
         // An AltGr-only backslash is left to the layout. Do not steal another key.
         Volatile.Write(ref _backslash, backslash.ToArray());
+        Volatile.Write(ref _altGr, altGr.ToArray());
         Console.Error.WriteLine(
-            $"layout plus={plus.Count} minus={minus.Count} slash={slash.Count} period={period.Count} open={openBracket.Count} close={closeBracket.Count} backslash={backslash.Count}");
+            $"layout {layout.ToInt64():X8} plus={List(plus)} minus={List(minus)} slash={List(slash)} period={List(period)} open={List(openBracket)} close={List(closeBracket)} backslash={List(backslash)} altgr={List(altGr)}");
+    }
+
+    static string List(List<Chord> chords) =>
+        string.Join(",", chords.Select(c => c.VirtualKey.ToString("X2") + (c.Shift ? "+S" : "")));
+
+    /// <summary>US punctuation key that types a letter on this layout keeps the US meaning.</summary>
+    static void KeepUsKey(List<Chord> found, int virtualKey, IntPtr layout)
+    {
+        if (LayoutRule.KeepsUsPunctuation(Produced(virtualKey, false, layout)))
+            Add(found, virtualKey, false);
     }
 
     static bool Matches(Chord[] table, int virtualKey, bool shift)
@@ -157,6 +185,8 @@ internal static class KeyLayout
 
     static void Consider(List<Chord> found, int virtualKey, bool shift, char wanted, IntPtr layout)
     {
+        // Letter keys stay letter shortcuts (Arabic: Shift+F types [, Shift+L types /).
+        if (LayoutRule.IsLetterKey(virtualKey)) return;
         if (Produced(virtualKey, shift, layout) != wanted) return;
         Add(found, virtualKey, shift);
     }
@@ -169,13 +199,21 @@ internal static class KeyLayout
         Add(found, virtualKey, shift);
     }
 
-    static char Produced(int virtualKey, bool shift, IntPtr layout)
+    static char Produced(int virtualKey, bool shift, IntPtr layout, bool altGr = false)
     {
         var state = new byte[256];
         if (shift)
         {
             state[NativeMethods.VkShift] = 0x80;
             state[0xA0] = 0x80;
+        }
+
+        if (altGr)
+        {
+            state[NativeMethods.VkControl] = 0x80;
+            state[0xA2] = 0x80;
+            state[NativeMethods.VkMenu] = 0x80;
+            state[0xA5] = 0x80;
         }
 
         state[virtualKey] = 0x80;

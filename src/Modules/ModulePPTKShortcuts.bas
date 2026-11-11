@@ -15,7 +15,8 @@ Option Explicit
 ' \ saves the selected slides as a new PPTX. Email Slides is a ribbon button, not a shortcut.
 ' Slide Library is not a shortcut.
 ' Q harmonizes the current slide onto its theme. A P, A X, and A Z arrange shapes.
-' Ctrl+2/3 and Alt+2/3 add or delete a recognized grid edge.
+' Ctrl+2/3 and Alt+2/3 add or delete a grid edge and keep the grid's outer bounds.
+' The legacy Expand/Shrink edge commands and Flip use CMD tokens with no key.
 ' Ctrl+4 through Ctrl+7 insert a local TK placeholder.
 ' Ctrl+K and Ctrl+Space open the Smart Bar.
 
@@ -143,6 +144,22 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
             PPTK_AddLeftTK
         Case "CTRL K", "CTRL SPACE"
             PPTK_ShowSmartBar
+        ' Internal command tokens. Smart Bar and the Ribbon use them.
+        ' PPTKKeys never sends them, so these commands have no keyboard shortcut.
+        Case "CMD ADD COLUMN EXPAND"
+            PPTK_AddRightColumnExpand
+        Case "CMD ADD ROW EXPAND"
+            PPTK_AddBottomRowExpand
+        Case "CMD DELETE COLUMN SHRINK"
+            PPTK_DeleteRightColumnShrink
+        Case "CMD DELETE ROW SHRINK"
+            PPTK_DeleteBottomRowShrink
+        Case "CMD FLIP SLIDE"
+            PPTK_FlipCurrentSlide
+        Case "CMD REPLACE COLORS"
+            PPTK_ShowReplaceColors
+        Case "CMD FLIP PRESENTATION"
+            PPTK_FlipEntirePresentation
         Case Else
     End Select
 End Sub
@@ -715,6 +732,7 @@ Private Sub PPTK_MergeText()
     Dim destination As TextRange2
     Dim copied As TextRange2
     Dim index As Long
+    Dim merged As Collection
     On Error GoTo Clean
     Set window = Application.ActiveWindow
     If window Is Nothing Then Exit Sub
@@ -735,7 +753,9 @@ Private Sub PPTK_MergeText()
     End If
 
     Set destination = target.TextFrame2.TextRange
-    If destination.Length > 0 Then destination.InsertAfter vbCrLf
+    ' Only shapes whose text was merged are deleted. Pictures, tables, and
+    ' shapes without text stay on the slide.
+    Set merged = New Collection
 
     For index = 2 To targets.Count
         Set source = targets(index)
@@ -743,18 +763,24 @@ Private Sub PPTK_MergeText()
             If source.TextFrame2.HasText Then
                 Set copied = source.TextFrame2.TextRange
                 If copied.Length > 0 Then
+                    If destination.Length > 0 Then destination.InsertAfter vbCrLf
                     copied.Copy
                     DoEvents
                     destination.Characters(destination.Length + 1, 0).Paste
                     DoEvents
-                    destination.InsertAfter vbCrLf
+                    merged.Add source
                 End If
             End If
         End If
     Next index
 
-    For index = targets.Count To 2 Step -1
-        targets(index).Delete
+    ' A pasted text range brings its closing paragraph mark; drop the empty last paragraph.
+    If merged.Count > 0 And destination.Length > 0 Then
+        If Right$(destination.Text, 1) = vbCr Then destination.Characters(destination.Length, 1).Delete
+    End If
+
+    For index = merged.Count To 1 Step -1
+        merged(index).Delete
     Next index
 Clean:
 End Sub
@@ -837,11 +863,20 @@ Clean:
     Err.Clear
 End Sub
 
+' A A. The first selected rounded rectangle is the reference. PowerPoint
+' draws a rounded-rectangle corner with radius = Adjustments(1) * Min(Width,
+' Height) (ECMA-376 roundRect, adj pinned to 0..0.5). This was checked by
+' exporting two differently sized rectangles and measuring the corners.
+' Each other rounded rectangle gets the adjustment that gives the same
+' radius in points. Only Adjustments(1) changes. Other shape types, including
+' ordinary rectangles, are skipped. Nothing is rotated.
+' The reference is the first rounded rectangle in selection order (click,
+' then Shift+click the others). A marquee selection uses stacking order.
 Private Sub PPTK_MatchCornerRoundness()
     Dim selected As ShapeRange
-    Dim reference As Shape
     Dim target As Shape
     Dim index As Long
+    Dim referenceIndex As Long
     Dim shorter As Single
     Dim radius As Single
     Dim eligibleTargets As Long
@@ -849,62 +884,79 @@ Private Sub PPTK_MatchCornerRoundness()
 
     On Error GoTo Clean
     If Not PPTK_SelectedShapes(selected) Then
-        MsgBox "Select rounded rectangles."
+        MsgBox "Select two or more rounded rectangles. The first one sets the corner roundness.", vbExclamation, "PPTK"
         Exit Sub
     End If
 
-    Set reference = Nothing
+    referenceIndex = 0
     For index = 1 To selected.Count
         On Error Resume Next
+        Set target = Nothing
         Set target = selected(index)
         If Err.Number = 0 Then
-            If PPTK_IsRoundedRectangle(target) Then Set reference = target
+            If PPTK_IsRoundedRectangle(target) Then referenceIndex = index
         End If
         Err.Clear
         On Error GoTo Clean
-        If Not reference Is Nothing Then Exit For
+        If referenceIndex > 0 Then Exit For
     Next index
-    If reference Is Nothing Then
-        MsgBox "Select a rounded rectangle to copy its corner roundness."
+    If referenceIndex = 0 Then
+        MsgBox "Select two or more rounded rectangles. The first one sets the corner roundness.", vbExclamation, "PPTK"
         Exit Sub
     End If
 
     On Error Resume Next
-    shorter = reference.Width
-    If reference.Height < shorter Then shorter = reference.Height
-    radius = reference.Adjustments(1) * shorter
+    Set target = selected(referenceIndex)
+    shorter = target.Width
+    If target.Height < shorter Then shorter = target.Height
+    radius = target.Adjustments(1) * shorter
     If Err.Number <> 0 Then
         Err.Clear
-        MsgBox "Select a rounded rectangle to copy its corner roundness."
+        MsgBox "The corner roundness of the first rounded rectangle could not be read.", vbExclamation, "PPTK"
         Exit Sub
     End If
     On Error GoTo Clean
 
-    limited = False
     eligibleTargets = 0
-    For index = 1 To selected.Count
+    For index = referenceIndex + 1 To selected.Count
         On Error Resume Next
+        Set target = Nothing
         Set target = selected(index)
         If Err.Number = 0 Then
-            If Not target Is Nothing Then
-                If Not target Is reference Then
-                    If PPTK_IsRoundedRectangle(target) Then
-                        eligibleTargets = eligibleTargets + 1
-                        PPTK_ApplyMatchedCorner target, radius, limited
-                    End If
-                End If
-            End If
+            If PPTK_IsRoundedRectangle(target) Then eligibleTargets = eligibleTargets + 1
+        End If
+        Err.Clear
+        On Error GoTo Clean
+    Next index
+    If eligibleTargets = 0 Then
+        MsgBox "Select two or more rounded rectangles. The first one sets the corner roundness.", vbExclamation, "PPTK"
+        Exit Sub
+    End If
+
+    PPTK_StartUndo
+    limited = False
+    For index = referenceIndex + 1 To selected.Count
+        On Error Resume Next
+        Set target = Nothing
+        Set target = selected(index)
+        If Err.Number = 0 Then
+            If PPTK_IsRoundedRectangle(target) Then PPTK_ApplyMatchedCorner target, radius, limited
         End If
         Err.Clear
         On Error GoTo Clean
     Next index
 
     If limited Then
-        MsgBox "Some corners were limited to PowerPoint's maximum roundness."
-    ElseIf eligibleTargets = 0 Then
-        MsgBox "Select two or more rounded rectangles."
+        MsgBox "Some shapes are too small for this corner radius. Their corners were set to the maximum roundness.", vbInformation, "PPTK"
     End If
 Clean:
+End Sub
+
+' One Undo step per command.
+Private Sub PPTK_StartUndo()
+    On Error Resume Next
+    Application.StartNewUndoEntry
+    Err.Clear
 End Sub
 
 Private Function PPTK_IsConnectorShape(ByVal target As Shape) As Boolean
@@ -972,26 +1024,39 @@ Private Function PPTK_CanReceiveShapeType(ByVal target As Shape) As Boolean
         Err.Clear
         Exit Function
     End If
+    If shapeType = msoPlaceholder Then
+        ' A picture, chart, table, or media placeholder would be cropped or changed.
+        Dim heldType As MsoShapeType
+        blocksType = False
+        heldType = target.PlaceholderFormat.ContainedType
+        If Err.Number <> 0 Then
+            Err.Clear
+        ElseIf heldType <> msoAutoShape And heldType <> msoTextBox And heldType <> msoPlaceholder Then
+            blocksType = True
+        End If
+        If blocksType Then Exit Function
+    End If
     If shapeType = msoAutoShape Or shapeType = msoTextBox Or shapeType = msoPlaceholder Then
         PPTK_CanReceiveShapeType = True
     End If
     Err.Clear
 End Function
 
-Private Function PPTK_FirstAutoShape(ByVal selected As ShapeRange, ByRef copiedType As MsoAutoShapeType) As Shape
+Private Function PPTK_FirstAutoShape(ByVal selected As ShapeRange, ByRef copiedType As MsoAutoShapeType) As Long
     Dim index As Long
     Dim candidate As Shape
     Dim shapeType As MsoAutoShapeType
-    Set PPTK_FirstAutoShape = Nothing
+    PPTK_FirstAutoShape = 0
     On Error Resume Next
     For index = 1 To selected.Count
+        Set candidate = Nothing
         Set candidate = selected(index)
         If Err.Number = 0 Then
             If PPTK_IsAutoShapeSource(candidate) Then
                 shapeType = candidate.AutoShapeType
-                If Err.Number = 0 Then
+                If Err.Number = 0 And shapeType <> msoShapeMixed And shapeType <> msoShapeNotPrimitive Then
                     copiedType = shapeType
-                    Set PPTK_FirstAutoShape = candidate
+                    PPTK_FirstAutoShape = index
                     Err.Clear
                     Exit Function
                 End If
@@ -999,6 +1064,17 @@ Private Function PPTK_FirstAutoShape(ByVal selected As ShapeRange, ByRef copiedT
         End If
         Err.Clear
     Next index
+    Err.Clear
+End Function
+
+' True when the target already has the type, so it is left untouched
+' (its own corner and other adjustments stay).
+Private Function PPTK_HasAutoShapeType(ByVal target As Shape, ByVal copiedType As MsoAutoShapeType) As Boolean
+    Dim current As MsoAutoShapeType
+    On Error Resume Next
+    PPTK_HasAutoShapeType = False
+    current = target.AutoShapeType
+    If Err.Number = 0 Then PPTK_HasAutoShapeType = (current = copiedType)
     Err.Clear
 End Function
 
@@ -1064,91 +1140,118 @@ Private Sub PPTK_AssignAutoShapeType(ByVal target As Shape, ByVal copiedType As 
     Err.Clear
 End Sub
 
+' X T. The first selected AutoShape is the reference. Every other eligible
+' shape (AutoShape, text box, text or empty placeholder) gets its
+' AutoShapeType. Each target keeps its position, size, rotation, flip,
+' text, fill, outline, and stacking order, because the type is changed on
+' the shape itself. Targets that already have the type are not touched, so
+' their own corner roundness stays. Adjustments are never copied: PowerPoint
+' gives a changed shape the new type's default adjustments. A A matches
+' corner roundness separately.
 Private Sub PPTK_UnifyShapeType()
     Dim selected As ShapeRange
-    Dim reference As Shape
     Dim target As Shape
     Dim index As Long
+    Dim referenceIndex As Long
     Dim copiedType As MsoAutoShapeType
     Dim candidateCount As Long
 
     On Error GoTo Clean
     If Not PPTK_SelectedShapes(selected) Then
-        MsgBox "Select two or more shapes."
+        MsgBox "Select two or more shapes. The first AutoShape sets the shape type.", vbExclamation, "PPTK"
         Exit Sub
     End If
     If selected.Count < 2 Then
-        MsgBox "Select two or more shapes."
+        MsgBox "Select two or more shapes. The first AutoShape sets the shape type.", vbExclamation, "PPTK"
         Exit Sub
     End If
 
-    Set reference = PPTK_FirstAutoShape(selected, copiedType)
-    If reference Is Nothing Then
-        MsgBox "Select an AutoShape to use as the shape type."
+    referenceIndex = PPTK_FirstAutoShape(selected, copiedType)
+    If referenceIndex = 0 Then
+        MsgBox "Select an AutoShape first. Its shape type is applied to the other shapes.", vbExclamation, "PPTK"
         Exit Sub
     End If
 
-    candidateCount = 1
+    candidateCount = 0
     For index = 1 To selected.Count
-        On Error Resume Next
-        Set target = selected(index)
-        If Err.Number = 0 Then
-            If Not target Is Nothing Then
-                If Not target Is reference Then
-                    If PPTK_CanReceiveShapeType(target) Then candidateCount = candidateCount + 1
-                End If
+        If index <> referenceIndex Then
+            On Error Resume Next
+            Set target = Nothing
+            Set target = selected(index)
+            If Err.Number = 0 Then
+                If PPTK_CanReceiveShapeType(target) Then candidateCount = candidateCount + 1
             End If
+            Err.Clear
+            On Error GoTo Clean
         End If
-        Err.Clear
-        On Error GoTo Clean
     Next index
-    If candidateCount < 2 Then
-        MsgBox "Select two or more shapes."
+    If candidateCount < 1 Then
+        MsgBox "None of the other selected objects can take a shape type.", vbExclamation, "PPTK"
         Exit Sub
     End If
 
+    PPTK_StartUndo
     For index = 1 To selected.Count
-        On Error Resume Next
-        Set target = selected(index)
-        If Err.Number = 0 Then
-            If Not target Is Nothing Then
-                If Not target Is reference Then
-                    If PPTK_CanReceiveShapeType(target) Then PPTK_AssignAutoShapeType target, copiedType
+        If index <> referenceIndex Then
+            On Error Resume Next
+            Set target = Nothing
+            Set target = selected(index)
+            If Err.Number = 0 Then
+                If PPTK_CanReceiveShapeType(target) Then
+                    If Not PPTK_HasAutoShapeType(target, copiedType) Then PPTK_AssignAutoShapeType target, copiedType
                 End If
             End If
+            Err.Clear
+            On Error GoTo Clean
         End If
-        Err.Clear
-        On Error GoTo Clean
     Next index
 Clean:
 End Sub
 
+' Alt+. Sets Left, Right, Top, and Bottom text margins to 0 through both
+' TextFrame and TextFrame2. Works on a shape selection, on a text cursor or
+' text selection (the shape being edited), on groups (every member), and
+' on tables: selected cells only, or every cell when the whole table is
+' selected or no cell reports a selection. Then the shape, or the table's
+' affected columns and rows, shrink to the text and keep their center.
 Private Sub PPTK_ZeroMargins()
     Dim window As DocumentWindow
+    Dim targets As ShapeRange
+    Dim selectionType As PpSelectionType
+    Dim hasChildren As Boolean
     Dim index As Long
-    On Error GoTo Clean
+
+    On Error Resume Next
     Set window = Application.ActiveWindow
-    If window Is Nothing Then Exit Sub
-    If Not (window.Selection.Type = ppSelectionShapes Or window.Selection.Type = ppSelectionText) Then
-        MsgBox "No shapes selected."
+    If Err.Number <> 0 Or window Is Nothing Then Exit Sub
+    selectionType = window.Selection.Type
+    If Err.Number <> 0 Then Exit Sub
+    If Not (selectionType = ppSelectionShapes Or selectionType = ppSelectionText) Then
+        MsgBox "Select shapes, text, or table cells to remove their margins.", vbExclamation, "PPTK"
         Exit Sub
     End If
-    If window.Selection.HasChildShapeRange Then
-        For index = 1 To window.Selection.ChildShapeRange.Count
-            On Error Resume Next
-            PPTK_ZeroMarginsShape window.Selection.ChildShapeRange(index)
-            Err.Clear
-            On Error GoTo Clean
-        Next index
-    Else
-        For index = 1 To window.Selection.ShapeRange.Count
-            On Error Resume Next
-            PPTK_ZeroMarginsShape window.Selection.ShapeRange(index)
-            Err.Clear
-            On Error GoTo Clean
-        Next index
+
+    hasChildren = window.Selection.HasChildShapeRange
+    If Err.Number <> 0 Then
+        Err.Clear
+        hasChildren = False
     End If
-Clean:
+    If hasChildren Then
+        Set targets = window.Selection.ChildShapeRange
+    Else
+        Set targets = window.Selection.ShapeRange
+    End If
+    If Err.Number <> 0 Or targets Is Nothing Then
+        Err.Clear
+        Exit Sub
+    End If
+
+    PPTK_StartUndo
+    For index = 1 To targets.Count
+        Err.Clear
+        PPTK_ZeroMarginsShape targets(index)
+    Next index
+    Err.Clear
 End Sub
 
 Private Sub PPTK_ZeroMarginsShape(ByVal target As Shape)
@@ -1166,6 +1269,8 @@ Private Sub PPTK_ZeroMarginsShape(ByVal target As Shape)
     Dim cellSelected As Boolean
     Dim selectedFound As Boolean
     Dim selectedBroken As Boolean
+    Dim columnHit() As Boolean
+    Dim rowHit() As Boolean
 
     On Error Resume Next
     If target Is Nothing Then Exit Sub
@@ -1203,6 +1308,8 @@ Private Sub PPTK_ZeroMarginsShape(ByVal target As Shape)
             Err.Clear
             Exit Sub
         End If
+        ReDim columnHit(1 To columnCount)
+        ReDim rowHit(1 To rowCount)
 
         selectedFound = False
         selectedBroken = False
@@ -1241,12 +1348,18 @@ Private Sub PPTK_ZeroMarginsShape(ByVal target As Shape)
                         End If
                     End If
                     If Err.Number = 0 Then
-                        If Not cellShape Is Nothing Then PPTK_ZeroTextMargins cellShape
+                        If Not cellShape Is Nothing Then
+                            PPTK_ZeroTextMargins cellShape
+                            columnHit(columnIndex) = True
+                            rowHit(rowIndex) = True
+                        End If
                     End If
                     Err.Clear
                 End If
             Next columnIndex
         Next rowIndex
+        Err.Clear
+        PPTK_FitTableToText target, columnHit, rowHit
         Err.Clear
         Exit Sub
     End If
@@ -1256,7 +1369,150 @@ Private Sub PPTK_ZeroMarginsShape(ByVal target As Shape)
         Err.Clear
         Exit Sub
     End If
-    If hasFrame Then PPTK_ZeroTextMargins target
+    If hasFrame Then
+        PPTK_ZeroTextMargins target
+        PPTK_FitShapeToText target
+    End If
+    Err.Clear
+End Sub
+
+' Shapes that are fitted to their text after the margins are removed.
+' Other outlines (ovals, chevrons, arrows) keep their size, because their
+' text area is smaller than their box and the text would touch the outline.
+Private Function PPTK_FitsToText(ByVal target As Shape) As Boolean
+    Dim shapeType As MsoShapeType
+    Dim outline As MsoAutoShapeType
+    PPTK_FitsToText = False
+    On Error Resume Next
+    shapeType = target.Type
+    If Err.Number <> 0 Then Exit Function
+    If shapeType = msoTextBox Or shapeType = msoPlaceholder Then
+        PPTK_FitsToText = True
+    ElseIf shapeType = msoAutoShape Then
+        outline = target.AutoShapeType
+        If Err.Number = 0 Then PPTK_FitsToText = (outline = msoShapeRectangle Or outline = msoShapeRoundedRectangle)
+    End If
+    Err.Clear
+End Function
+
+' Shrinks the shape to the text it holds, keeping its center. The width
+' becomes the widest line plus 1 pt, so no line wraps again. If the text
+' gets taller (a line wrapped), the width grows back 1 pt at a time, up to
+' the original width. Lines.Count is not used: it can miss wrapped lines.
+Private Sub PPTK_FitShapeToText(ByVal target As Shape)
+    Dim body As TextRange2
+    Dim centerX As Single
+    Dim centerY As Single
+    Dim oldWidth As Single
+    Dim newWidth As Single
+    Dim textHeight As Single
+    Dim savedLock As MsoTriState
+    Dim pass As Long
+
+    On Error Resume Next
+    If Not PPTK_FitsToText(target) Then Exit Sub
+    If target.TextFrame2.HasText <> msoTrue Then Exit Sub
+    If target.TextFrame2.Orientation <> msoTextOrientationHorizontal Then Exit Sub
+    If Err.Number <> 0 Then
+        Err.Clear
+        Exit Sub
+    End If
+
+    Set body = target.TextFrame2.TextRange
+    centerX = target.Left + target.Width / 2
+    centerY = target.Top + target.Height / 2
+    oldWidth = target.Width
+    textHeight = body.BoundHeight
+    savedLock = target.LockAspectRatio
+    target.LockAspectRatio = msoFalse
+    target.TextFrame2.AutoSize = msoAutoSizeNone
+
+    newWidth = body.BoundWidth + 1
+    If newWidth < oldWidth Then
+        target.Width = newWidth
+        For pass = 1 To 20
+            If body.BoundHeight <= textHeight + 0.5 Then Exit For
+            target.Width = target.Width + 1
+        Next pass
+        If body.BoundHeight > textHeight + 0.5 Then target.Width = oldWidth
+    End If
+    target.Height = body.BoundHeight
+    target.Left = centerX - target.Width / 2
+    target.Top = centerY - target.Height / 2
+    target.LockAspectRatio = savedLock
+    Err.Clear
+End Sub
+
+' Shrinks the columns and rows that hold processed cells to their text,
+' keeping the table's center. A column becomes its widest cell line plus
+' 1 pt; a column with no text keeps its width. A row is set to 1 pt and
+' PowerPoint raises it to the smallest height that shows its text. A table
+' with merged cells keeps its size.
+Private Sub PPTK_FitTableToText(ByVal target As Shape, ByRef columnHit() As Boolean, ByRef rowHit() As Boolean)
+    Dim tableObj As Table
+    Dim cellText As TextRange2
+    Dim centerX As Single
+    Dim centerY As Single
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim widest As Single
+    Dim oldWidth As Single
+    Dim heights() As Single
+    Dim wrapped As Boolean
+    Dim pass As Long
+
+    On Error Resume Next
+    Set tableObj = target.Table
+    If Err.Number <> 0 Then Exit Sub
+    For rowIndex = 1 To tableObj.Rows.Count
+        For columnIndex = 1 To tableObj.Columns.Count
+            If Abs(tableObj.Cell(rowIndex, columnIndex).Shape.Width - tableObj.Columns(columnIndex).Width) > 1 Then Exit Sub
+            If Abs(tableObj.Cell(rowIndex, columnIndex).Shape.Height - tableObj.Rows(rowIndex).Height) > 1 Then Exit Sub
+        Next columnIndex
+    Next rowIndex
+    If Err.Number <> 0 Then Exit Sub
+
+    centerX = target.Left + target.Width / 2
+    centerY = target.Top + target.Height / 2
+    ReDim heights(1 To tableObj.Rows.Count)
+
+    For columnIndex = 1 To tableObj.Columns.Count
+        If columnHit(columnIndex) Then
+            widest = 0
+            For rowIndex = 1 To tableObj.Rows.Count
+                Set cellText = tableObj.Cell(rowIndex, columnIndex).Shape.TextFrame2.TextRange
+                heights(rowIndex) = cellText.BoundHeight
+                If cellText.Length > 0 Then
+                    If cellText.BoundWidth > widest Then widest = cellText.BoundWidth
+                End If
+            Next rowIndex
+            oldWidth = tableObj.Columns(columnIndex).Width
+            If widest > 0 And widest + 1 < oldWidth Then
+                tableObj.Columns(columnIndex).Width = widest + 1
+                For pass = 1 To 21
+                    wrapped = False
+                    For rowIndex = 1 To tableObj.Rows.Count
+                        If tableObj.Cell(rowIndex, columnIndex).Shape.TextFrame2.TextRange.BoundHeight > heights(rowIndex) + 0.5 Then wrapped = True
+                    Next rowIndex
+                    If Not wrapped Then Exit For
+                    If pass = 21 Then
+                        tableObj.Columns(columnIndex).Width = oldWidth
+                    Else
+                        tableObj.Columns(columnIndex).Width = tableObj.Columns(columnIndex).Width + 1
+                    End If
+                Next pass
+            End If
+            Err.Clear
+        End If
+    Next columnIndex
+
+    For rowIndex = 1 To tableObj.Rows.Count
+        If rowHit(rowIndex) Then tableObj.Rows(rowIndex).Height = 1
+        Err.Clear
+    Next rowIndex
+
+    target.Left = centerX - target.Width / 2
+    target.Top = centerY - target.Height / 2
     Err.Clear
 End Sub
 
@@ -1302,7 +1558,10 @@ Private Sub PPTK_SaveSelectedSlides()
     If Application.Presentations.Count < 1 Then Exit Sub
     Set sourceWindow = ActiveWindow
     If sourceWindow Is Nothing Then Exit Sub
-    If sourceWindow.Selection.Type <> ppSelectionSlides Then Exit Sub
+    If sourceWindow.Selection.Type <> ppSelectionSlides Then
+        MsgBox "Select the slides to save in the thumbnail pane first.", vbInformation, "PPTK"
+        Exit Sub
+    End If
     Set selected = sourceWindow.Selection.SlideRange
     If selected Is Nothing Then Exit Sub
     If selected.Count < 1 Then Exit Sub

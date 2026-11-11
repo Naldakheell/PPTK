@@ -22,6 +22,7 @@
   <Relationship Id="pptk-email-slides" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-email-slides.png"/>
   <Relationship Id="pptk-enclose" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-enclose.png"/>
   <Relationship Id="pptk-fix-colors" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-fix-colors.png"/>
+  <Relationship Id="pptk-replace-colors" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-replace-colors.png"/>
   <Relationship Id="pptk-flip-deck" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-flip-deck.png"/>
   <Relationship Id="pptk-flip-slide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-flip-slide.png"/>
   <Relationship Id="pptk-format-more" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-format-more.png"/>
@@ -96,4 +97,18 @@
   <Relationship Id="pptk-tk-top" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-tk-top.png"/>
   <Relationship Id="pptk-tools" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-tools.png"/>
   <Relationship Id="pptk-unify" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-unify.png"/>
+  <Relationship Id="pptk-smart-bar-large" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-smart-bar-large.png"/>
+  <Relationship Id="pptk-change-shape-large" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-change-shape-large.png"/>
+  <Relationship Id="sb-col-add-expand" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-col-add-expand.png"/>
+  <Relationship Id="sb-col-add-keep" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-col-add-keep.png"/>
+  <Relationship Id="sb-col-del-keep" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-col-del-keep.png"/>
+  <Relationship Id="sb-col-del-shrink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-col-del-shrink.png"/>
+  <Relationship Id="sb-corner" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-corner.png"/>
+  <Relationship Id="sb-flip-deck" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-flip-deck.png"/>
+  <Relationship Id="sb-flip-slide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-flip-slide.png"/>
+  <Relationship Id="sb-row-add-expand" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-row-add-expand.png"/>
+  <Relationship Id="sb-row-add-keep" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-row-add-keep.png"/>
+  <Relationship Id="sb-row-del-keep" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-row-del-keep.png"/>
+  <Relationship Id="sb-row-del-shrink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-row-del-shrink.png"/>
+  <Relationship Id="sb-unify" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-unify.png"/>
 </Relationships>

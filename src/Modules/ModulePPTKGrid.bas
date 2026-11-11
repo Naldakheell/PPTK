@@ -7,7 +7,8 @@ Option Explicit
 ' Keep bounds (PPTK_AddRightColumn, PPTK_AddBottomRow,
 ' PPTK_DeleteRightColumn, PPTK_DeleteBottomRow) leaves the original outer
 ' rectangle in place. The bounds are captured before any change. Add
-' duplicates the outer edge at its current size, then resizes flexible
+' duplicates the outer edge at its current size (formatting only: the new
+' cells are empty, existing text is untouched), then resizes flexible
 ' shapes and gaps on that axis so every column or row fits between the
 ' saved edges. Delete removes the outer edge and expands the survivors
 ' back to those same edges. The other axis is not resized, so a column
@@ -17,7 +18,8 @@ Option Explicit
 ' Flexible sizes and gaps share one scale. Each column or row also keeps
 ' a fixed floor: the widest or tallest shape on that axis that must not
 ' be resized. Pictures, linked pictures, locked aspect ratios, groups
-' that contain either, and TextFrame2 shape-to-fit-text shapes are fixed.
+' that contain either are fixed. A TextFrame2 shape-to-fit-text shape is
+' fixed in height; its width is fixed only when the text does not wrap.
 ' Fixed shapes are only moved inside their slot. If the fixed floors
 ' cannot fit in the original span with zero gaps, nothing is duplicated
 ' or deleted. A new gap copies the gap before the duplicated edge, or
@@ -32,8 +34,10 @@ Option Explicit
 '
 ' Expand / shrink (PPTK_AddRightColumnExpand, PPTK_AddBottomRowExpand,
 ' PPTK_DeleteRightColumnShrink, PPTK_DeleteBottomRowShrink) is the outward
-' geometry. Add duplicates the outer edge beyond the grid by the median
-' positive gap, or 8 points, and PPTK_ShiftInside pulls the selection back
+' geometry. Add duplicates the outer edge (formatting only, empty text)
+' beyond the grid by the median measured gap on that axis (zero for a
+' touching grid), else the other axis's gap, else 8 points, and
+' PPTK_ShiftInside pulls the selection back
 ' only when the copies would leave the slide. Delete removes the outer
 ' edge and leaves the other shapes where they are. A native table uses
 ' Columns.Add or Rows.Add, or deletes the last row or column, so the
@@ -45,11 +49,23 @@ Option Explicit
 ' A group counts as one shape. Extra tables are ignored.
 '
 ' Rows share a vertical center within Max(6, Min(18, 0.35 * median height))
-' points. Columns share a horizontal center within the same rule using width.
+' points, or overlap vertically by at least half of the shorter shape, so
+' top- or bottom-aligned cells of different heights form one row. Each row's
+' shapes must share one vertical band (within that tolerance); a shape that
+' spans two rows makes the selection ambiguous and it is rejected. Columns share a horizontal center within the same rule using width.
 ' A grid is recognized only when every row has the same count and the columns
 ' line up within that tolerance. A single row or a single column is valid.
-' A ragged or staggered selection does nothing, including deletion.
-' A one-column grid is not deleted. A one-row grid is not deleted.
+' A ragged or staggered selection does nothing, including deletion, and
+' says why. A one-column grid is not deleted. A one-row grid is not deleted.
+'
+' Data safety. Every command is one Undo step. Nothing is deleted until the
+' plan has been validated. Shape edges are deleted through hidden recovery
+' copies: if any delete fails, the deleted shapes come back from their
+' copies with their original position, name, and stacking order. A keep-
+' bounds table delete makes a hidden copy of the whole table first. If the
+' table cannot keep its size after the edge is gone, the copy replaces it,
+' so cell content in the deleted edge is never lost. A legacy table delete
+' is one Rows/Columns.Delete call, which either completes or raises first.
 
 Private Const GapDefault As Single = 8
 Private Const SlideMargin As Single = 8
@@ -57,36 +73,55 @@ Private Const MinAxisSize As Single = 1
 Private Const BoundSlack As Single = 1.25
 
 Public Sub PPTK_AddRightColumn()
+    PPTK_StartUndo
     PPTK_AddAxisKeep False
 End Sub
 
 Public Sub PPTK_AddBottomRow()
+    PPTK_StartUndo
     PPTK_AddAxisKeep True
 End Sub
 
 Public Sub PPTK_DeleteRightColumn()
+    PPTK_StartUndo
     PPTK_DeleteAxisKeep False
 End Sub
 
 Public Sub PPTK_DeleteBottomRow()
+    PPTK_StartUndo
     PPTK_DeleteAxisKeep True
 End Sub
 
 Public Sub PPTK_AddRightColumnExpand()
+    PPTK_StartUndo
     PPTK_AddAxisExpand False
 End Sub
 
 Public Sub PPTK_AddBottomRowExpand()
+    PPTK_StartUndo
     PPTK_AddAxisExpand True
 End Sub
 
 Public Sub PPTK_DeleteRightColumnShrink()
+    PPTK_StartUndo
     PPTK_DeleteAxisShrink False
 End Sub
 
 Public Sub PPTK_DeleteBottomRowShrink()
+    PPTK_StartUndo
     PPTK_DeleteAxisShrink True
 End Sub
+
+' Each command is one Undo step, so Ctrl+Z reverts the whole change.
+Private Sub PPTK_StartUndo()
+    On Error Resume Next
+    Application.StartNewUndoEntry
+    Err.Clear
+End Sub
+
+Private Function PPTK_NotGridMessage() As String
+    PPTK_NotGridMessage = "Select the shapes of one grid (the same number of shapes in every row), or one table."
+End Function
 
 Private Sub PPTK_AddAxisKeep(ByVal bottomRow As Boolean)
     Dim tableShape As Shape
@@ -122,6 +157,12 @@ Private Sub PPTK_AddAxisExpand(ByVal bottomRow As Boolean)
     Dim index As Long
     Dim gap As Single
     Dim edgePos As Single
+    Dim made As Long
+    Dim lefts() As Single
+    Dim tops() As Single
+    Dim widths() As Single
+    Dim heights() As Single
+    Dim axisFixed() As Boolean
 
     If PPTK_SingleTable(tableShape) Then
         On Error GoTo TableFailed
@@ -132,10 +173,19 @@ Private Sub PPTK_AddAxisExpand(ByVal bottomRow As Boolean)
         End If
         Exit Sub
 TableFailed:
+        PPTK_Tell "The table could not be extended."
         Exit Sub
     End If
 
-    If Not PPTK_Recognize(items, count, rowCount, colCount, rowOf, colOf) Then Exit Sub
+    If Not PPTK_Recognize(items, count, rowCount, colCount, rowOf, colOf) Then
+        PPTK_Tell PPTK_NotGridMessage()
+        Exit Sub
+    End If
+    If Not PPTK_CaptureGrid(items, count, bottomRow, lefts, tops, widths, heights, axisFixed) Then
+        PPTK_Tell "The grid could not be measured. The layout was not changed."
+        Exit Sub
+    End If
+    On Error GoTo ExpandFailed
     If bottomRow Then
         edgeCount = colCount
         ReDim edge(1 To edgeCount)
@@ -161,10 +211,12 @@ TableFailed:
     End If
 
     ReDim copies(1 To edgeCount)
+    made = 0
     For index = 1 To edgeCount
-        If edge(index) Is Nothing Then Exit Sub
-        Set copies(index) = PPTK_DuplicateShape(edge(index))
-        If copies(index) Is Nothing Then Exit Sub
+        If edge(index) Is Nothing Then GoTo ExpandUndo
+        Set copies(index) = PPTK_NewCell(edge(index))
+        If copies(index) Is Nothing Then GoTo ExpandUndo
+        made = index
         If bottomRow Then
             copies(index).Left = edge(index).Left
             copies(index).Top = edgePos + gap
@@ -182,6 +234,13 @@ TableFailed:
     For index = 1 To edgeCount
         copies(index).Select False
     Next index
+    Exit Sub
+ExpandFailed:
+    Resume ExpandUndo
+ExpandUndo:
+    PPTK_RestoreShapes items, count, lefts, tops, widths, heights
+    PPTK_DeleteCopies copies, made
+    PPTK_Tell "The row or column could not be added. The layout was restored."
 End Sub
 
 Private Sub PPTK_DeleteAxisShrink(ByVal bottomRow As Boolean)
@@ -193,32 +252,249 @@ Private Sub PPTK_DeleteAxisShrink(ByVal bottomRow As Boolean)
     Dim rowOf() As Long
     Dim colOf() As Long
     Dim index As Long
+    Dim edge() As Shape
+    Dim edgeCount As Long
+    Dim reason As String
 
     If PPTK_SingleTable(tableShape) Then
+        ' One Rows/Columns.Delete call either removes the edge or raises before it does.
         On Error GoTo TableFailed
         If bottomRow Then
-            If tableShape.Table.Rows.Count <= 1 Then Exit Sub
+            If tableShape.Table.Rows.Count <= 1 Then
+                PPTK_Tell "The last row of a table is not deleted."
+                Exit Sub
+            End If
             tableShape.Table.Rows(tableShape.Table.Rows.Count).Delete
         Else
-            If tableShape.Table.Columns.Count <= 1 Then Exit Sub
+            If tableShape.Table.Columns.Count <= 1 Then
+                PPTK_Tell "The last column of a table is not deleted."
+                Exit Sub
+            End If
             tableShape.Table.Columns(tableShape.Table.Columns.Count).Delete
         End If
         Exit Sub
 TableFailed:
+        PPTK_Tell "The table edge could not be deleted."
         Exit Sub
     End If
 
-    If Not PPTK_Recognize(items, count, rowCount, colCount, rowOf, colOf) Then Exit Sub
-    If bottomRow Then
-        If rowCount <= 1 Then Exit Sub
-    Else
-        If colCount <= 1 Then Exit Sub
+    If Not PPTK_Recognize(items, count, rowCount, colCount, rowOf, colOf) Then
+        PPTK_Tell PPTK_NotGridMessage()
+        Exit Sub
     End If
-    For index = count To 1 Step -1
-        If bottomRow And rowOf(index) = rowCount Then items(index).Delete
-        If Not bottomRow And colOf(index) = colCount Then items(index).Delete
+    If Not PPTK_LastEdgeGuard(bottomRow, rowCount, colCount) Then Exit Sub
+    PPTK_CollectEdge items, count, rowOf, colOf, rowCount, colCount, bottomRow, edge, edgeCount
+    If Not PPTK_DeleteEdgeSafely(edge, edgeCount, reason) Then
+        PPTK_Tell reason
+        Exit Sub
+    End If
+    PPTK_SelectSurvivors items, count, rowOf, colOf, rowCount, colCount, bottomRow
+End Sub
+
+' The final row or column is never deleted.
+Private Function PPTK_LastEdgeGuard(ByVal bottomRow As Boolean, ByVal rowCount As Long, ByVal colCount As Long) As Boolean
+    PPTK_LastEdgeGuard = True
+    If bottomRow And rowCount <= 1 Then
+        PPTK_Tell "The grid has one row. The last row is not deleted."
+        PPTK_LastEdgeGuard = False
+    ElseIf Not bottomRow And colCount <= 1 Then
+        PPTK_Tell "The grid has one column. The last column is not deleted."
+        PPTK_LastEdgeGuard = False
+    End If
+End Function
+
+Private Sub PPTK_CollectEdge(ByRef items() As Shape, ByVal count As Long, ByRef rowOf() As Long, ByRef colOf() As Long, ByVal rowCount As Long, ByVal colCount As Long, ByVal bottomRow As Boolean, ByRef edge() As Shape, ByRef edgeCount As Long)
+    Dim index As Long
+    edgeCount = 0
+    ReDim edge(1 To count)
+    For index = 1 To count
+        If (bottomRow And rowOf(index) = rowCount) Or (Not bottomRow And colOf(index) = colCount) Then
+            edgeCount = edgeCount + 1
+            Set edge(edgeCount) = items(index)
+        End If
     Next index
 End Sub
+
+Private Sub PPTK_SelectSurvivors(ByRef items() As Shape, ByVal count As Long, ByRef rowOf() As Long, ByRef colOf() As Long, ByVal rowCount As Long, ByVal colCount As Long, ByVal bottomRow As Boolean)
+    Dim index As Long
+    Dim first As Boolean
+    On Error Resume Next
+    first = True
+    For index = 1 To count
+        If Not ((bottomRow And rowOf(index) = rowCount) Or (Not bottomRow And colOf(index) = colCount)) Then
+            If first Then
+                items(index).Select
+                first = False
+            Else
+                items(index).Select False
+            End If
+        End If
+    Next index
+    Err.Clear
+End Sub
+
+' Deletes the edge shapes only after every one of them has a hidden recovery
+' copy. If any delete fails, each deleted shape is replaced by its copy at its
+' original position, name, and stacking order, and nothing is lost. The
+' copies are removed after a successful delete.
+Private Function PPTK_DeleteEdgeSafely(ByRef edge() As Shape, ByVal edgeCount As Long, ByRef failReason As String) As Boolean
+    Dim backups() As Shape
+    Dim names() As String
+    Dim stack() As Long
+    Dim oldLeft() As Single
+    Dim oldTop() As Single
+    Dim oldWidth() As Single
+    Dim oldHeight() As Single
+    Dim deleted() As Boolean
+    Dim made As Long
+    Dim index As Long
+    Dim copyShape As Shape
+
+    PPTK_DeleteEdgeSafely = False
+    failReason = "The edge could not be deleted. Nothing was changed."
+    If edgeCount < 1 Then Exit Function
+    ReDim backups(1 To edgeCount)
+    ReDim names(1 To edgeCount)
+    ReDim stack(1 To edgeCount)
+    ReDim oldLeft(1 To edgeCount)
+    ReDim oldTop(1 To edgeCount)
+    ReDim oldWidth(1 To edgeCount)
+    ReDim oldHeight(1 To edgeCount)
+    ReDim deleted(1 To edgeCount)
+    made = 0
+
+    On Error GoTo BackupFailed
+    For index = 1 To edgeCount
+        If edge(index) Is Nothing Then GoTo BackupClean
+        names(index) = edge(index).Name
+        stack(index) = edge(index).ZOrderPosition
+        oldLeft(index) = edge(index).Left
+        oldTop(index) = edge(index).Top
+        oldWidth(index) = edge(index).Width
+        oldHeight(index) = edge(index).Height
+        Set copyShape = PPTK_DuplicateShape(edge(index))
+        If copyShape Is Nothing Then GoTo BackupClean
+        Set backups(index) = copyShape
+        made = index
+        copyShape.Visible = msoFalse
+        copyShape.Left = oldLeft(index)
+        copyShape.Top = oldTop(index)
+    Next index
+
+    On Error GoTo DeleteFailed
+    For index = 1 To edgeCount
+        edge(index).Delete
+        deleted(index) = True
+    Next index
+
+    PPTK_DropShapes backups, made
+    PPTK_DeleteEdgeSafely = True
+    Exit Function
+
+BackupFailed:
+    Resume BackupClean
+BackupClean:
+    PPTK_DropShapes backups, made
+    failReason = "A recovery copy could not be made, so nothing was deleted."
+    Exit Function
+
+DeleteFailed:
+    Resume DeleteClean
+DeleteClean:
+    For index = 1 To edgeCount
+        If deleted(index) Then
+            PPTK_ReviveBackup backups(index), names(index), stack(index), oldLeft(index), oldTop(index), oldWidth(index), oldHeight(index)
+        Else
+            PPTK_DropShape backups(index)
+        End If
+    Next index
+    failReason = "The edge could not be deleted. Every shape was kept."
+End Function
+
+Private Sub PPTK_ReviveBackup(ByVal backup As Shape, ByVal shapeName As String, ByVal stackPos As Long, ByVal leftPos As Single, ByVal topPos As Single, ByVal widthPts As Single, ByVal heightPts As Single)
+    On Error Resume Next
+    If backup Is Nothing Then Exit Sub
+    backup.Visible = msoTrue
+    backup.Width = widthPts
+    backup.Height = heightPts
+    backup.Left = leftPos
+    backup.Top = topPos
+    backup.Name = shapeName
+    PPTK_SendToStack backup, stackPos
+    Err.Clear
+End Sub
+
+Private Sub PPTK_SendToStack(ByVal shp As Shape, ByVal stackPos As Long)
+    Dim guard As Long
+    On Error Resume Next
+    guard = 0
+    Do While shp.ZOrderPosition > stackPos And guard < 1000
+        shp.ZOrder msoSendBackward
+        guard = guard + 1
+        If Err.Number <> 0 Then Exit Do
+    Loop
+    Err.Clear
+End Sub
+
+Private Sub PPTK_DropShapes(ByRef pile() As Shape, ByVal made As Long)
+    Dim index As Long
+    For index = 1 To made
+        PPTK_DropShape pile(index)
+    Next index
+End Sub
+
+Private Sub PPTK_DropShape(ByVal shp As Shape)
+    On Error Resume Next
+    If Not shp Is Nothing Then shp.Delete
+    Err.Clear
+End Sub
+
+' A hidden copy of a table, made before anything changes. If the table cannot
+' keep its size after an edge is gone, the copy replaces it.
+Private Function PPTK_HiddenCopy(ByVal shp As Shape, ByVal leftPos As Single, ByVal topPos As Single) As Shape
+    Dim copyShape As Shape
+    On Error GoTo Clean
+    Set copyShape = PPTK_DuplicateShape(shp)
+    If copyShape Is Nothing Then Exit Function
+    copyShape.Visible = msoFalse
+    copyShape.Left = leftPos
+    copyShape.Top = topPos
+    Set PPTK_HiddenCopy = copyShape
+    Exit Function
+Clean:
+    Err.Clear
+    PPTK_DropShape copyShape
+    Set PPTK_HiddenCopy = Nothing
+End Function
+
+Private Function PPTK_SwapInCopy(ByVal shp As Shape, ByVal copyShape As Shape, ByVal leftPos As Single, ByVal topPos As Single) As Boolean
+    Dim shapeName As String
+    Dim stackPos As Long
+    Dim originalGone As Boolean
+    PPTK_SwapInCopy = False
+    If copyShape Is Nothing Then Exit Function
+    On Error GoTo Failed
+    shapeName = shp.Name
+    stackPos = shp.ZOrderPosition
+    copyShape.Visible = msoTrue
+    copyShape.Left = leftPos
+    copyShape.Top = topPos
+    shp.Delete
+    originalGone = True
+    On Error Resume Next
+    copyShape.Name = shapeName
+    PPTK_SendToStack copyShape, stackPos
+    copyShape.Select
+    Err.Clear
+    PPTK_SwapInCopy = True
+    Exit Function
+Failed:
+    Resume Cleanup
+Cleanup:
+    On Error Resume Next
+    If Not originalGone Then copyShape.Visible = msoFalse
+    Err.Clear
+End Function
 
 Private Sub PPTK_KeepAddShapes(ByVal bottomRow As Boolean)
     Dim items() As Shape
@@ -249,7 +525,10 @@ Private Sub PPTK_KeepAddShapes(ByVal bottomRow As Boolean)
     Dim made As Long
     Dim reason As String
 
-    If Not PPTK_Recognize(items, count, rowCount, colCount, rowOf, colOf) Then Exit Sub
+    If Not PPTK_Recognize(items, count, rowCount, colCount, rowOf, colOf) Then
+        PPTK_Tell PPTK_NotGridMessage()
+        Exit Sub
+    End If
     If Not PPTK_CaptureGrid(items, count, bottomRow, lefts, tops, widths, heights, axisFixed) Then
         PPTK_Tell "The grid could not be measured. The layout was not changed."
         Exit Sub
@@ -277,7 +556,7 @@ Private Sub PPTK_KeepAddShapes(ByVal bottomRow As Boolean)
         Set source = items(srcIndex)
         If source Is Nothing Then GoTo Rollback
         On Error Resume Next
-        Set copies(index) = PPTK_DuplicateShape(source)
+        Set copies(index) = PPTK_NewCell(source)
         If Err.Number <> 0 Then Set copies(index) = Nothing
         Err.Clear
         On Error GoTo Rollback
@@ -335,14 +614,14 @@ Private Sub PPTK_KeepDeleteShapes(ByVal bottomRow As Boolean)
     Dim copyHeight() As Single
     Dim index As Long
     Dim reason As String
-    Dim applied As Boolean
+    Dim edge() As Shape
+    Dim edgeCount As Long
 
-    If Not PPTK_Recognize(items, count, rowCount, colCount, rowOf, colOf) Then Exit Sub
-    If bottomRow Then
-        If rowCount <= 1 Then Exit Sub
-    Else
-        If colCount <= 1 Then Exit Sub
+    If Not PPTK_Recognize(items, count, rowCount, colCount, rowOf, colOf) Then
+        PPTK_Tell PPTK_NotGridMessage()
+        Exit Sub
     End If
+    If Not PPTK_LastEdgeGuard(bottomRow, rowCount, colCount) Then Exit Sub
     If Not PPTK_CaptureGrid(items, count, bottomRow, lefts, tops, widths, heights, axisFixed) Then
         PPTK_Tell "The grid could not be measured. The layout was not changed."
         Exit Sub
@@ -352,29 +631,29 @@ Private Sub PPTK_KeepDeleteShapes(ByVal bottomRow As Boolean)
         Exit Sub
     End If
 
+    ' Survivors move first. That is reversible from the captured geometry.
+    ' The edge is deleted last, through recovery copies, so a failure at any
+    ' step leaves every shape on the slide.
+    reason = "The grid could not keep its original bounds. The layout was restored."
     On Error GoTo Restore
     For index = 1 To count
         If bottomRow Then
             If rowOf(index) <> rowCount Then
-                If Not PPTK_CommitShape(items(index), bottomRow, axisFixed(index), newLeft(index), newTop(index), newWidth(index), newHeight(index)) Then GoTo Restore
+                If Not PPTK_CommitShape(items(index), bottomRow, axisFixed(index), newLeft(index), newTop(index), newWidth(index), newHeight(index)) Then GoTo RestoreClean
             End If
         ElseIf colOf(index) <> colCount Then
-            If Not PPTK_CommitShape(items(index), bottomRow, axisFixed(index), newLeft(index), newTop(index), newWidth(index), newHeight(index)) Then GoTo Restore
+            If Not PPTK_CommitShape(items(index), bottomRow, axisFixed(index), newLeft(index), newTop(index), newWidth(index), newHeight(index)) Then GoTo RestoreClean
         End If
     Next index
-    applied = True
-    For index = count To 1 Step -1
-        If bottomRow And rowOf(index) = rowCount Then items(index).Delete
-        If Not bottomRow And colOf(index) = colCount Then items(index).Delete
-    Next index
+    PPTK_CollectEdge items, count, rowOf, colOf, rowCount, colCount, bottomRow, edge, edgeCount
+    If Not PPTK_DeleteEdgeSafely(edge, edgeCount, reason) Then GoTo RestoreClean
+    PPTK_SelectSurvivors items, count, rowOf, colOf, rowCount, colCount, bottomRow
     Exit Sub
 Restore:
+    Resume RestoreClean
+RestoreClean:
     PPTK_RestoreShapes items, count, lefts, tops, widths, heights
-    If applied Then
-        PPTK_Tell "The edge could not be fully deleted. Remaining shapes were put back."
-    Else
-        PPTK_Tell "The grid could not keep its original bounds. The layout was restored."
-    End If
+    PPTK_Tell reason
 End Sub
 
 Private Sub PPTK_KeepAddTable(ByVal shp As Shape, ByVal bottomRow As Boolean)
@@ -500,14 +779,20 @@ Private Sub PPTK_KeepDeleteTable(ByVal shp As Shape, ByVal bottomRow As Boolean)
     Dim removed As Boolean
     Dim before As Long
 
-    On Error Resume Next
+    Dim backup As Shape
+
+    On Error GoTo MeasureFailed
     If bottomRow Then
-        If shp.Table.Rows.Count <= 1 Then Exit Sub
+        If shp.Table.Rows.Count <= 1 Then
+            PPTK_Tell "The last row of a table is not deleted."
+            Exit Sub
+        End If
     Else
-        If shp.Table.Columns.Count <= 1 Then Exit Sub
+        If shp.Table.Columns.Count <= 1 Then
+            PPTK_Tell "The last column of a table is not deleted."
+            Exit Sub
+        End If
     End If
-    If Err.Number <> 0 Then Exit Sub
-    Err.Clear
     On Error GoTo 0
 
     If PPTK_TableMerged(shp) Then
@@ -555,6 +840,15 @@ Private Sub PPTK_KeepDeleteTable(ByVal shp As Shape, ByVal bottomRow As Boolean)
             PPTK_Tell reason
             Exit Sub
         End If
+    End If
+
+    ' A hidden copy is made before anything changes. Cell content in the
+    ' deleted edge cannot be rebuilt from Rows.Add or Columns.Add, so the
+    ' copy is the only way back once the edge is gone.
+    Set backup = PPTK_HiddenCopy(shp, savedLeft, savedTop)
+    If backup Is Nothing Then
+        PPTK_Tell "A recovery copy of the table could not be made, so nothing was deleted."
+        Exit Sub
     End If
 
     On Error GoTo Failed
@@ -621,6 +915,7 @@ Private Sub PPTK_KeepDeleteTable(ByVal shp As Shape, ByVal bottomRow As Boolean)
     End If
     shp.Left = savedLeft
     shp.Top = savedTop
+    PPTK_DropShape backup
     Exit Sub
 MeasureFailed:
     PPTK_Tell "The table could not be measured. The layout was not changed."
@@ -630,16 +925,20 @@ Failed:
 FailedClean:
     On Error Resume Next
     If removed Then
-        If bottomRow Then
-            shp.Table.Rows.Add
+        ' The edge is gone. Put the untouched copy back in place of the table.
+        If PPTK_SwapInCopy(shp, backup, savedLeft, savedTop) Then
+            PPTK_Tell "The table could not keep its original size. The original table was restored."
         Else
-            shp.Table.Columns.Add
+            PPTK_Tell "The table could not keep its original size, and it could not be swapped back. " & _
+                "A hidden copy of the original table is on this slide (Selection Pane)."
         End If
+        Exit Sub
     End If
     If shp.Table.Columns.Count = colCount Then PPTK_RestoreTableAxis shp, oldWidths, colCount, False, savedLeft, savedTop
     If shp.Table.Rows.Count = rowCount Then PPTK_RestoreTableAxis shp, oldHeights, rowCount, True, savedLeft, savedTop
     shp.Left = savedLeft
     shp.Top = savedTop
+    PPTK_DropShape backup
     PPTK_Tell "The table could not keep its original size. The change was undone."
 End Sub
 
@@ -695,7 +994,7 @@ Private Function PPTK_PlanKeep(ByVal bottomRow As Boolean, ByVal adding As Boole
     Dim newGap As Single
     Dim flexSum As Single
     Dim fixSum As Single
-    Dim scale As Single
+    Dim factor As Single
     Dim leftover As Single
     Dim share As Single
     Dim sumGaps As Single
@@ -862,14 +1161,14 @@ Private Function PPTK_PlanKeep(ByVal bottomRow As Boolean, ByVal adding As Boole
             If outGap(newCount - 1) < 0 Then outGap(newCount - 1) = 0
         End If
     Else
-        scale = (target - fixSum) / flexSum
-        If scale < 0 Then scale = 0
+        factor = (target - fixSum) / flexSum
+        If factor < 0 Then factor = 0
         For axis = 1 To newCount
-            outSlot(axis) = extFix(axis) + extFlex(axis) * scale
+            outSlot(axis) = extFix(axis) + extFlex(axis) * factor
         Next axis
         If newCount >= 2 Then
             For axis = 1 To newCount - 1
-                outGap(axis) = extGap(axis) * scale
+                outGap(axis) = extGap(axis) * factor
                 If outGap(axis) < 0 Then outGap(axis) = 0
             Next axis
         End If
@@ -1128,7 +1427,7 @@ End Sub
 Private Function PPTK_FitSizes(ByRef sizes() As Single, ByVal count As Long, ByVal target As Single, ByVal bottomRow As Boolean, ByRef failReason As String) As Boolean
     Dim index As Long
     Dim total As Single
-    Dim scale As Single
+    Dim factor As Single
     Dim sum As Single
     PPTK_FitSizes = False
     If bottomRow Then
@@ -1147,9 +1446,9 @@ Private Function PPTK_FitSizes(ByRef sizes() As Single, ByVal count As Long, ByV
             sizes(index) = target / count
         Next index
     Else
-        scale = target / total
+        factor = target / total
         For index = 1 To count
-            sizes(index) = sizes(index) * scale
+            sizes(index) = sizes(index) * factor
         Next index
     End If
     If count = 1 Then
@@ -1254,15 +1553,19 @@ Private Function PPTK_TableMerged(ByVal shp As Shape) As Boolean
     Dim tbl As Table
     Dim rowIndex As Long
     Dim colIndex As Long
-    Dim cellRef As Cell
+    Dim cellBox As Shape
+    ' PowerPoint's Cell has no RowSpan or ColumnSpan. A merged cell reports
+    ' the merged area's size, so a cell wider than its column or taller than
+    ' its row belongs to a merged area.
     On Error GoTo Merged
     If shp Is Nothing Then GoTo Merged
     If Not shp.HasTable Then GoTo Merged
     Set tbl = shp.Table
     For rowIndex = 1 To tbl.Rows.Count
         For colIndex = 1 To tbl.Columns.Count
-            Set cellRef = tbl.Cell(rowIndex, colIndex)
-            If cellRef.RowSpan > 1 Or cellRef.ColumnSpan > 1 Then GoTo Merged
+            Set cellBox = tbl.Cell(rowIndex, colIndex).Shape
+            If Abs(cellBox.Width - tbl.Columns(colIndex).Width) > 1 Then GoTo Merged
+            If Abs(cellBox.Height - tbl.Rows(rowIndex).Height) > 1 Then GoTo Merged
         Next colIndex
     Next rowIndex
     PPTK_TableMerged = False
@@ -1296,7 +1599,7 @@ Private Function PPTK_AxisFixed(ByVal shp As Shape, ByVal bottomRow As Boolean) 
                 Exit Function
             End If
         End If
-        If PPTK_GroupAxisFixed(shp, bottomRow) Or PPTK_AutoSizeBlocks(shp) Then
+        If PPTK_GroupAxisFixed(shp, bottomRow) Or PPTK_AutoSizeBlocks(shp, bottomRow) Then
             PPTK_AxisFixed = True
         Else
             PPTK_AxisFixed = False
@@ -1313,7 +1616,7 @@ Private Function PPTK_AxisFixed(ByVal shp As Shape, ByVal bottomRow As Boolean) 
             Exit Function
         End If
     End If
-    If PPTK_AutoSizeBlocks(shp) Then PPTK_AxisFixed = True
+    If PPTK_AutoSizeBlocks(shp, bottomRow) Then PPTK_AxisFixed = True
     Err.Clear
 End Function
 
@@ -1362,7 +1665,7 @@ Private Function PPTK_GroupAxisFixed(ByVal grp As Shape, ByVal bottomRow As Bool
                     Exit Function
                 End If
             End If
-            If PPTK_AutoSizeBlocks(child) Then
+            If PPTK_AutoSizeBlocks(child, bottomRow) Then
                 Err.Clear
                 Exit Function
             End If
@@ -1372,9 +1675,17 @@ Private Function PPTK_GroupAxisFixed(ByVal grp As Shape, ByVal bottomRow As Bool
     Err.Clear
 End Function
 
-Private Function PPTK_AutoSizeBlocks(ByVal shp As Shape) As Boolean
+' "Resize shape to fit text" sets the height from the text. The width is set
+' by the text only when the text does not wrap; wrapped text reflows to any width.
+Private Function PPTK_AutoSizeBlocks(ByVal shp As Shape, ByVal bottomRow As Boolean) As Boolean
     On Error GoTo Clean
-    PPTK_AutoSizeBlocks = (shp.TextFrame2.AutoSize = msoAutoSizeShapeToFitText)
+    If shp.TextFrame2.AutoSize <> msoAutoSizeShapeToFitText Then
+        PPTK_AutoSizeBlocks = False
+    ElseIf bottomRow Then
+        PPTK_AutoSizeBlocks = True
+    Else
+        PPTK_AutoSizeBlocks = (shp.TextFrame2.WordWrap <> msoTrue)
+    End If
     Exit Function
 Clean:
     PPTK_AutoSizeBlocks = False
@@ -1389,7 +1700,9 @@ End Sub
 Private Function PPTK_SingleTable(ByRef tableShape As Shape) As Boolean
     On Error GoTo Clean
     PPTK_SingleTable = False
-    If ActiveWindow.Selection.Type <> ppSelectionShapes Then Exit Function
+    ' A table selected as an object, a range of selected cells, or a text
+    ' cursor inside a cell all count as the table.
+    If ActiveWindow.Selection.Type <> ppSelectionShapes And ActiveWindow.Selection.Type <> ppSelectionText Then Exit Function
     If ActiveWindow.Selection.ShapeRange.Count <> 1 Then Exit Function
     Set tableShape = ActiveWindow.Selection.ShapeRange(1)
     PPTK_SingleTable = tableShape.HasTable
@@ -1407,6 +1720,8 @@ Private Function PPTK_Recognize(ByRef items() As Shape, ByRef count As Long, ByR
     Dim cols As Long
     Dim perRow() As Long
     Dim anchorX() As Single
+    Dim rowY() As Single
+    Dim rowRank() As Long
 
     PPTK_Recognize = False
     count = 0
@@ -1429,7 +1744,8 @@ Private Function PPTK_Recognize(ByRef items() As Shape, ByRef count As Long, ByR
     Next index
     For index = 1 To count - 1
         For other = index + 1 To count
-            If Abs(PPTK_MidY(items(index)) - PPTK_MidY(items(other))) <= rowTol Then
+            If Abs(PPTK_MidY(items(index)) - PPTK_MidY(items(other))) <= rowTol _
+               Or PPTK_SameBand(items(index), items(other)) Then
                 PPTK_Union parent, index, other
             End If
         Next other
@@ -1446,16 +1762,33 @@ Private Function PPTK_Recognize(ByRef items() As Shape, ByRef count As Long, ByR
             rowId(PPTK_Find(parent, index)) = rows
         End If
     Next index
+    ' Rows are numbered top to bottom, whatever order the shapes were selected in
+    ' (columns are already ordered by X), so "bottom row" is always the lowest one.
+    ReDim rowY(1 To rows)
+    For index = 1 To count
+        rowY(rowId(PPTK_Find(parent, index))) = PPTK_MidY(items(index))
+    Next index
+    ReDim rowRank(1 To rows)
+    For index = 1 To rows
+        rowRank(index) = 1
+        For other = 1 To rows
+            If rowY(other) < rowY(index) Or (rowY(other) = rowY(index) And other < index) Then rowRank(index) = rowRank(index) + 1
+        Next other
+    Next index
     ReDim rowOf(1 To count)
     ReDim perRow(1 To rows)
     For index = 1 To count
-        rowOf(index) = rowId(PPTK_Find(parent, index))
+        rowOf(index) = rowRank(rowId(PPTK_Find(parent, index)))
         perRow(rowOf(index)) = perRow(rowOf(index)) + 1
     Next index
     cols = perRow(1)
     For index = 2 To rows
         If perRow(index) <> cols Then Exit Function
     Next index
+    ' Every row must share one vertical band (within the row tolerance). A tall
+    ' shape that overlaps both a top and a bottom cell chains them into one "row"
+    ' with no common band: that layout is ambiguous and is not a grid.
+    If Not PPTK_RowsShareBand(items, count, rowOf, rows, rowTol) Then Exit Function
 
     ReDim colOf(1 To count)
     ReDim anchorX(1 To cols)
@@ -1520,7 +1853,8 @@ Private Function PPTK_GridShape(ByVal shp As Shape) As Boolean
              msoEmbeddedOLEObject, msoLinkedOLEObject, msoInk, msoInkComment, msoLine
             PPTK_GridShape = False
         Case Else
-            PPTK_GridShape = Not shp.HasTable And Not shp.HasChart
+            ' Connectors join cells; they are never cells themselves.
+            PPTK_GridShape = Not shp.HasTable And Not shp.HasChart And Not shp.Connector
     End Select
     Exit Function
 Clean:
@@ -1546,38 +1880,53 @@ Private Function PPTK_Tolerance(ByRef items() As Shape, ByVal count As Long, ByV
     If PPTK_Tolerance > 18 Then PPTK_Tolerance = 18
 End Function
 
+' Spacing for a new Expand row or column: the median measured gap along that axis,
+' zero included (touching cells stay touching; overlaps count as zero). A single
+' row or column has no gap on that axis, so the other axis's spacing is used;
+' GapDefault applies only when the grid has no spacing to measure at all.
 Private Function PPTK_PositiveGap(ByRef items() As Shape, ByVal count As Long, ByRef rowOf() As Long, ByRef colOf() As Long, ByVal rowCount As Long, ByVal colCount As Long, ByVal vertical As Boolean) As Single
+    Dim gap As Single
+    If PPTK_MedianGap(items, count, rowOf, colOf, vertical, gap) Then
+        PPTK_PositiveGap = gap
+    ElseIf PPTK_MedianGap(items, count, rowOf, colOf, Not vertical, gap) Then
+        PPTK_PositiveGap = gap
+    Else
+        PPTK_PositiveGap = GapDefault
+    End If
+End Function
+
+Private Function PPTK_MedianGap(ByRef items() As Shape, ByVal count As Long, ByRef rowOf() As Long, ByRef colOf() As Long, ByVal vertical As Boolean, ByRef median As Single) As Boolean
     Dim gaps() As Single
     Dim found As Long
     Dim index As Long
     Dim other As Long
     Dim gap As Single
+    Dim paired As Boolean
     found = 0
     ReDim gaps(1 To count)
     For index = 1 To count
         For other = 1 To count
+            paired = False
             If vertical Then
                 If colOf(index) = colOf(other) And rowOf(other) = rowOf(index) + 1 Then
                     gap = items(other).Top - (items(index).Top + items(index).Height)
-                    If gap > 0.5 Then
-                        found = found + 1
-                        gaps(found) = gap
-                    End If
+                    paired = True
                 End If
             ElseIf rowOf(index) = rowOf(other) And colOf(other) = colOf(index) + 1 Then
                 gap = items(other).Left - (items(index).Left + items(index).Width)
-                If gap > 0.5 Then
-                    found = found + 1
-                    gaps(found) = gap
-                End If
+                paired = True
+            End If
+            If paired Then
+                If gap < 0 Then gap = 0
+                found = found + 1
+                gaps(found) = gap
             End If
         Next other
     Next index
-    If found = 0 Then
-        PPTK_PositiveGap = GapDefault
-    Else
+    PPTK_MedianGap = (found > 0)
+    If found > 0 Then
         PPTK_SortNumbers gaps, found
-        PPTK_PositiveGap = gaps((found + 1) \ 2)
+        median = gaps((found + 1) \ 2)
     End If
 End Function
 
@@ -1673,10 +2022,80 @@ Clean:
     Err.Clear
 End Function
 
+' A new grid cell: a duplicate of the edge cell for its type, size, fill, line and
+' font, with the text removed (also inside grouped cells). Recovery backups use
+' PPTK_DuplicateShape directly and keep their text.
+Private Function PPTK_NewCell(ByVal source As Shape) As Shape
+    Dim cell As Shape
+    Set cell = PPTK_DuplicateShape(source)
+    If cell Is Nothing Then Exit Function
+    PPTK_ClearCellText cell
+    Set PPTK_NewCell = cell
+End Function
+
+Private Sub PPTK_ClearCellText(ByVal shp As Shape)
+    Dim index As Long
+    On Error Resume Next
+    If shp.Type = msoGroup Then
+        For index = 1 To shp.GroupItems.Count
+            PPTK_ClearCellText shp.GroupItems(index)
+        Next index
+    ElseIf shp.HasTextFrame Then
+        If shp.TextFrame2.HasText Then shp.TextFrame2.TextRange.Text = ""
+    End If
+    Err.Clear
+End Sub
+
 Private Function PPTK_MidX(ByVal shp As Shape) As Single
     PPTK_MidX = shp.Left + shp.Width / 2
 End Function
 
 Private Function PPTK_MidY(ByVal shp As Shape) As Single
     PPTK_MidY = shp.Top + shp.Height / 2
+End Function
+
+' Same row when the vertical extents overlap by at least half of the shorter
+' shape (top-, middle- or bottom-aligned cells of different heights). Shapes of
+' separate rows do not overlap; a shape spanning two rows joins them, and the
+' unequal row counts then reject the selection as not a grid.
+Private Function PPTK_SameBand(ByVal a As Shape, ByVal b As Shape) As Boolean
+    Dim overlap As Single
+    Dim shorter As Single
+    overlap = PPTK_MinSingle(a.Top + a.Height, b.Top + b.Height) - PPTK_MaxSingle(a.Top, b.Top)
+    shorter = PPTK_MinSingle(a.Height, b.Height)
+    PPTK_SameBand = (shorter > 0 And overlap >= 0.5 * shorter)
+End Function
+
+Private Function PPTK_RowsShareBand(ByRef items() As Shape, ByVal count As Long, ByRef rowOf() As Long, ByVal rows As Long, ByVal rowTol As Single) As Boolean
+    Dim row As Long
+    Dim index As Long
+    Dim lowestTop As Single
+    Dim highestBottom As Single
+    Dim seen As Boolean
+    PPTK_RowsShareBand = False
+    For row = 1 To rows
+        seen = False
+        For index = 1 To count
+            If rowOf(index) = row Then
+                If Not seen Then
+                    lowestTop = items(index).Top
+                    highestBottom = items(index).Top + items(index).Height
+                    seen = True
+                Else
+                    lowestTop = PPTK_MaxSingle(lowestTop, items(index).Top)
+                    highestBottom = PPTK_MinSingle(highestBottom, items(index).Top + items(index).Height)
+                End If
+            End If
+        Next index
+        If lowestTop - highestBottom > rowTol Then Exit Function
+    Next row
+    PPTK_RowsShareBand = True
+End Function
+
+Private Function PPTK_MinSingle(ByVal a As Single, ByVal b As Single) As Single
+    If a < b Then PPTK_MinSingle = a Else PPTK_MinSingle = b
+End Function
+
+Private Function PPTK_MaxSingle(ByVal a As Single, ByVal b As Single) As Single
+    If a > b Then PPTK_MaxSingle = a Else PPTK_MaxSingle = b
 End Function

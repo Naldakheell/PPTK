@@ -26,3 +26,5 @@ src/PPTKKeys/windows/release/*-win-x64/
 src/PPTK-WINDOWS-FINAL-MODERN*
 src/PPTK.modern.ppam
 src/SmartBar-redesign.png
+# Smart Bar icon preview sheet; Build-PptkSmartBarIcons.ps1 regenerates it on every run.
+src/PPTK/Brand/smartbar-icons/contact-sheet.png

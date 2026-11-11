@@ -297,6 +297,30 @@ Sub ObjectsSameHeightAndWidth(Optional ByVal control As IRibbonControl)
     End If
 End Sub
 
+' Swaps the stacking positions of two shapes and leaves every other shape where it was.
+' The upper shape goes down d steps (to the lower slot, pushing the lower shape up one),
+' then the lower shape goes up d-1 steps (to the upper slot).
+Private Sub PPTK_SwapZOrder(ByVal first As Shape, ByVal second As Shape)
+    Dim upper As Shape
+    Dim lower As Shape
+    Dim steps As Long
+    Dim i As Long
+    If first.ZOrderPosition > second.ZOrderPosition Then
+        Set upper = first
+        Set lower = second
+    Else
+        Set upper = second
+        Set lower = first
+    End If
+    steps = upper.ZOrderPosition - lower.ZOrderPosition
+    For i = 1 To steps
+        upper.ZOrder msoSendBackward
+    Next i
+    For i = 1 To steps - 1
+        lower.ZOrder msoBringForward
+    Next i
+End Sub
+
 Sub ObjectsSwapPosition(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
@@ -305,8 +329,6 @@ Sub ObjectsSwapPosition(Optional ByVal control As IRibbonControl)
     Dim Left2       As Single
     Dim Top1        As Single
     Dim Top2        As Single
-    Dim ZOrder1     As Single
-    Dim ZOrder2     As Single
     
     If ActiveWindow.Selection.ShapeRange.count = 2 Then
         
@@ -320,20 +342,8 @@ Sub ObjectsSwapPosition(Optional ByVal control As IRibbonControl)
         SetRealTop ActiveWindow.Selection.ShapeRange(1), Top2
         SetRealTop ActiveWindow.Selection.ShapeRange(2), Top1
         
-        ZOrder1 = ActiveWindow.Selection.ShapeRange(1).ZOrderPosition
-        ZOrder2 = ActiveWindow.Selection.ShapeRange(2).ZOrderPosition
         
-        If ZOrder1 < ZOrder2 Then
-            For i = 1 To (ZOrder2 - ZOrder1)
-                ActiveWindow.Selection.ShapeRange(2).ZOrder msoSendBackward
-                ActiveWindow.Selection.ShapeRange(1).ZOrder msoBringForward
-            Next i
-        Else
-            For i = 1 To (ZOrder1 - ZOrder2)
-                ActiveWindow.Selection.ShapeRange(1).ZOrder msoSendBackward
-                ActiveWindow.Selection.ShapeRange(2).ZOrder msoBringForward
-            Next i
-        End If
+        PPTK_SwapZOrder ActiveWindow.Selection.ShapeRange(1), ActiveWindow.Selection.ShapeRange(2)
         
     ElseIf MyDocument.Selection.HasChildShapeRange Then
         
@@ -349,21 +359,8 @@ Sub ObjectsSwapPosition(Optional ByVal control As IRibbonControl)
             SetRealTop ActiveWindow.Selection.ChildShapeRange(1), Top2
             SetRealTop ActiveWindow.Selection.ChildShapeRange(2), Top1
             
-            ZOrder1 = ActiveWindow.Selection.ChildShapeRange(1).ZOrderPosition
-            ZOrder2 = ActiveWindow.Selection.ChildShapeRange(2).ZOrderPosition
             
-            If ZOrder1 < ZOrder2 Then
-                For i = 1 To (ZOrder2 - ZOrder1)
-                    ActiveWindow.Selection.ChildShapeRange(2).ZOrder msoSendBackward
-                    ActiveWindow.Selection.ChildShapeRange(1).ZOrder msoBringForward
-                Next i
-            Else
-                For i = 1 To (ZOrder1 - ZOrder2)
-                    ActiveWindow.Selection.ChildShapeRange(1).ZOrder msoSendBackward
-                    ActiveWindow.Selection.ChildShapeRange(2).ZOrder msoBringForward
-                Next i
-                
-            End If
+            PPTK_SwapZOrder ActiveWindow.Selection.ChildShapeRange(1), ActiveWindow.Selection.ChildShapeRange(2)
             
         Else
             
@@ -384,8 +381,6 @@ Sub ObjectsSwapPositionCentered(Optional ByVal control As IRibbonControl)
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
     
     Dim Left1, Left2, Top1, Top2, Width1, Width2, Height1, Height2 As Single
-    Dim ZOrder1     As Single
-    Dim ZOrder2     As Single
     
     If ActiveWindow.Selection.ShapeRange.count = 2 Then
         
@@ -403,20 +398,8 @@ Sub ObjectsSwapPositionCentered(Optional ByVal control As IRibbonControl)
         SetRealTop ActiveWindow.Selection.ShapeRange(1), (Top2 + (Height2 - Height1) / 2)
         SetRealTop ActiveWindow.Selection.ShapeRange(2), (Top1 + (Height1 - Height2) / 2)
 
-        ZOrder1 = ActiveWindow.Selection.ShapeRange(1).ZOrderPosition
-        ZOrder2 = ActiveWindow.Selection.ShapeRange(2).ZOrderPosition
         
-        If ZOrder1 < ZOrder2 Then
-            For i = 1 To (ZOrder2 - ZOrder1)
-                ActiveWindow.Selection.ShapeRange(2).ZOrder msoSendBackward
-                ActiveWindow.Selection.ShapeRange(1).ZOrder msoBringForward
-            Next i
-        Else
-            For i = 1 To (ZOrder1 - ZOrder2)
-                ActiveWindow.Selection.ShapeRange(1).ZOrder msoSendBackward
-                ActiveWindow.Selection.ShapeRange(2).ZOrder msoBringForward
-            Next i
-        End If
+        PPTK_SwapZOrder ActiveWindow.Selection.ShapeRange(1), ActiveWindow.Selection.ShapeRange(2)
         
     ElseIf MyDocument.Selection.HasChildShapeRange Then
         
@@ -436,20 +419,8 @@ Sub ObjectsSwapPositionCentered(Optional ByVal control As IRibbonControl)
         SetRealTop ActiveWindow.Selection.ChildShapeRange(1), (Top2 + (Height2 - Height1) / 2)
         SetRealTop ActiveWindow.Selection.ChildShapeRange(2), (Top1 + (Height1 - Height2) / 2)
 
-        ZOrder1 = ActiveWindow.Selection.ChildShapeRange(1).ZOrderPosition
-        ZOrder2 = ActiveWindow.Selection.ChildShapeRange(2).ZOrderPosition
         
-        If ZOrder1 < ZOrder2 Then
-            For i = 1 To (ZOrder2 - ZOrder1)
-                ActiveWindow.Selection.ChildShapeRange(2).ZOrder msoSendBackward
-                ActiveWindow.Selection.ChildShapeRange(1).ZOrder msoBringForward
-            Next i
-        Else
-            For i = 1 To (ZOrder1 - ZOrder2)
-                ActiveWindow.Selection.ChildShapeRange(1).ZOrder msoSendBackward
-                ActiveWindow.Selection.ChildShapeRange(2).ZOrder msoBringForward
-            Next i
-        End If
+        PPTK_SwapZOrder ActiveWindow.Selection.ChildShapeRange(1), ActiveWindow.Selection.ChildShapeRange(2)
             
         Else
             

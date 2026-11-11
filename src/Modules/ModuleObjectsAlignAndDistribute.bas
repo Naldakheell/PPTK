@@ -1234,18 +1234,16 @@ Sub ObjectsDistributeHorizontally(Optional ByVal control As IRibbonControl)
     
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
     
-    If MyDocument.Selection.ShapeRange.count > 2 Then
-        MyDocument.Selection.ShapeRange.Distribute msoDistributeHorizontally, msoFalse
-    ElseIf MyDocument.Selection.ShapeRange.count = 1 Then
-     MyDocument.Selection.ShapeRange.Align msoAlignCenters, msoTrue
-        
-    ElseIf MyDocument.Selection.HasChildShapeRange Then
-        
+    ' Shapes selected inside a group come first: their ShapeRange is the parent group.
+    If MyDocument.Selection.HasChildShapeRange Then
         If MyDocument.Selection.ChildShapeRange.count > 2 Then
             MyDocument.Selection.ChildShapeRange.Distribute msoDistributeHorizontally, msoFalse
         End If
+    ElseIf MyDocument.Selection.ShapeRange.count > 2 Then
+        MyDocument.Selection.ShapeRange.Distribute msoDistributeHorizontally, msoFalse
+    ElseIf MyDocument.Selection.ShapeRange.count = 1 Then
+        MyDocument.Selection.ShapeRange.Align msoAlignCenters, msoTrue
     End If
-    
 End Sub
 
 Sub ObjectsDistributeVertically(Optional ByVal control As IRibbonControl)
@@ -1253,19 +1251,15 @@ Sub ObjectsDistributeVertically(Optional ByVal control As IRibbonControl)
     
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
     
-    If MyDocument.Selection.ShapeRange.count > 2 Then
+    ' Shapes selected inside a group come first: their ShapeRange is the parent group.
+    If MyDocument.Selection.HasChildShapeRange Then
+        If MyDocument.Selection.ChildShapeRange.count > 2 Then
+            MyDocument.Selection.ChildShapeRange.Distribute msoDistributeVertically, msoFalse
+        End If
+    ElseIf MyDocument.Selection.ShapeRange.count > 2 Then
         MyDocument.Selection.ShapeRange.Distribute msoDistributeVertically, msoFalse
     ElseIf MyDocument.Selection.ShapeRange.count = 1 Then
-    
-     MyDocument.Selection.ShapeRange.Align msoAlignMiddles, msoTrue
-    
-    ElseIf MyDocument.Selection.HasChildShapeRange Then
-        
-        If MyDocument.Selection.ChildShapeRange.count > 2 Then
-            
-            MyDocument.Selection.ChildShapeRange.Distribute msoDistributeVertically, msoFalse
-            
-        End If
+        MyDocument.Selection.ShapeRange.Align msoAlignMiddles, msoTrue
     End If
 End Sub
 

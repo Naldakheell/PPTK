@@ -104,16 +104,17 @@ internal sealed class PowerPointSession : IDisposable
 
     static int _iconBusy;
 
-    public void Dispatch(string token)
+    /// <summary>Returns false when the macro call did not run (PowerPoint gone or COM error).</summary>
+    public bool Dispatch(string token)
     {
-        if (token == "T" || !ShortcutGate.IsRunnable(token)) return;
+        if (token == "T" || !ShortcutGate.IsRunnable(token)) return false;
         if (token == "I")
         {
             BeginInsertIcon();
-            return;
+            return true;
         }
 
-        Run(ShortcutGate.MacroName, token);
+        return Run(ShortcutGate.MacroName, token);
     }
 
     /// <summary>
@@ -205,14 +206,14 @@ internal sealed class PowerPointSession : IDisposable
 
     void OnWindowActivate(Ppt.Presentation presentation, Ppt.DocumentWindow window) => Refresh();
 
-    void Run(string macro, string token)
+    bool Run(string macro, string token)
     {
         if (!ShortcutGate.IsRunnable(token) || macro != ShortcutGate.MacroName)
             throw new InvalidOperationException("Refusing an unlisted macro call.");
         if (_app == null && !TryAttach())
         {
             Console.Error.WriteLine($"Dispatch failed {token}: PowerPoint is not running");
-            return;
+            return false;
         }
 
         try
@@ -220,11 +221,13 @@ internal sealed class PowerPointSession : IDisposable
             object[] args = [token];
             _app!.Run(macro, ref args);
             Console.WriteLine($"Dispatched {macro} {token}");
+            return true;
         }
         catch (Exception ex) when (ex is COMException or InvalidComObjectException or System.Reflection.TargetException)
         {
             if (IsDisconnected(ex)) Drop();
             Console.Error.WriteLine($"Dispatch failed {token}: {ex.GetType().Name}");
+            return false;
         }
     }
 
