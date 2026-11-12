@@ -808,6 +808,8 @@ internal static partial class Program
             return 1;
         }
 
+        ReleaseOwnConsole();
+
         using var mutex = new Mutex(false, @"Local\PPTKKeys.Windows");
         bool owned = false;
         try
@@ -844,6 +846,22 @@ internal static partial class Program
 
 internal static partial class Program
 {
+    /// <summary>
+    /// The logon task starts the helper with dotnet.exe, a console program, so Windows
+    /// gives it a console window of its own. When this process is the only one attached,
+    /// nobody reads that console: detach from it so the window closes. Started from a
+    /// terminal (run.cmd, dotnet run) the console is shared and stays for diagnostics.
+    /// Output after detaching goes nowhere.
+    /// </summary>
+    static void ReleaseOwnConsole()
+    {
+        var attached = new uint[4];
+        if (NativeMethods.GetConsoleProcessList(attached, (uint)attached.Length) != 1) return;
+        Console.SetOut(TextWriter.Null);
+        Console.SetError(TextWriter.Null);
+        NativeMethods.FreeConsole();
+    }
+
     /// <summary>
     /// Read-only: builds the punctuation tables for every installed layout and reports
     /// which physical keys the punctuation shortcuts use. No hook, no PowerPoint.

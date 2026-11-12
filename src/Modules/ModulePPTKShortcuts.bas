@@ -1580,6 +1580,12 @@ Private Sub PPTK_SaveSelectedSlides()
         MsgBox "Choose a different file. The open presentation was not changed.", vbExclamation
         Exit Sub
     End If
+    ' Checked before the temporary copy exists: after a failed SaveAs PowerPoint
+    ' keeps that copy open until this macro ends, so it could not be deleted.
+    If Not PPTK_ParentFolderExists(destination) Then
+        MsgBox "That folder is not available. Choose another location. The open presentation was not changed.", vbExclamation, "PPTK"
+        Exit Sub
+    End If
 
     tempPath = PPTK_TempCopyPath()
     If StrComp(tempPath, destination, vbTextCompare) = 0 Then Err.Raise 5
@@ -1882,14 +1888,25 @@ Private Function PPTK_SanitizeFileName(ByVal value As String) As String
     PPTK_SanitizeFileName = Trim$(value)
 End Function
 
+' FileSystemObject handles Unicode (for example Arabic) names. VBA Open converts
+' the path to the ANSI code page, so a saved file with an Arabic name or folder
+' looked missing and Save Slides reported a failure after saving it.
 Private Function PPTK_FileExists(ByVal path As String) As Boolean
-    Dim handle As Integer
     On Error Resume Next
-    handle = FreeFile
-    Open path For Binary Access Read As #handle
-    If Err.Number = 0 Then
-        Close #handle
-        PPTK_FileExists = True
+    PPTK_FileExists = CreateObject("Scripting.FileSystemObject").FileExists(path)
+End Function
+
+' True when the folder of a full path exists (Unicode-safe, like PPTK_FileExists).
+Private Function PPTK_ParentFolderExists(ByVal path As String) As Boolean
+    Dim fso As Object
+    Dim folder As String
+    On Error Resume Next
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    folder = fso.GetParentFolderName(path)
+    If Len(folder) = 0 Then
+        PPTK_ParentFolderExists = True
+    Else
+        PPTK_ParentFolderExists = fso.FolderExists(folder)
     End If
 End Function
 

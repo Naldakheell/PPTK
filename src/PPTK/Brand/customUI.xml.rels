@@ -98,6 +98,13 @@
   <Relationship Id="pptk-tools" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-tools.png"/>
   <Relationship Id="pptk-unify" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-unify.png"/>
   <Relationship Id="pptk-smart-bar-large" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-smart-bar-large.png"/>
+  <Relationship Id="pptk-format-more-large" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-format-more-large.png"/>
+  <Relationship Id="pptk-save-slides-large" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-save-slides-large.png"/>
+  <Relationship Id="pptk-insert-more-large" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-insert-more-large.png"/>
+  <Relationship Id="pptk-text-large" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-text-large.png"/>
+  <Relationship Id="pptk-align-left-large" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-align-left-large.png"/>
+  <Relationship Id="pptk-dist-h-large" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-dist-h-large.png"/>
+  <Relationship Id="sb-row-add-keep-large" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-row-add-keep-large.png"/>
   <Relationship Id="pptk-change-shape-large" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-change-shape-large.png"/>
   <Relationship Id="sb-col-add-expand" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-col-add-expand.png"/>
   <Relationship Id="sb-col-add-keep" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-col-add-keep.png"/>

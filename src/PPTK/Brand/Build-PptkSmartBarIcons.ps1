@@ -19,7 +19,10 @@
 # Does not edit the PPTM, forms, or the ribbon icons.
 param(
     [string]$OutDir = '',
-    [switch]$Ribbon
+    [switch]$Ribbon,
+    # With -Ribbon: only this icon, and also icons\<Size>\<name>.png (e.g. 64 for a collapsed group image).
+    [string]$OnlyIcon = '',
+    [int]$Size = 0
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
@@ -205,13 +208,20 @@ function Save-Bmp($bitmap, $back, [string]$path) {
 
 if ($Ribbon) {
     $Ink = $RibbonInk
-    foreach ($name in $Draw.Keys) {
-        foreach ($size in 16, 32) {
+    $names = @($Draw.Keys)
+    $sizes = @(16, 32)
+    if ($OnlyIcon -ne '') {
+        if (-not $Draw.Contains($OnlyIcon)) { throw "Unknown icon $OnlyIcon" }
+        $names = @($OnlyIcon)
+        if ($Size -gt 0) { $sizes += $Size; New-Item -ItemType Directory -Force -Path (Join-Path $Root "icons\$Size") | Out-Null }
+    }
+    foreach ($name in $names) {
+        foreach ($size in $sizes) {
             $c = New-Canvas $size; & $Draw[$name] $c[1]; $c[1].Dispose()
             $c[0].Save((Join-Path $Root "icons\$size\$name.png"), [System.Drawing.Imaging.ImageFormat]::Png); $c[0].Dispose()
         }
     }
-    "wrote $($Draw.Count) ribbon icons to icons\16 and icons\32"
+    "wrote $($names.Count) ribbon icon(s) to icons\$($sizes -join ', icons\')"
     exit 0
 }
 

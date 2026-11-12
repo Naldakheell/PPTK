@@ -16,12 +16,13 @@ Attribute VB_Exposed = False
 Option Explicit
 ' Compact command palette. Layout from top to bottom:
 '   search icon, search field, ESC  |  divider  |  section name and count  |
-'   six command rows with a scrollbar  |  divider  |  key hints.
-' With an empty search the palette shows 3-5 commands for the current
-' PowerPoint selection (no selection, one shape, several shapes, a mixed
-' selection, a group, a table, or text editing) and an "All Commands" row
-' that opens the full registry. Typing always searches the whole registry;
-' clearing the search returns to the view that was open. Rows are a fixed pool of label controls that
+'   four command rows with a scrollbar  |  divider  |  key hints.
+' The window has one fixed size. With an empty search the list is one
+' continuous list: 3-5 commands for the current PowerPoint selection (no
+' selection, one shape, several shapes, a mixed selection, a group, a table,
+' or text editing), a thin divider, then every other command in registry
+' order, each command once. Typing searches the whole registry; clearing the
+' search restores the list from the top. Rows are a fixed pool of label controls that
 ' are refilled while scrolling, so typing never creates or deletes controls.
 ' Row icons are BMP pictures held by hidden Image controls in this form
 ' (see PPTK_CommandIcon). The search icon is a Segoe Fluent Icons glyph.
@@ -43,7 +44,7 @@ Private Const ColorThumb As Long = 6706494      ' #3E5566
 Private Const ClientW As Single = 340
 Private Const Pad As Single = 14
 Private Const RowH As Single = 30
-Private Const VisibleRows As Long = 6
+Private Const VisibleRows As Long = 4
 Private Const ScrollW As Single = 4
 Private Const KeyW As Single = 76
 Private Const IconW As Single = 18
@@ -74,10 +75,9 @@ Private Busy As Boolean
 Private Painting As Boolean
 Private ClientH As Single
 Private IconFont As String
-Private ViewAll As Boolean
 Private ContextKind As String
-Private Const NavAll As String = "NAV ALL"
-Private Const NavSuggest As String = "NAV SUGGEST"
+Private SuggestCount As Long
+Private RowDivider As MSForms.Label
 
 Private Sub UserForm_Initialize()
     Set RowHooks = New Collection
@@ -107,16 +107,15 @@ Private Sub UserForm_Activate()
     kind = PPTK_DetectContext()
     If kind <> ContextKind Then
         ContextKind = kind
-        If Not ViewAll And Len(PPTK_Normalize(txtFilter.Text)) = 0 Then PPTK_Refill
+        If Len(PPTK_Normalize(txtFilter.Text)) = 0 Then PPTK_Refill
     End If
 End Sub
 
 ' Called by PPTK_ShowSmartBar before the palette is shown. Reads the
-' PowerPoint selection once (read-only) and opens the suggested view.
+' PowerPoint selection once (read-only) and shows the list from the top.
 Public Sub PPTK_Open()
     PPTK_CaptureSelection
     ContextKind = PPTK_DetectContext()
-    ViewAll = False
     If Len(txtFilter.Text) > 0 Then
         txtFilter.Text = ""
     Else
@@ -124,9 +123,13 @@ Public Sub PPTK_Open()
     End If
 End Sub
 
+' The X button hides the palette. Unload from code (PPTK_ShowSmartBar opens
+' a fresh palette each time) is allowed.
 Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
-    Cancel = True
-    Me.Hide
+    If CloseMode = vbFormControlMenu Then
+        Cancel = True
+        Me.Hide
+    End If
 End Sub
 
 Private Sub txtFilter_Change()
@@ -187,12 +190,6 @@ Private Sub lblSearchEnter_Click()
 End Sub
 
 Private Sub lblSearchIcon_Click()
-    PPTK_FocusSearch
-End Sub
-
-Private Sub lblTitle_Click()
-    If Len(PPTK_Normalize(txtFilter.Text)) > 0 Then Exit Sub
-    PPTK_SetView Not ViewAll
     PPTK_FocusSearch
 End Sub
 
@@ -447,8 +444,10 @@ Private Sub PPTK_Layout()
     extraH = Me.Height - Me.InsideHeight
     If extraW < 0 Or extraW > 48 Then extraW = 0
     If extraH < 0 Or extraH > 80 Then extraH = 0
-    Me.Width = ClientW + extraW
-    Me.Height = ClientH + extraH
+    ' Office snaps the window to whole pixels, so re-applying the size on every
+    ' Activate drifts by a fraction of a point. Only resize when really off.
+    If Abs(Me.Width - (ClientW + extraW)) >= 1 Then Me.Width = ClientW + extraW
+    If Abs(Me.Height - (ClientH + extraH)) >= 1 Then Me.Height = ClientH + extraH
 
     txtFilter.ZOrder 0
     lblCue.ZOrder 0
@@ -494,6 +493,11 @@ Private Sub PPTK_BuildPool()
         PPTK_Bind RowName(index), index
         PPTK_Bind RowKey(index), index
     Next index
+    ' Hairline between the suggestions and the other commands. Drawn over the
+    ' top edge of a row, so it takes no row of its own.
+    Set RowDivider = PPTK_MakeLabel("dyn_divider")
+    PPTK_PrepareLabel RowDivider
+    RowDivider.BackColor = ColorLine
     PoolCount = VisibleRows
 End Sub
 
@@ -551,8 +555,8 @@ End Sub
 ' 0 exact name or shortcut, 1 name starts with the query, 2 name contains it,
 ' 3 an alias word starts with it, 4 the shortcut contains it. Ties keep the
 ' registry order. Search always covers the whole registry.
-' Empty search: the suggested view (3-5 commands and an "All Commands" row)
-' or the full registry in registry order, after a "Back to suggestions" row.
+' Empty search: the suggestions for the current context, then every other
+' command in registry order. Each command appears once.
 Private Sub PPTK_Refill()
     Dim index As Long
     Dim commandName As String
@@ -563,15 +567,17 @@ Private Sub PPTK_Refill()
     Dim ranks() As Long
     Dim rank As Long
     Dim picks() As String
+    Dim used() As Boolean
 
     If PoolCount < 1 Then PPTK_BuildPool
     Painting = True
     query = PPTK_Normalize(txtFilter.Text)
-    ReDim ResultNames(1 To TotalCount + 1)
-    ReDim ResultKeys(1 To TotalCount + 1)
-    ReDim ResultTokens(1 To TotalCount + 1)
-    ReDim ResultIcons(1 To TotalCount + 1)
+    ReDim ResultNames(1 To TotalCount)
+    ReDim ResultKeys(1 To TotalCount)
+    ReDim ResultTokens(1 To TotalCount)
+    ReDim ResultIcons(1 To TotalCount)
     ResultCount = 0
+    SuggestCount = 0
 
     If Len(query) > 0 Then
         ReDim ranks(1 To TotalCount)
@@ -589,30 +595,31 @@ Private Sub PPTK_Refill()
         Next rank
         lblSection.Caption = "RESULTS"
         lblTitle.Caption = ResultCount & " of " & TotalCount
-    ElseIf ViewAll Then
-        PPTK_AddResult "Back to suggestions", "", NavSuggest, ""
-        For index = 1 To TotalCount
-            PPTK_CommandAt index, commandName, shortcut, token, aliases
-            PPTK_AddResult commandName, shortcut, token, PPTK_CommandIcon(commandName)
-        Next index
-        lblSection.Caption = "ALL COMMANDS"
-        lblTitle.Caption = CStr(TotalCount)
     Else
+        ReDim used(1 To TotalCount)
         picks = Split(PPTK_Suggestions(ContextKind), "|")
         For rank = LBound(picks) To UBound(picks)
             index = PPTK_CommandIndex(picks(rank))
             If index > 0 Then
+                If Not used(index) Then
+                    used(index) = True
+                    PPTK_CommandAt index, commandName, shortcut, token, aliases
+                    PPTK_AddResult commandName, shortcut, token, PPTK_CommandIcon(commandName)
+                End If
+            End If
+        Next rank
+        SuggestCount = ResultCount
+        For index = 1 To TotalCount
+            If Not used(index) Then
                 PPTK_CommandAt index, commandName, shortcut, token, aliases
                 PPTK_AddResult commandName, shortcut, token, PPTK_CommandIcon(commandName)
             End If
-        Next rank
-        PPTK_AddResult "All Commands", CStr(TotalCount), NavAll, "pptk_matrix"
+        Next index
         lblSection.Caption = "SUGGESTED " & ChrW$(&HB7) & " " & UCase$(PPTK_ContextLabel(ContextKind))
-        lblTitle.Caption = "All " & TotalCount & " " & ChrW$(&H203A)
+        lblTitle.Caption = TotalCount & " commands"
     End If
 
     If ResultCount > 0 Then SelectedIndex = 1 Else SelectedIndex = 0
-    If ViewAll And Len(query) = 0 And ResultCount > 1 Then SelectedIndex = 2
     FirstVisible = 1
     fraResults.Visible = (ResultCount > 0)
     lblEmpty.Visible = (ResultCount = 0)
@@ -643,11 +650,6 @@ Private Function PPTK_CommandIndex(ByVal wanted As String) As Long
         End If
     Next index
 End Function
-
-Private Sub PPTK_SetView(ByVal showAll As Boolean)
-    ViewAll = showAll
-    PPTK_Refill
-End Sub
 
 ' Current PowerPoint context, read once. Nothing here changes the selection.
 '   none   - nothing selected (or slides, or another view)
@@ -884,6 +886,18 @@ Private Sub PPTK_RenderRows()
             RowKey(slot).Visible = False
         End If
     Next slot
+    If RowDivider Is Nothing Then Exit Sub
+    slot = SuggestCount + 1 - FirstVisible + 1
+    If SuggestCount > 0 And SuggestCount < ResultCount And slot >= 2 And slot <= VisibleCount Then
+        RowDivider.Left = 6
+        RowDivider.Top = (slot - 1) * RowH
+        RowDivider.Width = fraResults.Width - 12
+        RowDivider.Height = 0.75
+        RowDivider.Visible = True
+        RowDivider.ZOrder 0
+    Else
+        RowDivider.Visible = False
+    End If
 End Sub
 
 Private Sub PPTK_Reflow()
@@ -994,11 +1008,6 @@ Private Sub PPTK_RunSelected()
     If Busy Then Exit Sub
     If SelectedIndex < 1 Or SelectedIndex > ResultCount Then Exit Sub
     token = ResultTokens(SelectedIndex)
-    If token = NavAll Or token = NavSuggest Then
-        PPTK_SetView (token = NavAll)
-        PPTK_FocusSearch
-        Exit Sub
-    End If
     Busy = True
     Me.Hide
     If Len(token) = 0 Then

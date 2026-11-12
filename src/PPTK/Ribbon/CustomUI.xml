@@ -3,7 +3,7 @@
   <ribbon>
     <tabs>
       <tab id="InstrumentaPowerpointToolbar" label="PPTK">
-        <group id="Design" label="Design" image="pptk-format-more">
+        <group id="Design" label="Design" image="pptk-format-more-large">
           <control idMso="ShapeFillColorPicker" showLabel="true" label="Fill" />
           <control idMso="ShapeOutlineColorPicker" showLabel="true" label="Outline" />
           <control idMso="FormatPainter" showLabel="true" label="Painter" />
@@ -25,7 +25,7 @@
           <gallery idMso="PictureShapeGallery" showLabel="false" label="&#x200B;" />
           </menu>
         </group>
-        <group id="Reuse" label="Reuse" image="pptk-save-slides">
+        <group id="Reuse" label="Reuse" image="pptk-save-slides-large">
           <button id="SaveSelectedSlidesButton" label="Save Slides" image="pptk-save-slides" showLabel="true" tag="\" onAction="PPTK_RibbonShortcut" supertip="Saves the selected slides as a new presentation" screentip="Save Selected Slides" size="normal" />
           <button id="EmailSelectedSlidesButton" label="Email Slides" image="pptk-email-slides" showLabel="true" onAction="PPTK_EmailSelectedSlides" supertip="Opens an unsent Outlook draft with the selected slides attached" screentip="Email Slides" size="normal" />
           <menu id="PPTKLibraryMenu" label="Library" image="pptk-library-open" showLabel="true" size="normal" itemSize="normal" screentip="Slide Library" supertip="Saves slides to the PPTK slide library or opens it to insert saved slides.">
@@ -33,7 +33,7 @@
           <button id="OpenSlideLibraryButton" label="Open Slide Library" image="pptk-library-open" onAction="PPTK_OpenSlideLibrary" supertip="Opens the slide library to search and insert saved slides" screentip="Open Slide Library" />
           </menu>
         </group>
-        <group id="Insert" label="Insert" image="pptk-insert-more">
+        <group id="Insert" label="Insert" image="pptk-insert-more-large">
           <control idMso="ShapesInsertGallery" showLabel="true" label="Shapes" size="normal" />
           <toggleButton idMso="TextBoxInsert" showLabel="true" size="normal" label="Text Box" />
           <button id="PPTKInsertN" tag="N" image="pptk-new-slide" label="New Slide" showLabel="true" onAction="PPTK_RibbonShortcut" supertip="Inserts a slide after the current slide using the same layout" screentip="New slide (N)" size="normal" />
@@ -52,7 +52,7 @@
           <button idMso="DateAndTimeInsert" showLabel="false" />
           <menu id="PPTKShapesMenu" label="PPTK Shapes" image="pptk-shape-more" itemSize="normal" screentip="PPTK Shapes" supertip="Inserts a PPTK shape at the standard size: rectangle (R), rounded rectangle (U), oval (O), chevron (C), pentagon (P), triangle (G), or parallelogram (M)."><button id="PPTKShortcutR" label="Rectangle" tag="R" image="pptk-shape-rect" onAction="PPTK_RibbonShortcut" screentip="Rectangle" supertip="PPTK shortcut R" /><button id="PPTKShortcutU" label="Rounded Rectangle" tag="U" image="pptk-shape-round" onAction="PPTK_RibbonShortcut" screentip="Rounded Rectangle" supertip="PPTK shortcut U" /><button id="PPTKShortcutO" label="Oval" tag="O" image="pptk-shape-oval" onAction="PPTK_RibbonShortcut" screentip="Oval" supertip="PPTK shortcut O" /><button id="PPTKShortcutC" label="Chevron" tag="C" image="pptk-shape-chevron" onAction="PPTK_RibbonShortcut" screentip="Chevron" supertip="PPTK shortcut C" /><button id="PPTKShortcutP" label="Pentagon" tag="P" image="pptk-shape-pentagon" onAction="PPTK_RibbonShortcut" screentip="Pentagon" supertip="PPTK shortcut P" /><button id="PPTKShortcutG" label="Triangle" tag="G" image="pptk-shape-triangle" onAction="PPTK_RibbonShortcut" screentip="Triangle" supertip="PPTK shortcut G" /><button id="PPTKShortcutM" label="Parallelogram" tag="M" image="pptk-shape-para" onAction="PPTK_RibbonShortcut" screentip="Parallelogram" supertip="PPTK shortcut M" /></menu></menu>
         </group>
-        <group id="Text" label="Text" image="pptk-text">
+        <group id="Text" label="Text" image="pptk-text-large">
           <box id="FontBox1" boxStyle="horizontal">
           <control idMso="Font" showLabel="false" />
           </box>
@@ -99,7 +99,7 @@
           </menu>
           </box>
         </group>
-        <group id="Align" label="Align" image="pptk-align-left">
+        <group id="Align" label="Align" image="pptk-align-left-large">
           <button id="PPTKAlignCentral" tag="A Z" label="Central" image="pptk-central" onAction="PPTK_RibbonShortcut" screentip="Align Central" supertip="Arranges the selected shapes around a center at a chosen radius" showLabel="true" size="normal" />
           <button id="PPTKAlignProcess" tag="A P" label="Process" image="pptk-process" onAction="PPTK_RibbonShortcut" screentip="Align Process" supertip="Arranges the selected shapes into an evenly spaced process" showLabel="true" size="normal" />
           <button id="PPTKAlignMatrix" tag="A X" label="Matrix" image="pptk-matrix" onAction="PPTK_RibbonShortcut" screentip="Align Matrix" supertip="Arranges the selected shapes into a chosen grid" showLabel="true" size="normal" />
@@ -127,7 +127,7 @@
           </menu>
           </menu>
         </group>
-        <group id="Space" label="Space" image="pptk-dist-h">
+        <group id="Space" label="Space" image="pptk-dist-h-large">
           <button id="ObjectsDistributeHorizontallyButton" label="Distribute horizontally" showLabel="false" image="pptk-dist-h" onAction="ObjectsDistributeHorizontally" supertip="Evenly distributes the selected objects horizontally" screentip="Distribute Horizontally" size="normal" />
           <button id="ObjectsIncreaseSpacingHorizontal" image="pptk-gap-h-inc" label="Increase horizontal gap between shapes" showLabel="false" onAction="ObjectsIncreaseSpacingHorizontal" supertip="Increases the horizontal gap between the selected shapes" screentip="Increase Horizontal Gap" size="normal" />
           <button id="ObjectsDecreaseSpacingHorizontal" image="pptk-gap-h-dec" label="Decrease horizontal gap between shapes" showLabel="false" onAction="ObjectsDecreaseSpacingHorizontal" supertip="Decreases the horizontal gap between the selected shapes" screentip="Decrease Horizontal Gap" size="normal" />
@@ -155,7 +155,7 @@
           </menu>
           </splitButton>
         </group>
-        <group id="PPTKGrid" label="Rows / TK" image="sb-row-add-keep">
+        <group id="PPTKGrid" label="Rows / TK" image="sb-row-add-keep-large">
           <button id="PPTKAddBottomRow" tag="CTRL 3" label="Add Row" image="sb-row-add-keep" onAction="PPTK_RibbonShortcut" screentip="Add Bottom Row &#x2014; Keep Bounds (Ctrl+3)" supertip="Duplicates the bottom row of the selected grid or table and redistributes every row inside the original height. The outer bounds do not change." showLabel="true" size="normal" />
           <button id="PPTKDeleteBottomRow" tag="ALT 3" label="Del Row" image="sb-row-del-keep" onAction="PPTK_RibbonShortcut" screentip="Delete Bottom Row &#x2014; Keep Bounds (Alt+3)" supertip="Deletes the bottom row of the selected grid or table and makes the remaining rows fill the original height. The last row is never deleted." showLabel="true" size="normal" />
           <button id="PPTKAddBottomTK" tag="CTRL 5" label="Bottom TK" image="pptk-tk-bottom" onAction="PPTK_RibbonShortcut" screentip="Add Bottom TK" supertip="Inserts an editable TK placeholder below the selection" showLabel="true" size="normal" />
@@ -171,7 +171,7 @@
           <button id="PPTKDeleteBottomRowShrink" label="Delete Bottom Row &#x2014; Shrink Bounds" image="sb-row-del-shrink" onAction="PPTK_RibbonDeleteBottomRowShrink" screentip="Delete Bottom Row &#x2014; Shrink Bounds" supertip="Deletes the bottom row and leaves the other shapes where they are, so the layout gets shorter. No keyboard shortcut." />
           </menu>
         </group>
-        <group id="Tools" label="Tools" image="pptk-smart-bar">
+        <group id="Tools" label="Tools" image="pptk-smart-bar-large">
           <button id="PPTKFlipCurrentSlide" label="Flip Current Slide" image="sb-flip-slide" showLabel="false" onAction="PPTK_RibbonFlipCurrentSlide" screentip="Flip Current Slide" supertip="Mirrors the layout of the current slide horizontally. Text stays readable; pictures, icons, and charts are moved but not mirrored. Run again to restore. Ctrl+Z undoes it." size="normal" />
           <button id="PPTKFlipEntirePresentation" label="Flip Entire Presentation" image="sb-flip-deck" showLabel="false" onAction="PPTK_RibbonFlipEntirePresentation" screentip="Flip Entire Presentation" supertip="Mirrors the layout of every slide horizontally after saving a backup copy. Text stays readable. Masters, layouts, and notes stay unchanged. Ctrl+Z undoes it." size="normal" />
           <menu id="ToolsMoreMenu" label="More Tools" image="pptk-tools" showLabel="false" itemSize="normal" screentip="More Tools" size="normal"><menu id="ToolsTableMenu" label="Table" image="pptk-table" itemSize="normal" screentip="Table">

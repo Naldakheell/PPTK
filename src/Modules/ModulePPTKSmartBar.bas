@@ -13,13 +13,26 @@ Option Explicit
 
 Public Sub PPTK_ShowSmartBar()
     On Error GoTo Clean
-    If PPTKSmartBarForm.Visible Then PPTKSmartBarForm.Hide
+    ' Always a fresh palette. A hidden palette shown again keeps its old focus
+    ' state: arrows work, but typed characters do not reach the search field
+    ' until it is clicked. A new form starts with the caret in the search field.
+    PPTK_UnloadSmartBar
     DoEvents
     PPTKSmartBarForm.PPTK_Open
     PPTKSmartBarForm.Show vbModeless
     On Error Resume Next
     PPTKSmartBarForm.txtFilter.SetFocus
 Clean:
+End Sub
+
+Private Sub PPTK_UnloadSmartBar()
+    Dim loadedForm As Object
+    For Each loadedForm In VBA.UserForms
+        If TypeName(loadedForm) = "PPTKSmartBarForm" Then
+            Unload loadedForm
+            Exit For
+        End If
+    Next loadedForm
 End Sub
 
 Public Sub PPTK_HideSmartBar()

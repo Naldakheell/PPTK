@@ -71,6 +71,8 @@ Working directory:
 C:\Users\NoufAlDakheel\AppData\Local\PPTK\PPTKKeys
 ```
 
+`dotnet.exe` is a console program, so Windows opens a console window for it at logon (in Windows Terminal when that is the default terminal). PPTKKeys detaches from that console as soon as it starts, when it is the only process attached, so the window closes after a short flash. Started from a terminal, the console is shared and stays. A helper with no flash at all needs a Windows-subsystem `PPTKKeys.exe`; the ASR rule "Block executable files from running unless they meet a prevalence, age, or trusted list criterion" blocks an unsigned one, so that requires a trusted code signature or an IT decision.
+
 The application also holds the local mutex `Local\PPTKKeys.Windows`. A second copy exits with "PPTKKeys is already running." The task policy and the mutex both prevent two hooks.
 
 Do not add a Run-key or Startup-folder entry as a substitute. If Task Scheduler rejects the registration, report the policy or permission error and stop.
