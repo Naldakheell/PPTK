@@ -7,6 +7,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <AssemblyName>PPTKKeys</AssemblyName>
+    <!-- PPTK release version; keep equal to PPTK_VERSION in src/PPTK/Brand/ModulePPTKBrand.bas. -->
+    <Version>1.1.0</Version>
     <RootNamespace>PPTKKeys</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Prefer32Bit>false</Prefer32Bit>

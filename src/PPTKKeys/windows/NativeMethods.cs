@@ -16,6 +16,7 @@ internal static class NativeMethods
     public const int WmApp = 0x8000;
     public const int WmDispatch = WmApp + 1;
     public const int WmRefresh = WmApp + 2;
+    public const int WmRunOnHelperThread = WmApp + 3;   // handoff: run queued hook/mutex work on the helper thread
 
     public const uint LlkhfUp = 0x80;
     public const uint LlkhfInjected = 0x10;
@@ -235,6 +236,9 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
     public static extern int GetMessage(out Msg lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);

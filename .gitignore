@@ -19,6 +19,9 @@ build-tools*
 # VBA UserForm designer import logs. Tracked logs stay tracked.
 src/Forms/*.log
 
+# Deployment packages built by src/Deploy/build-package.ps1 (build output, rebuilt from source).
+dist/
+
 # Hash-named extra PPTKKeys publish folders. Canonical binary is release/win-x64.
 src/PPTKKeys/windows/release/*-win-x64/
 

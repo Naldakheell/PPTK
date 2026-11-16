@@ -47,15 +47,40 @@ internal sealed class HelperApp
     const int RefreshTimerId = 1;
     const int SequenceTimerId = 2;
 
-    internal HelperApp()
+    // Pending updates and the handoff (Phase 2B-3c). Only with a test configuration; otherwise all null and
+    // the helper runs exactly as before.
+    readonly Mutex _mutex;
+    readonly HelperConfig? _config;
+    readonly HelperLog? _log;
+    readonly bool _ownedAtStart;
+    readonly System.Collections.Concurrent.ConcurrentQueue<Action> _helperThreadWork = new();
+    HelperHookOwner? _owner;
+    PendingUpdateWatcher? _updates;
+    UpdateNoticeController? _notice;
+    long _lastKeyDownTick;
+    int _helperThreadId;
+    long _timerTicks;
+
+    /// <param name="mutex">The helper mutex: already owned for a normal start, not yet for a handoff (--handoff).</param>
+    internal HelperApp(Mutex mutex, bool ownedAtStart, HelperConfig? config)
     {
         _hookProc = OnHook;
         _windowProc = OnWindow;
         _winEventProc = OnWinEvent;
+        _mutex = mutex;
+        _ownedAtStart = ownedAtStart;
+        _config = config;
+        _log = config is null ? null : new HelperLog(config.LogPath);
     }
 
-    public int Run()
+    /// <summary>Whether this process still owns the helper mutex (a handoff releases it).</summary>
+    internal bool MutexHeld => _owner?.Held ?? _ownedAtStart;
+
+    /// <param name="handoff">Null for a normal start. Otherwise this helper was started by the running one to take
+    /// over (test configuration only): the hook is installed by the handoff, not here.</param>
+    public int Run(HandoffRequest? handoff = null)
     {
+        _helperThreadId = Environment.CurrentManagedThreadId;
         _window = CreateMessageWindow();
         MessageWindow.Handle = _window;
         if (_window == IntPtr.Zero)
@@ -64,12 +89,17 @@ internal sealed class HelperApp
             return 1;
         }
 
-        _hook = NativeMethods.SetWindowsHookEx(NativeMethods.WhKeyboardLl, _hookProc, IntPtr.Zero, 0);
-        if (_hook == IntPtr.Zero)
+        _owner = new HelperHookOwner(_mutex, _ownedAtStart, InstallHook, RemoveHook, () => Interlocked.Read(ref _timerTicks), OnHelperThread);
+        if (handoff is null)
         {
-            Console.Error.WriteLine($"Keyboard hook failed ({Marshal.GetLastWin32Error()}). No keys are intercepted.");
-            NativeMethods.DestroyWindow(_window);
-            return 1;
+            _hook = NativeMethods.SetWindowsHookEx(NativeMethods.WhKeyboardLl, _hookProc, IntPtr.Zero, 0);
+            if (_hook == IntPtr.Zero)
+            {
+                Console.Error.WriteLine($"Keyboard hook failed ({Marshal.GetLastWin32Error()}). No keys are intercepted.");
+                NativeMethods.DestroyWindow(_window);
+                return 1;
+            }
+            _owner.Adopt(_hook);
         }
 
         _foregroundHook = NativeMethods.SetWinEventHook(
@@ -92,6 +122,8 @@ internal sealed class HelperApp
         Console.WriteLine("Canvas chords: Ctrl+2/3 Alt+2/3 Ctrl+4/5/6/7 Ctrl+K Ctrl+Space");
         Console.WriteLine("PowerPoint selection is cached outside the hook. Ctrl+C stops the helper.");
 
+        StartUpdates(handoff);
+
         try
         {
             while (NativeMethods.GetMessage(out NativeMethods.Msg message, IntPtr.Zero, 0, 0) > 0)
@@ -109,6 +141,100 @@ internal sealed class HelperApp
         }
 
         return 0;
+    }
+
+    IntPtr InstallHook() => _hook = NativeMethods.SetWindowsHookEx(NativeMethods.WhKeyboardLl, _hookProc, IntPtr.Zero, 0);
+
+    void RemoveHook(IntPtr hook)
+    {
+        NativeMethods.UnhookWindowsHookEx(hook);
+        _hook = IntPtr.Zero;
+    }
+
+    // Runs work on this helper's message thread (the mutex is thread-affine) and returns when it is done.
+    void OnHelperThread(Action work)
+    {
+        if (Environment.CurrentManagedThreadId == _helperThreadId) { work(); return; }
+        Exception? error = null;
+        bool ran = false;
+        _helperThreadWork.Enqueue(() => { ran = true; try { work(); } catch (Exception e) { error = e; } });
+        NativeMethods.SendMessage(_window, NativeMethods.WmRunOnHelperThread, IntPtr.Zero, IntPtr.Zero);
+        if (!ran) throw new HelperThreadGoneException();   // window closed: Run/Main clean up on the helper thread
+        if (error is not null) throw error;
+    }
+
+    // Pending updates, the update notice and the handoff: for the installed helper (versions\<v>) or a test configuration.
+    void StartUpdates(HandoffRequest? handoff)
+    {
+        if (_config is null || _owner is null || _log is null) return;
+        var config = _config; var owner = _owner; var log = _log;
+        var probe = new LivePowerPointProbe();
+        var environment = new LiveDeploymentEnvironment(config.Live, probe);
+        var coordinator = new HandoffCoordinator(config.Names, owner, HandoffTimeouts.Default, log.Write,
+            (status, reason) => HelperActivation.SetStatus(config.Paths, status, reason),
+            () => NativeMethods.PostMessage(_window, NativeMethods.WmClose, IntPtr.Zero, IntPtr.Zero));
+        var trigger = new HandoffTrigger(result => new Thread(() => HandOver(config, coordinator, log, result.HelperDll)) { IsBackground = true, Name = "handoff (old)" }.Start());
+        _notice = new UpdateNoticeController(ObserveForNotice,
+            version => NotificationWindow.Show(UpdateNoticeText.Message, UpdateNoticeText.DisplayFor, PowerPointFrameInFront()) is not null,
+            version => PendingNotice.MarkNotified(config.Paths, version),
+            work => ThreadPool.QueueUserWorkItem(_ => work()),
+            log.Write);
+        _updates = new PendingUpdateWatcher(config.Paths, () => new PendingAddinUpdate(config.Paths, environment), probe, log.Write,
+            onResult: trigger.OnResult, onInspection: _notice.OnInspection);
+        log.Write((handoff is null ? "helper started" : $"helper started to take over from pid {handoff.OldPid}") + (config.IsTest ? " (test configuration)" : ""));
+        if (handoff is null) { _updates.Trigger("startup"); return; }
+        new Thread(() => TakeOver(config, coordinator, handoff)) { IsBackground = true, Name = "handoff (new)" }.Start();
+    }
+
+    // Update notice inputs, read on the message thread from state the helper already keeps (no key contents).
+    NoticeObservation ObserveForNotice()
+    {
+        FocusProbe.Probe probe = FocusProbe.Inspect();
+        bool frameInFront = probe.IsPowerPoint && probe.FrameClassMatches;   // a slideshow window is not the frame
+        // Live window check, not the cached snapshot: the snapshot refreshes only on PowerPoint events and can
+        // still say "slideshow" after the show ended (found in the 2C-4 real test). Only asked while PowerPoint
+        // is in front, which is the only case where it can change the decision.
+        bool slideshow = probe.IsPowerPoint && PowerPointWindows.HasVisibleSlideshow(probe.ProcessId);
+        long sinceKey = Environment.TickCount64 - Volatile.Read(ref _lastKeyDownTick);
+        return new NoticeObservation(frameInFront, slideshow, probe.MenuOrDialog || probe.Focus == FocusKind.MenuOrDialog, TimeSpan.FromMilliseconds(sinceKey));
+    }
+
+    static IntPtr PowerPointFrameInFront()
+    {
+        FocusProbe.Probe probe = FocusProbe.Inspect();
+        return probe.IsPowerPoint && probe.FrameClassMatches ? (IntPtr)probe.FrameWindow : IntPtr.Zero;
+    }
+
+    // Old side: start the new helper and hand the hook over; on any failure this helper keeps (or takes back) it.
+    void HandOver(HelperConfig config, HandoffCoordinator coordinator, HelperLog log, string? newDll)
+    {
+        // How this helper was started is not assumed (dotnet exec, apphost, run.cmd): resolve the host and check
+        // the target first. Without both, no handoff: the new helper starts from the task at the next sign-in.
+        string? dotnet = HandoffLaunch.ResolveDotnet(Environment.ProcessPath, File.Exists,
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), newDll);
+        string? problem = dotnet is null ? "no dotnet.exe host was found to start the new helper" : HandoffLaunch.CheckNewHelper(newDll, config.Paths, File.Exists);
+        if (problem is not null)
+        {
+            log.Write("handoff not attempted: " + problem);
+            HelperActivation.SetStatus(config.Paths, "failed", "handoff not attempted: " + problem);
+            return;
+        }
+        coordinator.HandOver(nonce =>
+        {
+            // No window tricks: the new helper's console closes as at sign-in (FreeConsole).
+            var psi = new System.Diagnostics.ProcessStartInfo(dotnet!) { UseShellExecute = false };
+            foreach (var a in new[] { "exec", newDll!, "--handoff", Environment.ProcessId.ToString(), nonce }) psi.ArgumentList.Add(a);
+            return System.Diagnostics.Process.Start(psi);
+        });
+    }
+
+    // New side: take the hook over from the old helper, or exit without one.
+    void TakeOver(HelperConfig config, HandoffCoordinator coordinator, HandoffRequest handoff)
+    {
+        string self = typeof(Program).Assembly.Location;
+        bool Verify() => config.RequestedHelperDll() is { } wanted
+            && string.Equals(Path.GetFullPath(wanted), Path.GetFullPath(self), StringComparison.OrdinalIgnoreCase);
+        coordinator.TakeOver(handoff.OldPid, handoff.Nonce, Verify, () => _updates?.Trigger("after handoff"));
     }
 
     public static int Describe()
@@ -147,6 +273,7 @@ internal sealed class HelperApp
             bool down = message is NativeMethods.WmKeyDown or NativeMethods.WmSysKeyDown;
             bool up = message is NativeMethods.WmKeyUp or NativeMethods.WmSysKeyUp;
             if (!down && !up) return Next(nCode, wParam, lParam);
+            if (down) Volatile.Write(ref _lastKeyDownTick, Environment.TickCount64);   // time only (update notice waits for a pause)
 
             var info = Marshal.PtrToStructure<NativeMethods.KbdLlHookStruct>(lParam);
             int vk = (int)info.vkCode;
@@ -375,6 +502,12 @@ internal sealed class HelperApp
                     }
 
                     WatchPowerPointFocus();
+                    Interlocked.Increment(ref _timerTicks);
+                    _updates?.Tick();   // installed or test configuration only; returns at once
+                    _notice?.Tick();    // installed or test configuration only; cheap reads, never blocks, never throws
+                    return IntPtr.Zero;
+                case NativeMethods.WmRunOnHelperThread:
+                    while (_helperThreadWork.TryDequeue(out var work)) work();
                     return IntPtr.Zero;
                 case NativeMethods.WmClose:
                     NativeMethods.PostQuitMessage(0);
@@ -795,38 +928,91 @@ internal static partial class Program
         string? command = args.Length > 0 ? args[0] : null;
         if (command is "--help" or "-h" or "/?")
         {
-            Console.WriteLine("Usage: PPTKKeys [--describe | --layouts]");
+            Console.WriteLine("Usage: PPTKKeys [--describe | --layouts | --version]");
             Console.WriteLine("Ctrl+C stops the listener.");
+            return 0;
+        }
+
+        if (command == "--version")
+        {
+            Console.WriteLine(typeof(Program).Assembly.GetName().Version?.ToString(3));
             return 0;
         }
 
         if (command == "--describe") return HelperApp.Describe();
         if (command == "--layouts") return DescribeLayouts();
-        if (command != null)
+        HandoffRequest? handoff = null;
+        if (command == "--handoff")
+        {
+            if (args.Length != 3 || !int.TryParse(args[1], out int oldPid) || oldPid <= 0)
+            {
+                Console.Error.WriteLine("Usage: PPTKKeys --handoff <old helper pid> <nonce>");
+                return 1;
+            }
+            handoff = new HandoffRequest(oldPid, args[2]);
+        }
+        else if (command != null)
         {
             Console.Error.WriteLine("Unknown argument. Usage: PPTKKeys [--describe]");
             return 1;
         }
 
+        // Pending updates and the handoff: a test configuration (PPTK_TEST_*) or, without one, the installed helper
+        // (this DLL under LocalAppData\PPTK\versions\<v>\PPTKKeys). Anywhere else this is the unchanged normal start.
+        // A broken or partial test configuration never stops a normal start (it is ignored with a warning);
+        // only --handoff needs a valid one.
+        // The installed helper always uses the production configuration, even if PPTK_TEST_* happen to be set:
+        // a test configuration would give it the test mutex and let a second helper hook next to it.
+        HelperConfig? production = HelperConfig.ForProduction(typeof(Program).Assembly.Location,
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+        HelperConfig? config;
+        if (production is not null) config = production;
+        else if (handoff is null)
+        {
+            config = HelperConfig.ForNormalStart(Environment.GetEnvironmentVariable, out string? warning);
+            if (warning is not null) Console.Error.WriteLine(warning);
+        }
+        else
+        {
+            try { config = HelperConfig.FromEnvironment(); }
+            catch (InvalidOperationException ex) { Console.Error.WriteLine("Test configuration refused: " + ex.Message); return 1; }
+        }
+        if (handoff is not null && config is null)
+        {
+            Console.Error.WriteLine(@"--handoff is available only to the installed helper (LocalAppData\PPTK\versions) or a test configuration.");
+            return 1;
+        }
+        // A test helper never runs next to the installed one: two keyboard hooks would both act on the keys.
+        if (config is { IsTest: true } && Mutex.TryOpenExisting(HandoffNames.ProductionMutex, out var running))
+        {
+            running.Dispose();
+            Console.Error.WriteLine("Test configuration refused: the installed PPTKKeys helper is running.");
+            return 1;
+        }
+
         ReleaseOwnConsole();
 
-        using var mutex = new Mutex(false, @"Local\PPTKKeys.Windows");
+        using var mutex = new Mutex(false, config?.Names.Mutex ?? HandoffNames.ProductionMutex);
         bool owned = false;
+        HelperApp? app = null;
         try
         {
-            try
+            if (handoff is null)
             {
-                owned = mutex.WaitOne(0);
-            }
-            catch (AbandonedMutexException)
-            {
-                owned = true;
-            }
+                try
+                {
+                    owned = mutex.WaitOne(0);
+                }
+                catch (AbandonedMutexException)
+                {
+                    owned = true;
+                }
 
-            if (!owned)
-            {
-                Console.Error.WriteLine("PPTKKeys is already running.");
-                return 1;
+                if (!owned)
+                {
+                    Console.Error.WriteLine("PPTKKeys is already running.");
+                    return 1;
+                }
             }
 
             Console.CancelKeyPress += (_, eventArgs) =>
@@ -835,11 +1021,13 @@ internal static partial class Program
                 NativeMethods.PostMessage(MessageWindow.Handle, NativeMethods.WmClose, IntPtr.Zero, IntPtr.Zero);
             };
 
-            return new HelperApp().Run();
+            app = new HelperApp(mutex, owned, config);
+            return app.Run(handoff);
         }
         finally
         {
-            if (owned) mutex.ReleaseMutex();
+            // A handoff may have released the mutex already (or a new helper may have taken it).
+            if (app?.MutexHeld ?? owned) mutex.ReleaseMutex();
         }
     }
 }
@@ -888,6 +1076,9 @@ internal static partial class Program
         return 0;
     }
 }
+
+/// <summary>--handoff &lt;old helper pid&gt; &lt;nonce&gt;: this helper takes over from the running one.</summary>
+internal sealed record HandoffRequest(int OldPid, string Nonce);
 
 internal static class MessageWindow
 {

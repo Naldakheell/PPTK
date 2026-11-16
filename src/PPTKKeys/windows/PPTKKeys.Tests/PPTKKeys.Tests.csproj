@@ -9,6 +9,19 @@
     <Compile Include="..\ShortcutGate.cs" Link="ShortcutGate.cs" />
     <Compile Include="..\ReplayGuard.cs" Link="ReplayGuard.cs" />
     <Compile Include="..\ThemeHarmonize.cs" Link="ThemeHarmonize.cs" />
+    <Compile Include="..\PendingAddinUpdate.cs" Link="PendingAddinUpdate.cs" />
+    <Compile Include="..\PendingUpdateWatcher.cs" Link="PendingUpdateWatcher.cs" />
+    <Compile Include="..\LiveDeployment.cs" Link="LiveDeployment.cs" />
+    <Compile Include="..\HelperHandoff.cs" Link="HelperHandoff.cs" />
+    <Compile Include="..\HelperWiring.cs" Link="HelperWiring.cs" />
+    <Compile Include="..\UpdateNotice.cs" Link="UpdateNotice.cs" />
+    <Compile Include="..\NotificationWindow.cs" Link="NotificationWindow.cs" />
+    <Compile Include="..\PowerPointWindows.cs" Link="PowerPointWindows.cs" />
+    <Compile Remove="HandoffHost\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Built for the handoff tests (run as a separate process); not referenced as an assembly. -->
+    <ProjectReference Include="HandoffHost\HandoffHost.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

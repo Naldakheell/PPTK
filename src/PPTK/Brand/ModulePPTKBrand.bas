@@ -6,6 +6,10 @@ Option Explicit
 ' Imported in the Windows project. The three PPTK forms call these helpers.
 ' Do not import this module into the Mac workbook.
 
+' PPTK release version (MAJOR.MINOR.PATCH). One number for the whole release:
+' keep it equal to <Version> in src/PPTKKeys/windows/PPTKKeys.csproj.
+Public Const PPTK_VERSION As String = "1.1.0"
+
 Public Const PPTK_COLOR_PRIMARY As Long = 15514147
 Public Const PPTK_COLOR_WHITE As Long = 16777215
 Public Const PPTK_COLOR_DARK_TEXT As Long = 3879984
@@ -27,6 +31,12 @@ Public Const PPTK_B_LIGHT_BACKGROUND As Long = 251
 Public Const PPTK_R_SUBTLE_BORDER As Long = 227
 Public Const PPTK_G_SUBTLE_BORDER As Long = 232
 Public Const PPTK_B_SUBTLE_BORDER As Long = 237
+
+' The running add-in's version, for Application.Run callers (PPTKKeys, install
+' checks). Read-only; no UI.
+Public Function PPTK_GetVersion() As String
+    PPTK_GetVersion = PPTK_VERSION
+End Function
 
 Public Function PPTK_BrandRgb(ByVal redValue As Long, ByVal greenValue As Long, ByVal blueValue As Long) As Long
     PPTK_BrandRgb = RGB(redValue, greenValue, blueValue)
