@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PPTK 1.1.0 Shortcuts</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  :root {
+    --brand: #23BAEC;      /* PPTK_COLOR_PRIMARY */
+    --brand-ink: #0B7FA8;  /* darker brand for text on white */
+    --ink: #30343B;        /* PPTK_COLOR_DARK_TEXT */
+    --ink-2: #5B616B;
+    --ink-3: #8A9099;
+    --paper: #FFFFFF;
+    --wash: #F7F9FB;       /* PPTK_COLOR_LIGHT_BACKGROUND */
+    --line: #E3E8ED;       /* PPTK_COLOR_SUBTLE_BORDER */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #fff; }
+  body {
+    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    color: var(--ink);
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .page {
+    width: 297mm; height: 210mm; overflow: hidden;
+    padding: 11mm 12mm 8mm;
+    display: flex; flex-direction: column;
+    background: var(--paper);
+    page-break-after: always; break-after: page;
+    position: relative;
+  }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+
+  /* Header */
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .mark {
+    width: 46px; height: 46px; border-radius: 12px; background: var(--ink);
+    display: grid; place-items: center; position: relative; overflow: hidden;
+  }
+  .mark::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: var(--brand); }
+  .mark span { color: #fff; font: 700 15px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: .5px; margin-top: -3px; }
+  .title h1 {
+    font: 700 30px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -.6px;
+  }
+  .title h1 b { color: var(--brand-ink); font-weight: 700; }
+  .title p { font-size: 12px; color: var(--ink-2); margin-top: 6px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); background: var(--wash);
+    border-radius: 999px; padding: 7px 14px 7px 10px;
+    font: 600 12px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; color: var(--ink);
+    white-space: nowrap;
+  }
+  .badge i { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); display: inline-block; }
+  .rule { height: 1px; background: var(--line); margin: 10px 0 9px; }
+
+  /* Context strip */
+  .context { display: grid; grid-template-columns: 1.55fr 1fr 1fr 1fr; gap: 10px; }
+  .ctx { background: var(--wash); border-radius: 9px; padding: 8px 11px; font-size: 10.2px; line-height: 1.38; color: var(--ink-2); }
+  .ctx strong { display: block; color: var(--ink); font-size: 10.5px; font-weight: 650; margin-bottom: 2px; }
+  .ctx .k { transform: translateY(-1px); }
+
+  /* Grid of categories */
+  .grid { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 18px; margin-top: 11px; }
+  .col { display: flex; flex-direction: column; gap: 14px; }
+  section h2 {
+    display: flex; align-items: center; gap: 7px;
+    font: 700 10.5px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif;
+    letter-spacing: 1.1px; text-transform: uppercase; color: var(--ink);
+    padding-bottom: 6px; border-bottom: 2px solid var(--ink); margin-bottom: 1px;
+  }
+  section h2::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--brand); }
+  section h2 small { margin-left: auto; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--ink-3); font-size: 9.5px; }
+  .row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    min-height: 26.5px; padding: 2px 0; border-bottom: 1px solid var(--line);
+  }
+  .row:last-child { border-bottom: 0; }
+  .lbl { font-size: 11px; line-height: 1.2; color: var(--ink); }
+  .lbl em { font-style: normal; color: var(--ink-3); font-size: 9.6px; display: block; margin-top: 1px; }
+  .keys { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+
+  /* Keycaps */
+  .k {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 19px; height: 19px; padding: 0 5px;
+    border-radius: 5px; background: #fff;
+    border: 1px solid #CDD4DC; border-bottom-width: 2px;
+    font: 600 10.4px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; color: var(--ink);
+  }
+  .k.m { font-size: 9.4px; font-weight: 600; color: var(--ink-2); padding: 0 5px; }
+  .k.d { background: var(--ink); border-color: var(--ink); border-bottom-color: #15181C; color: #fff; } /* sequence lead key */
+  .plus { color: var(--ink-3); font-size: 9.5px; font-weight: 600; }
+  .then { color: var(--brand-ink); font-size: 11px; font-weight: 700; margin: 0 1px; }
+  .or { color: var(--ink-3); font-size: 9.4px; margin: 0 2px; }
+  .tag {
+    font-size: 8.4px; font-weight: 650; letter-spacing: .3px; text-transform: uppercase;
+    color: var(--brand-ink); background: #E6F6FC; border-radius: 4px; padding: 2px 4px; margin-left: 4px;
+    vertical-align: 1px; white-space: nowrap;
+  }
+
+  footer {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 9.4px; color: var(--ink-3); padding-top: 7px; border-top: 1px solid var(--line);
+  }
+  footer .legend { display: flex; gap: 16px; align-items: center; }
+  footer .legend span { display: inline-flex; align-items: center; gap: 4px; }
+
+  /* Page 2 — ribbon */
+  .ribbon { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 10px; margin: 10px 0 9px; }
+  .card { border: 1px solid var(--line); border-radius: 11px; padding: 10px 14px 9px; display: flex; flex-direction: column; }
+  .card h3 { display: flex; align-items: baseline; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); font: 700 14px/1.1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -.1px; margin-bottom: 7px; }
+  .card h3 span { font: 600 9px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; letter-spacing: 1px; text-transform: uppercase; color: var(--brand-ink); }
+  .card ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+  .card li { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; font-size: 11.2px; line-height: 1.28; }
+  .card li .keys { margin-top: 1px; }
+  .k.c { height: 18px; padding: 0 7px; font-size: 10px; letter-spacing: .2px; white-space: nowrap; }
+  .card li .d { color: var(--ink-3); font-size: 9.8px; display: block; margin-top: 0; }
+  .card li .keys .k { min-width: 17px; height: 17px; font-size: 9.6px; }
+  .card li .keys .k.m { font-size: 8.8px; }
+  .ro { margin-top: 2px; font-size: 8.4px; font-weight: 650; letter-spacing: .4px; text-transform: uppercase; color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<!-- ============ PAGE 1 — KEYBOARD SHORTCUTS ============ -->
+<div class="page">
+  <header>
+    <div class="brand">
+      <div class="mark"><span>PPTK</span></div>
+      <div class="title">
+        <h1>PPTK <b>Keyboard Shortcuts</b></h1>
+        <p>Build slides faster in PowerPoint — insert, align, space and format without leaving the keyboard.</p>
+      </div>
+    </div>
+    <div class="badge"><i></i>PPTK 1.1.0 — Windows</div>
+  </header>
+  <div class="rule"></div>
+
+  <div class="context">
+    <div class="ctx"><strong>Where shortcuts work</strong>On the slide in Normal view, with shapes or nothing selected. Keys go to PowerPoint as usual while you type in text, and in the ribbon, dialogs, notes, Slide Show and master views.</div>
+    <div class="ctx"><strong>Single keys</strong>Press one letter. <span class="k">R</span> inserts a rectangle.</div>
+    <div class="ctx"><strong>Sequences</strong>Press <span class="k d">A</span>, release, then <span class="k">L</span> within 1 second. <span class="k m">Esc</span> cancels.</div>
+    <div class="ctx"><strong>Any keyboard layout</strong>Letters follow key positions, so they also work on an Arabic keyboard. Needs the PPTKKeys helper running.</div>
+  </div>
+
+  <div class="grid">
+    <!-- Column 1 -->
+    <div class="col">
+      <section>
+        <h2>Insert</h2>
+        <div class="row"><span class="lbl">Text box<em>Start typing right away</em></span><span class="keys"><span class="k">T</span></span></div>
+        <div class="row"><span class="lbl">Rectangle</span><span class="keys"><span class="k">R</span></span></div>
+        <div class="row"><span class="lbl">Rounded rectangle</span><span class="keys"><span class="k">U</span></span></div>
+        <div class="row"><span class="lbl">Oval</span><span class="keys"><span class="k">O</span></span></div>
+        <div class="row"><span class="lbl">Chevron</span><span class="keys"><span class="k">C</span></span></div>
+        <div class="row"><span class="lbl">Pentagon</span><span class="keys"><span class="k">P</span></span></div>
+        <div class="row"><span class="lbl">Triangle</span><span class="keys"><span class="k">G</span></span></div>
+        <div class="row"><span class="lbl">Parallelogram</span><span class="keys"><span class="k">M</span></span></div>
+        <div class="row"><span class="lbl">Icon library</span><span class="keys"><span class="k">I</span></span></div>
+        <div class="row"><span class="lbl">Enclose icon in a circle<em>Press again to add a fill</em></span><span class="keys"><span class="k">E</span></span></div>
+        <div class="row"><span class="lbl">New slide, same layout<em>Also in the thumbnail pane</em></span><span class="keys"><span class="k">N</span></span></div>
+      </section>
+      <section>
+        <h2>Slides &amp; Tools</h2>
+        <div class="row"><span class="lbl">Fix slide colors<em>Match the theme colors</em></span><span class="keys"><span class="k">Q</span></span></div>
+        <div class="row"><span class="lbl">Save selected slides<em>Thumbnail pane, slides selected</em></span><span class="keys"><span class="k">\</span></span></div>
+        <div class="row"><span class="lbl">Smart Bar<em>Command search</em></span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k">K</span><span class="or">or</span><span class="k m">Ctrl</span><span class="plus">+</span><span class="k m">Space</span></span></div>
+      </section>
+    </div>
+
+    <!-- Column 2 -->
+    <div class="col">
+      <section>
+        <h2>Align <small>press A, then…</small></h2>
+        <div class="row"><span class="lbl">Align left</span><span class="keys"><span class="k d">A</span><span class="then">›</span><span class="k">L</span></span></div>
+        <div class="row"><span class="lbl">Align center</span><span class="keys"><span class="k d">A</span><span class="then">›</span><span class="k">C</span></span></div>
+        <div class="row"><span class="lbl">Align right</span><span class="keys"><span class="k d">A</span><span class="then">›</span><span class="k">R</span></span></div>
+        <div class="row"><span class="lbl">Align top</span><span class="keys"><span class="k d">A</span><span class="then">›</span><span class="k">T</span></span></div>
+        <div class="row"><span class="lbl">Align middle</span><span class="keys"><span class="k d">A</span><span class="then">›</span><span class="k">M</span></span></div>
+        <div class="row"><span class="lbl">Align bottom</span><span class="keys"><span class="k d">A</span><span class="then">›</span><span class="k">B</span></span></div>
+        <div class="row"><span class="lbl">Process<em>Even flow, shared gap</em></span><span class="keys"><span class="k d">A</span><span class="then">›</span><span class="k">P</span></span></div>
+        <div class="row"><span class="lbl">Matrix<em>Choose rows × columns</em></span><span class="keys"><span class="k d">A</span><span class="then">›</span><span class="k">X</span></span></div>
+        <div class="row"><span class="lbl">Central<em>Around a circle, choose radius</em></span><span class="keys"><span class="k d">A</span><span class="then">›</span><span class="k">Z</span></span></div>
+      </section>
+      <section>
+        <h2>Size &amp; Shape</h2>
+        <div class="row"><span class="lbl">Same width</span><span class="keys"><span class="k d">S</span><span class="then">›</span><span class="k">W</span></span></div>
+        <div class="row"><span class="lbl">Same height</span><span class="keys"><span class="k d">S</span><span class="then">›</span><span class="k">H</span></span></div>
+        <div class="row"><span class="lbl">Same width and height</span><span class="keys"><span class="k d">S</span><span class="then">›</span><span class="k">S</span></span></div>
+        <div class="row"><span class="lbl">Match corner roundness</span><span class="keys"><span class="k d">A</span><span class="then">›</span><span class="k">A</span></span></div>
+        <div class="row"><span class="lbl">Unify shape type</span><span class="keys"><span class="k d">X</span><span class="then">›</span><span class="k">T</span></span></div>
+      </section>
+    </div>
+
+    <!-- Column 3 -->
+    <div class="col">
+      <section>
+        <h2>Text &amp; Formatting</h2>
+        <div class="row"><span class="lbl">Copy formatting</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k m">Shift</span><span class="plus">+</span><span class="k">C</span></span></div>
+        <div class="row"><span class="lbl">Paste formatting</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k m">Shift</span><span class="plus">+</span><span class="k">V</span></span></div>
+        <div class="row"><span class="lbl">Paste content only<em>Text only<span class="tag">in text too</span></em></span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k m">Shift</span><span class="plus">+</span><span class="k">T</span></span></div>
+        <div class="row"><span class="lbl">Remove margins<em>Shrinks box to fit text<span class="tag">in text too</span></em></span><span class="keys"><span class="k m">Alt</span><span class="plus">+</span><span class="k">.</span></span></div>
+        <div class="row"><span class="lbl">Merge text boxes<em>Into the first selected shape</em></span><span class="keys"><span class="k d">.</span><span class="then">›</span><span class="k">T</span></span></div>
+        <div class="row"><span class="lbl">Swap text of two shapes</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k">/</span></span></div>
+        <div class="row"><span class="lbl">Increase font size</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k">]</span></span></div>
+        <div class="row"><span class="lbl">Decrease font size</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k">[</span></span></div>
+      </section>
+      <section>
+        <h2>Arrange</h2>
+        <div class="row"><span class="lbl">Swap position of two shapes</span><span class="keys"><span class="k">/</span></span></div>
+        <div class="row"><span class="lbl">Bring forward</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k m">Shift</span><span class="plus">+</span><span class="k">]</span></span></div>
+        <div class="row"><span class="lbl">Send backward</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k m">Shift</span><span class="plus">+</span><span class="k">[</span></span></div>
+      </section>
+    </div>
+
+    <!-- Column 4 -->
+    <div class="col">
+      <section>
+        <h2>Distribute &amp; Space</h2>
+        <div class="row"><span class="lbl">Distribute horizontally</span><span class="keys"><span class="k d">D</span><span class="then">›</span><span class="k">H</span></span></div>
+        <div class="row"><span class="lbl">Distribute vertically</span><span class="keys"><span class="k d">D</span><span class="then">›</span><span class="k">V</span></span></div>
+        <div class="row"><span class="lbl">Wider horizontal gap<span class="tag">hold</span></span><span class="keys"><span class="k d">H</span><span class="then">›</span><span class="k">+</span></span></div>
+        <div class="row"><span class="lbl">Narrower horizontal gap<span class="tag">hold</span></span><span class="keys"><span class="k d">H</span><span class="then">›</span><span class="k">−</span></span></div>
+        <div class="row"><span class="lbl">Wider vertical gap<span class="tag">hold</span></span><span class="keys"><span class="k d">V</span><span class="then">›</span><span class="k">+</span></span></div>
+        <div class="row"><span class="lbl">Narrower vertical gap<span class="tag">hold</span></span><span class="keys"><span class="k d">V</span><span class="then">›</span><span class="k">−</span></span></div>
+      </section>
+      <section>
+        <h2>Rows &amp; Columns <small>keeps outer size</small></h2>
+        <div class="row"><span class="lbl">Add column on the right</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k">2</span></span></div>
+        <div class="row"><span class="lbl">Add row at the bottom</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k">3</span></span></div>
+        <div class="row"><span class="lbl">Delete right column</span><span class="keys"><span class="k m">Alt</span><span class="plus">+</span><span class="k">2</span></span></div>
+        <div class="row"><span class="lbl">Delete bottom row</span><span class="keys"><span class="k m">Alt</span><span class="plus">+</span><span class="k">3</span></span></div>
+      </section>
+      <section>
+        <h2>TK Placeholder <small>beside selection</small></h2>
+        <div class="row"><span class="lbl">Add TK on the right</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k">4</span></span></div>
+        <div class="row"><span class="lbl">Add TK below</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k">5</span></span></div>
+        <div class="row"><span class="lbl">Add TK above</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k">6</span></span></div>
+        <div class="row"><span class="lbl">Add TK on the left</span><span class="keys"><span class="k m">Ctrl</span><span class="plus">+</span><span class="k">7</span></span></div>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <div class="legend">
+      <span><span class="k d">A</span> sequence lead key</span>
+      <span><span class="tag" style="margin:0">hold</span> hold the second key to repeat</span>
+      <span><span class="tag" style="margin:0">in text too</span> also works while editing text</span>
+      <span><span class="k">+</span> is Shift+= or numpad +</span>
+    </div>
+    <span>PPTK 1.1.0 · Windows · Page 1 of 2 — Ribbon features overleaf</span>
+  </footer>
+</div>
+
+<!-- ============ PAGE 2 — RIBBON FEATURES ============ -->
+<div class="page">
+  <header>
+    <div class="brand">
+      <div class="mark"><span>PPTK</span></div>
+      <div class="title">
+        <h1>PPTK <b>Ribbon Features</b></h1>
+        <p>Everything on the PPTK tab. Items marked <span class="ro">Ribbon</span> have no keyboard shortcut.</p>
+      </div>
+    </div>
+    <div class="badge"><i></i>PPTK 1.1.0 — Windows</div>
+  </header>
+  <div class="rule"></div>
+
+  <div class="ribbon">
+    <div class="card">
+      <h3>Design <span>Color &amp; format</span></h3>
+      <ul>
+        <li><span>Fill, Outline</span><span class="ro">Ribbon</span></li>
+        <li><span>Copy / paste formatting (Painter)</span><span class="keys"><span class="k c">Ctrl+Shift+C / V</span></span></li>
+        <li><span>Fix Slide Colors<span class="d">Harmonize the slide with the theme</span></span><span class="keys"><span class="k">Q</span></span></li>
+        <li><span>Find &amp; Replace Colors<span class="d">List colors in use, replace after confirming; saves a backup first</span></span><span class="ro">Ribbon</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Reuse <span>Share slides</span></h3>
+      <ul>
+        <li><span>Save Slides<span class="d">Selected slides as a new presentation</span></span><span class="keys"><span class="k">\</span></span></li>
+        <li><span>Email Slides<span class="d">Unsent Outlook draft with slides attached</span></span><span class="ro">Ribbon</span></li>
+        <li><span>Slide Library<span class="d">Save slides, then search and insert them later</span></span><span class="ro">Ribbon</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Insert <span>Shapes &amp; content</span></h3>
+      <ul>
+        <li><span>PPTK Shapes<span class="d">Rectangle, rounded, oval, chevron, pentagon, triangle, parallelogram</span></span><span class="keys"><span class="k c">R U O C P G M</span></span></li>
+        <li><span>Text box · Icon · Enclose · New Slide</span><span class="keys"><span class="k c">T · I · E · N</span></span></li>
+        <li><span>Paste as JPEG</span><span class="ro">Ribbon</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Text <span>Edit text fast</span></h3>
+      <ul>
+        <li><span>Special characters</span><span class="ro">Ribbon</span></li>
+        <li><span>Paste content only</span><span class="keys"><span class="k c">Ctrl+Shift+T</span></span></li>
+        <li><span>Merge textboxes</span><span class="keys"><span class="k c">. › T</span></span></li>
+        <li><span>Remove margins<span class="d">Also fits table columns and rows to text</span></span><span class="keys"><span class="k c">Alt+.</span></span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Align <span>Position shapes</span></h3>
+      <ul>
+        <li><span>Left · Center · Right · Top · Middle · Bottom</span><span class="keys"><span class="k c">A › L C R T M B</span></span></li>
+        <li><span>Process · Matrix · Central</span><span class="keys"><span class="k c">A › P X Z</span></span></li>
+        <li><span>Arrange Shapes<span class="d">Structured layout</span></span><span class="ro">Ribbon</span></li>
+        <li><span>Stretch shapes<span class="d">To an edge or to the outermost shape</span></span><span class="ro">Ribbon</span></li>
+        <li><span>Set Position</span><span class="ro">Ribbon</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Space <span>Gaps &amp; distribution</span></h3>
+      <ul>
+        <li><span>Distribute horizontally / vertically</span><span class="keys"><span class="k c">D › H / V</span></span></li>
+        <li><span>Increase / decrease gaps</span><span class="keys"><span class="k c">H / V › + / −</span></span></li>
+        <li><span>Resize and space evenly<span class="d">Equal spacing, keep first, or keep last</span></span><span class="ro">Ribbon</span></li>
+        <li><span>Remove gap between shapes<span class="d">Left, right, up or down</span></span><span class="ro">Ribbon</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Rows / TK <span>Grids &amp; tables</span></h3>
+      <ul>
+        <li><span>Add / delete row or column, keep bounds</span><span class="keys"><span class="k c">Ctrl / Alt + 2 / 3</span></span></li>
+        <li><span>Add / delete row or column, expand or shrink bounds</span><span class="ro">Ribbon</span></li>
+        <li><span>Add TK right · bottom · top · left</span><span class="keys"><span class="k c">Ctrl + 4 / 5 / 6 / 7</span></span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Tools <span>Slide utilities</span></h3>
+      <ul>
+        <li><span>Flip current slide · Flip entire presentation</span><span class="ro">Ribbon</span></li>
+        <li><span>Table · Format Table</span><span class="ro">Ribbon</span></li>
+        <li><span>Copy Storyline / Notes<span class="d">To Word or the clipboard</span></span><span class="ro">Ribbon</span></li>
+        <li><span>Smart Bar<span class="d">Search and run PPTK commands</span></span><span class="keys"><span class="k c">Ctrl+K</span></span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Shape <span>Size &amp; type</span></h3>
+      <ul>
+        <li><span>Same width · height · both</span><span class="keys"><span class="k c">S › W / H / S</span></span></li>
+        <li><span>Match corner roundness · Unify shape type</span><span class="keys"><span class="k c">A › A · X › T</span></span></li>
+        <li><span>Swap position · Swap text</span><span class="keys"><span class="k c">/ · Ctrl+/</span></span></li>
+        <li><span>Change shape · Swap position (centered)</span><span class="ro">Ribbon</span></li>
+        <li><span>Size to tallest · shortest · widest · narrowest</span><span class="ro">Ribbon</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <div class="legend">
+      <span>› means a sequence: press the first key, release, then the next within 1 second. Details and context on page 1.</span>
+    </div>
+    <span>PPTK 1.1.0 · Windows · Page 2 of 2</span>
+  </footer>
+</div>
+
+<script>
+  // ?page=1 or ?page=2 shows one page only (used for the PNG export).
+  var p = new URLSearchParams(location.search).get("page");
+  if (p) document.querySelectorAll(".page").forEach(function (el, i) { if (String(i + 1) !== p) el.style.display = "none"; });
+</script>
+</body>
+</html>
