@@ -67,6 +67,17 @@ private let shiftKeycodes: Set<Int64> = [0x38, 0x3C]
 private let escapeKeycode: Int64 = 0x35
 private let prefixWindow: TimeInterval = 1.0
 
+private typealias ModeRead = (gate: FocusGate, show: ShowGate, detail: String)
+/// Marks keys this helper replays so the tap lets them through. ASCII "PPTK".
+private let replayMarker: Int64 = 0x5050_544B
+/// Same cap as the Windows helper's QueueLimit.
+private let heldKeyLimit = 128
+/// A held key falls back to typing when PowerPoint does not answer in time.
+private let readQueueLimit: TimeInterval = 3.0
+private let readLimit: TimeInterval = 1.0
+private let textboxLimit: TimeInterval = 3.0
+private let replayInFlightLimit: TimeInterval = 1.0
+
 private let textRoles: Set<String> = [
     "AXTextArea", "AXTextField", "AXSearchField", "AXComboBox", "AXTextView",
 ]
@@ -118,6 +129,21 @@ private final class Helper: @unchecked Sendable {
     private var swallowedKeycode: Int64?
     private var focusObserver: AXObserver?
     private var observedPID: pid_t = 0
+
+    // Held keys. The tap never waits for PowerPoint. A key that needs the selection is held,
+    // the selection is read on `queue`, and held keys are then handled or replayed in order.
+    // Same idea as the Windows helper's text capture after T (_capture / _pending / ReplayGuard).
+    private var pending: [CGEvent] = []
+    private var waiting = false
+    private var replayVerbatim = false
+    private var isHandling = false
+    private var suppliedRead: ModeRead?
+    private var generation = 0
+    private var waitTimer: DispatchWorkItem?
+    private var replayVerbatimPending = false
+    // Replayed keys not yet seen back at the tap. A live key must not overtake them.
+    private var replaysInFlight = 0
+    private var lastReplayAt = Date.distantPast
 
     func start() -> Int32 {
         let trusted = AXIsProcessTrustedWithOptions(accessibilityPromptOptions)
@@ -228,7 +254,214 @@ private final class Helper: @unchecked Sendable {
         return keyLetters[keycode] != nil
     }
 
-    func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    /// Tap entry. Returns at once: no AppleScript runs here, so a nested callback cannot deadlock.
+    func intercept(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard type == .keyDown else { return handle(type: type, event: event) }
+        if event.getIntegerValueField(.eventSourceUserData) == replayMarker {
+            if replaysInFlight > 0 { replaysInFlight -= 1 }
+            return Unmanaged.passUnretained(event)
+        }
+        defer { scheduleDrainIfIdle() }
+        if isHandling || waiting || !pending.isEmpty || replayStillInFlight() {
+            return hold(event)
+        }
+        if needsSelectionRead(event) {
+            guard let copy = event.copy() else { return Unmanaged.passUnretained(event) }
+            pending.append(copy)
+            startRead()
+            return nil
+        }
+        isHandling = true
+        defer { isHandling = false }
+        return handle(type: type, event: event)
+    }
+
+    /// Keeps arrival order while an earlier key is still being decided.
+    private func hold(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard isPowerPointFrontmost() else {
+            discardPending("app changed")
+            return Unmanaged.passUnretained(event)
+        }
+        guard pending.count < heldKeyLimit, let copy = event.copy() else {
+            fputs("[PPTKKeys] hold limit, key passed\n", stderr)
+            return Unmanaged.passUnretained(event)
+        }
+        pending.append(copy)
+        return nil
+    }
+
+    /// Same keys that used to ask PowerPoint inside the tap. Text entry, dialogs,
+    /// and cached auto-repeat are decided without AppleScript and stay immediate.
+    private func needsSelectionRead(_ event: CGEvent) -> Bool {
+        guard isPowerPointFrontmost() else { return false }
+        let keycode = event.getIntegerValueField(.keyboardEventKeycode)
+        guard ownsShortcut(event, keycode: keycode) else { return false }
+        if event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
+           keycode == swallowedKeycode || repeatGate != .unknown {
+            return false
+        }
+        return !(focusInsideDialog() || focusAcceptsTyping())
+    }
+
+    private func startRead() {
+        waiting = true
+        generation += 1
+        let token = generation
+        armWaitTimer(token, after: readQueueLimit)
+        queue.async { [weak self] in
+            DispatchQueue.main.async { self?.readStarted(token) }
+            guard let read = self?.modeRead() else { return }
+            DispatchQueue.main.async { self?.readArrived(token, read) }
+        }
+    }
+
+    /// The read waits behind earlier macros on `queue`. Its own limit starts when it runs.
+    private func readStarted(_ token: Int) {
+        guard token == generation, waiting else { return }
+        armWaitTimer(token, after: readLimit)
+    }
+
+    private func readArrived(_ token: Int, _ read: ModeRead) {
+        guard token == generation, waiting else { return }
+        resolveFirst(read)
+    }
+
+    private func armWaitTimer(_ token: Int, after seconds: TimeInterval) {
+        waitTimer?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.waitTimedOut(token) }
+        waitTimer = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
+    }
+
+    private func waitTimedOut(_ token: Int) {
+        guard token == generation, waiting else { return }
+        if replayVerbatimPending {
+            // T macro did not finish. Replay only back into PowerPoint, never into a dialog (Windows ReplayGuard).
+            replayVerbatimPending = false
+            endWait()
+            if isPowerPointFrontmost(), !focusInsideDialog() {
+                fputs("[PPTKKeys] T slow, replaying held keys\n", stderr)
+                replayVerbatim = true
+                drain()
+            } else {
+                discardPending("T timeout")
+            }
+            return
+        }
+        fputs("[PPTKKeys] selection read timed out, key typed\n", stderr)
+        resolveFirst((.unknown, .unknown, "selection=timeout"))
+    }
+
+    private func endWait() {
+        generation += 1
+        waitTimer?.cancel()
+        waitTimer = nil
+        waiting = false
+    }
+
+    private func resolveFirst(_ read: ModeRead) {
+        endWait()
+        guard !pending.isEmpty else { return }
+        guard isPowerPointFrontmost() else {
+            discardPending("app changed")
+            return
+        }
+        process(pending.removeFirst(), read: read)
+        drain()
+    }
+
+    /// Runs the unchanged gate with a selection read that already happened.
+    private func process(_ event: CGEvent, read: ModeRead?) {
+        suppliedRead = read
+        isHandling = true
+        let result = handle(type: .keyDown, event: event)
+        isHandling = false
+        suppliedRead = nil
+        if result != nil { replay(event) }
+    }
+
+    private func drain() {
+        while !waiting, !isHandling, !pending.isEmpty {
+            guard isPowerPointFrontmost() else {
+                discardPending("app changed")
+                return
+            }
+            let event = pending.removeFirst()
+            if replayVerbatim {
+                replay(event)
+                continue
+            }
+            if needsSelectionRead(event) {
+                pending.insert(event, at: 0)
+                startRead()
+                return
+            }
+            process(event, read: nil)
+        }
+        if pending.isEmpty { replayVerbatim = false }
+    }
+
+    private func scheduleDrainIfIdle() {
+        guard !waiting, !isHandling, !pending.isEmpty else { return }
+        DispatchQueue.main.async { [weak self] in self?.drain() }
+    }
+
+    /// T runs on `queue` like every other macro. Keys typed meanwhile are held and
+    /// replayed as typed once the text box exists, so none reach the slide early.
+    private func dispatchTextbox() {
+        waiting = true
+        replayVerbatimPending = true
+        generation += 1
+        let token = generation
+        armWaitTimer(token, after: textboxLimit)
+        fputs("[PPTKKeys] dispatch T, holding keys\n", stderr)
+        queue.async { [weak self] in
+            self?.dispatch("T")
+            DispatchQueue.main.async { self?.textboxFinished(token) }
+        }
+    }
+
+    private func textboxFinished(_ token: Int) {
+        guard token == generation, waiting else { return }
+        replayVerbatimPending = false
+        endWait()
+        if !pending.isEmpty {
+            fputs("[PPTKKeys] replaying \(pending.count) held keys\n", stderr)
+        }
+        replayVerbatim = true
+        drain()
+    }
+
+    /// A replayed key that never comes back (another tap dropped it) stops counting after a second.
+    private func replayStillInFlight() -> Bool {
+        guard replaysInFlight > 0 else { return false }
+        if Date().timeIntervalSince(lastReplayAt) > replayInFlightLimit {
+            replaysInFlight = 0
+            return false
+        }
+        return true
+    }
+
+    private func replay(_ event: CGEvent) {
+        guard let down = event.copy() else { return }
+        down.setIntegerValueField(.eventSourceUserData, value: replayMarker)
+        replaysInFlight += 1
+        lastReplayAt = Date()
+        down.post(tap: .cgSessionEventTap)
+        guard let up = event.copy() else { return }
+        up.type = .keyUp
+        up.setIntegerValueField(.eventSourceUserData, value: replayMarker)
+        up.post(tap: .cgSessionEventTap)
+    }
+
+    private func discardPending(_ reason: String) {
+        replayVerbatim = false
+        guard !pending.isEmpty else { return }
+        fputs("[PPTKKeys] discarded \(pending.count) held keys (\(reason))\n", stderr)
+        pending.removeAll()
+    }
+
+    func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap {
                 CGEvent.tapEnable(tap: tap, enable: true)
@@ -520,7 +753,7 @@ private final class Helper: @unchecked Sendable {
         }
         if !isRepeat {
             if token == "T" {
-                dispatch(token)
+                dispatchTextbox()
             } else {
                 queue.async { [weak self] in self?.dispatch(token) }
             }
@@ -533,7 +766,8 @@ private final class Helper: @unchecked Sendable {
         if isRepeat, repeatGate != .unknown {
             return KeyContext(gate: repeatGate, show: .editing, surface: surfaceFor(repeatGate), detail: "repeat")
         }
-        let read = modeRead()
+        // Never ask PowerPoint on the tap thread. The read was made on `queue` before this key was handled.
+        let read = suppliedRead ?? (.unknown, .unknown, "selection=not read")
         repeatGate = read.gate
         let context = KeyContext(gate: read.gate, show: read.show, surface: surfaceFor(read.gate), detail: read.detail)
         fputs("\(letter) \(context.gate) \(context.detail)\n", stderr)
@@ -621,7 +855,7 @@ private final class Helper: @unchecked Sendable {
 
     /// Asked on the key itself so the first R inside text is a letter, and the first R
     /// after leaving text inserts a shape. A background poll was always one step late.
-    private func modeRead() -> (gate: FocusGate, show: ShowGate, detail: String) {
+    private func modeRead() -> ModeRead {
         switch appleScript(modeScript) {
         case .failed(let number, _):
             if number == -1743, !loggedAutomation {
@@ -885,7 +1119,7 @@ private func tapCallback(
 ) -> Unmanaged<CGEvent>? {
     guard let userInfo else { return Unmanaged.passUnretained(event) }
     let helper = Unmanaged<Helper>.fromOpaque(userInfo).takeUnretainedValue()
-    let result = helper.handle(proxy: proxy, type: type, event: event)
+    let result = helper.intercept(type: type, event: event)
     helper.restoreTapIfNeeded()
     return result
 }
