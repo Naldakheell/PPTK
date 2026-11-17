@@ -38,6 +38,7 @@ private let keyLetters: [Int64: String] = [
     0x02: "D",
     0x04: "H",
     0x05: "G",
+    0x07: "X",
     0x08: "C",
     0x09: "V",
     0x0B: "B",
@@ -54,14 +55,15 @@ private let keyLetters: [Int64: String] = [
 ]
 
 private let directTokens: Set<String> = ["T", "R", "U", "O", "C", "P", "G", "M", "N", "I", "/"]
-private let prefixLetters: Set<String> = ["A", "S", "D", "H", "V", "."]
+private let prefixLetters: Set<String> = ["A", "S", "D", "H", "V", ".", "X"]
 private let sequenceTokens: Set<String> = [
-    "A L", "A R", "A T", "A B", "A M", "A C",
+    "A L", "A R", "A T", "A B", "A M", "A C", "A A",
     "S W", "S H", "S S",
     "D H", "D V",
     "H +", "H -",
     "V +", "V -",
     ". T",
+    "X T",
 ]
 private let shiftKeycodes: Set<Int64> = [0x38, 0x3C]
 private let escapeKeycode: Int64 = 0x35
