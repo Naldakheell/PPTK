@@ -1,4 +1,4 @@
-# Builds the PPTK cyan ribbon icon set and the integration manifest.
+﻿# Builds the PPTK cyan ribbon icon set and the integration manifest.
 # Does not edit CustomUI.xml, the PPTM, forms, or command modules.
 param(
     [string]$OnlyIcon = '',
@@ -712,7 +712,114 @@ function Icon-Storyline($g, $k) {
     Fill-Rect $g $k 4 10.6 8 1.3 $script:White
 }
 
+# ---- Right-click Select menu (src\PPTK\Ribbon\CustomUI.xml, <contextMenus>). One family: each icon is its own
+# glyph in the upper left, in cyan and ink, plus the same small ink selection pointer in the lower right.
+function Draw-SelPointer($g, $k) {
+    Fill-Poly $g $k $script:White ([single[]]@(9, 7.6, 9, 16, 11.2, 14, 12.6, 16.4, 14.6, 15.4, 13.2, 13, 16, 12.6))
+    Fill-Poly $g $k $script:Ink ([single[]]@(9.8, 9.2, 9.8, 14.2, 11.4, 12.7, 12.8, 15.2, 13.8, 14.7, 12.5, 12.3, 14.6, 12.1))
+}
+function Draw-Dashed($g, $k, $x, $y, $w, $h) {
+    for ($i = $x; $i -lt ($x + $w - 0.5); $i += 2) { Fill-Rect $g $k $i $y 1 1 $script:Ink; Fill-Rect $g $k $i ($y + $h - 1) 1 1 $script:Ink }
+    for ($j = $y; $j -lt ($y + $h - 0.5); $j += 2) { Fill-Rect $g $k $x $j 1 1 $script:Ink; Fill-Rect $g $k ($x + $w - 1) $j 1 1 $script:Ink }
+}
+function Draw-LetterA($g, $k, $x, $y, $h, $color, $pen) {
+    $w = $h * 0.78
+    Stroke-Line $g $k $x ($y + $h) ($x + $w / 2) $y $color $pen
+    Stroke-Line $g $k ($x + $w / 2) $y ($x + $w) ($y + $h) $color $pen
+    Stroke-Line $g $k ($x + $w * 0.24) ($y + $h * 0.64) ($x + $w * 0.76) ($y + $h * 0.64) $color $pen
+}
+# Select (the menu): a dashed selection frame around a cyan shape.
+function Icon-SelMenu($g, $k) {
+    Draw-Dashed $g $k 1 1 12 11
+    Fill-Round $g $k 3.5 3.5 7 6 1 $script:Cyan
+    Draw-SelPointer $g $k
+}
+# Select All: three shapes, all inside one dashed frame.
+function Icon-SelAll($g, $k) {
+    Draw-Dashed $g $k 0 0 14 13
+    Fill-Rect $g $k 2 2 4 4 $script:Cyan
+    Fill-Ellipse $g $k 7.5 2 4.5 4.5 $script:Cyan
+    Fill-Rect $g $k 2 7.5 4 3.5 $script:Cyan
+    Draw-SelPointer $g $k
+}
+# Select All Text on Slide: a cyan T over text lines.
+function Icon-SelText($g, $k) {
+    Fill-Rect $g $k 1 1 9 2.2 $script:Cyan
+    Fill-Rect $g $k 4.4 1 2.2 9 $script:Cyan
+    Fill-Rect $g $k 1 11.5 6.5 1.2 $script:Ink
+    Draw-SelPointer $g $k
+}
+# Select By Fill Color: a shape filled with cyan.
+function Icon-SelFill($g, $k) {
+    Fill-Rect $g $k 1 1 10 9 $script:Cyan
+    Stroke-Rect $g $k 1 1 10 9 $script:Ink 1
+    Draw-SelPointer $g $k
+}
+# Select By Border Color: an empty shape with a thick cyan outline.
+function Icon-SelBorder($g, $k) {
+    Stroke-Rect $g $k 1 1 10 9 $script:Cyan 2
+    Draw-SelPointer $g $k
+}
+# Select By Font Color: an ink A over a cyan color bar.
+function Icon-SelFontColor($g, $k) {
+    Draw-LetterA $g $k 1.8 1 8 $script:Ink 1.6
+    Fill-Rect $g $k 1 11 8.5 2.2 $script:Cyan
+    Draw-SelPointer $g $k
+}
+# Select By Font Size: a large ink A and a small cyan A.
+function Icon-SelFontSize($g, $k) {
+    Draw-LetterA $g $k 0.8 1 10 $script:Ink 1.6
+    Draw-LetterA $g $k 7.4 5.5 5 $script:Cyan 1.3
+    Draw-SelPointer $g $k
+}
+# Select By Object Type: a cyan circle and an ink square, two kinds of shape.
+function Icon-SelType($g, $k) {
+    Fill-Rect $g $k 1 1 6 6 $script:Ink
+    Fill-Ellipse $g $k 4.5 4.5 7 7 $script:Cyan
+    Draw-SelPointer $g $k
+}
+# Select Shapes of Same Width: a cyan width arrow between two ink end bars.
+function Icon-SelWidth($g, $k) {
+    Fill-Rect $g $k 0 1 1 8 $script:Ink
+    Fill-Rect $g $k 12 1 1 8 $script:Ink
+    Stroke-Line $g $k 3 5.5 9.5 5.5 $script:Cyan 1.6
+    Fill-Poly $g $k $script:Cyan ([single[]]@(2.2, 5.5, 4.6, 3.3, 4.6, 7.7))
+    Fill-Poly $g $k $script:Cyan ([single[]]@(10.8, 5.5, 8.4, 3.3, 8.4, 7.7))
+    Draw-SelPointer $g $k
+}
+# Select Shapes of Same Height: a cyan height arrow between two ink end bars.
+function Icon-SelHeight($g, $k) {
+    Fill-Rect $g $k 0 0 8 1 $script:Ink
+    Fill-Rect $g $k 0 11 8 1 $script:Ink
+    Stroke-Line $g $k 4 3 4 9 $script:Cyan 1.6
+    Fill-Poly $g $k $script:Cyan ([single[]]@(4, 1.8, 1.8, 4.4, 6.2, 4.4))
+    Fill-Poly $g $k $script:Cyan ([single[]]@(4, 10.2, 1.8, 7.6, 6.2, 7.6))
+    Draw-SelPointer $g $k
+}
+# Select Shapes of Same Size: a cyan square with ink corner marks on both axes.
+function Icon-SelSize($g, $k) {
+    Fill-Rect $g $k 2 2 7 7 $script:Cyan
+    Fill-Rect $g $k 0 0 4 1 $script:Ink
+    Fill-Rect $g $k 0 0 1 4 $script:Ink
+    Fill-Rect $g $k 7 0 4 1 $script:Ink
+    Fill-Rect $g $k 10 0 1 4 $script:Ink
+    Fill-Rect $g $k 0 10 1 3 $script:Ink
+    Fill-Rect $g $k 0 12 4 1 $script:Ink
+    Draw-SelPointer $g $k
+}
+
 $Draw = @{
+    'pptk-sel-menu' = { param($g, $k) Icon-SelMenu $g $k }
+    'pptk-sel-all' = { param($g, $k) Icon-SelAll $g $k }
+    'pptk-sel-text' = { param($g, $k) Icon-SelText $g $k }
+    'pptk-sel-fill' = { param($g, $k) Icon-SelFill $g $k }
+    'pptk-sel-border' = { param($g, $k) Icon-SelBorder $g $k }
+    'pptk-sel-font-color' = { param($g, $k) Icon-SelFontColor $g $k }
+    'pptk-sel-font-size' = { param($g, $k) Icon-SelFontSize $g $k }
+    'pptk-sel-type' = { param($g, $k) Icon-SelType $g $k }
+    'pptk-sel-width' = { param($g, $k) Icon-SelWidth $g $k }
+    'pptk-sel-height' = { param($g, $k) Icon-SelHeight $g $k }
+    'pptk-sel-size' = { param($g, $k) Icon-SelSize $g $k }
     'pptk-format-more' = { param($g, $k) Icon-FormatMore $g $k }
     'pptk-fix-colors' = { param($g, $k) Icon-FixColors $g $k }
     'pptk-replace-colors' = { param($g, $k) Icon-ReplaceColors $g $k }

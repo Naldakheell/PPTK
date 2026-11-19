@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="pptk-align-angle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-align-angle.png"/>
   <Relationship Id="pptk-align-bottom" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-align-bottom.png"/>
@@ -118,4 +118,15 @@
   <Relationship Id="sb-row-del-keep" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-row-del-keep.png"/>
   <Relationship Id="sb-row-del-shrink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-row-del-shrink.png"/>
   <Relationship Id="sb-unify" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/sb-unify.png"/>
+  <Relationship Id="pptk-sel-menu" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-sel-menu.png"/>
+  <Relationship Id="pptk-sel-all" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-sel-all.png"/>
+  <Relationship Id="pptk-sel-text" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-sel-text.png"/>
+  <Relationship Id="pptk-sel-fill" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-sel-fill.png"/>
+  <Relationship Id="pptk-sel-border" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-sel-border.png"/>
+  <Relationship Id="pptk-sel-font-color" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-sel-font-color.png"/>
+  <Relationship Id="pptk-sel-font-size" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-sel-font-size.png"/>
+  <Relationship Id="pptk-sel-type" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-sel-type.png"/>
+  <Relationship Id="pptk-sel-width" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-sel-width.png"/>
+  <Relationship Id="pptk-sel-height" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-sel-height.png"/>
+  <Relationship Id="pptk-sel-size" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/pptk-sel-size.png"/>
 </Relationships>

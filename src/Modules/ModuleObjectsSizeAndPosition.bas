@@ -321,47 +321,44 @@ Private Sub PPTK_SwapZOrder(ByVal first As Shape, ByVal second As Shape)
     Next i
 End Sub
 
+' Swap Positions (/ shortcut, ribbon, Smart Bar): each shape moves to the centre of the other one.
+' Centres, not left/top edges, so shapes of different sizes land exactly where the other one was
+' (2026-11-18; before, the visible left/top edges were swapped, which shifted a narrow shape against a wide
+' one). Left + Width / 2 is the rotation centre, which is also the centre of the visible (rotated) box, so
+' this is exact for rotated shapes too. Both centres are read before anything moves. Sizes, rotation,
+' formatting, text, stacking order and the selection are not changed. One Undo step.
+Private Sub PPTK_SwapCentres(ByVal first As Shape, ByVal second As Shape)
+    Dim firstX As Single
+    Dim firstY As Single
+    Dim secondX As Single
+    Dim secondY As Single
+    firstX = first.Left + first.Width / 2
+    firstY = first.Top + first.Height / 2
+    secondX = second.Left + second.Width / 2
+    secondY = second.Top + second.Height / 2
+    first.Left = secondX - first.Width / 2
+    first.Top = secondY - first.Height / 2
+    second.Left = firstX - second.Width / 2
+    second.Top = firstY - second.Height / 2
+End Sub
+
 Sub ObjectsSwapPosition(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
-    
-    Dim Left1       As Single
-    Dim Left2       As Single
-    Dim Top1        As Single
-    Dim Top2        As Single
-    
+    On Error Resume Next
+    Application.StartNewUndoEntry
+    On Error GoTo 0
+
     If ActiveWindow.Selection.ShapeRange.count = 2 Then
-        
-        Left1 = GetRealLeft(ActiveWindow.Selection.ShapeRange(1))
-        Left2 = GetRealLeft(ActiveWindow.Selection.ShapeRange(2))
-        Top1 = GetRealTop(ActiveWindow.Selection.ShapeRange(1))
-        Top2 = GetRealTop(ActiveWindow.Selection.ShapeRange(2))
-        
-        SetRealLeft ActiveWindow.Selection.ShapeRange(1), Left2
-        SetRealLeft ActiveWindow.Selection.ShapeRange(2), Left1
-        SetRealTop ActiveWindow.Selection.ShapeRange(1), Top2
-        SetRealTop ActiveWindow.Selection.ShapeRange(2), Top1
-        
-        
-        PPTK_SwapZOrder ActiveWindow.Selection.ShapeRange(1), ActiveWindow.Selection.ShapeRange(2)
-        
+
+        PPTK_SwapCentres ActiveWindow.Selection.ShapeRange(1), ActiveWindow.Selection.ShapeRange(2)
+
     ElseIf MyDocument.Selection.HasChildShapeRange Then
-        
+
         If MyDocument.Selection.ChildShapeRange.count = 2 Then
-            
-            Left1 = GetRealLeft(MyDocument.Selection.ChildShapeRange(1))
-            Left2 = GetRealLeft(MyDocument.Selection.ChildShapeRange(2))
-            Top1 = GetRealTop(MyDocument.Selection.ChildShapeRange(1))
-            Top2 = GetRealTop(MyDocument.Selection.ChildShapeRange(2))
-            
-            SetRealLeft ActiveWindow.Selection.ChildShapeRange(1), Left2
-            SetRealLeft ActiveWindow.Selection.ChildShapeRange(2), Left1
-            SetRealTop ActiveWindow.Selection.ChildShapeRange(1), Top2
-            SetRealTop ActiveWindow.Selection.ChildShapeRange(2), Top1
-            
-            
-            PPTK_SwapZOrder ActiveWindow.Selection.ChildShapeRange(1), ActiveWindow.Selection.ChildShapeRange(2)
-            
+
+            PPTK_SwapCentres MyDocument.Selection.ChildShapeRange(1), MyDocument.Selection.ChildShapeRange(2)
+
         Else
             
             MsgBox "Select two shapes To swap positions."

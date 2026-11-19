@@ -321,9 +321,14 @@ function Get-ContentFingerprint($parts, $modules) {
 }
 
 function Test-PpamStructure($parts, [string]$label, [string]$root) {
-    foreach ($req in '[Content_Types].xml', 'ppt/vbaProject.bin', 'customUI/customUI.xml', 'customUI/_rels/customUI.xml.rels') {
+    foreach ($req in '[Content_Types].xml', 'ppt/vbaProject.bin', 'customUI/customUI.xml', 'customUI/_rels/customUI.xml.rels', '_rels/.rels') {
         if (-not $parts.Contains($req)) { Fail "$label is missing the part $req" }
     }
+    # The ribbon uses the Office 2010+ schema (2009/07, needed for the right-click Select menu). PowerPoint loads it
+    # only through the 2007 ui/extensibility relationship; with the 2006 type it ignores the whole ribbon.
+    $rootRels = [Text.Encoding]::UTF8.GetString($parts['_rels/.rels'])
+    if ($rootRels -notmatch 'Type="http://schemas\.microsoft\.com/office/2007/relationships/ui/extensibility"\s+Target="customUI/customUI\.xml"' -and $rootRels -notmatch 'Target="customUI/customUI\.xml"[^>]*Type="http://schemas\.microsoft\.com/office/2007/relationships/ui/extensibility"') { Fail "$label does not link customUI/customUI.xml with the 2007 ui/extensibility relationship (Office 2010+ ribbon)" }
+    if ([Text.Encoding]::UTF8.GetString($parts['customUI/customUI.xml']) -notmatch 'xmlns="http://schemas\.microsoft\.com/office/2009/07/customui"') { Fail "$label ribbon is not on the 2009/07 customUI schema" }
     if ([Text.Encoding]::UTF8.GetString($parts['[Content_Types].xml']) -notmatch [regex]::Escape($AddinContentType)) { Fail "$label is not a macro-enabled PowerPoint add-in ($AddinContentType not found)" }
     $relsText = [Text.Encoding]::UTF8.GetString($parts['customUI/_rels/customUI.xml.rels'])
     $targets = @([regex]::Matches($relsText, 'Target="images/([^"]+)"') | ForEach-Object { $_.Groups[1].Value })

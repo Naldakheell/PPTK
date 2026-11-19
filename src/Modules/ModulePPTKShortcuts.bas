@@ -61,17 +61,17 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
         Case "E"
             PPTK_EncloseIcons
         Case "A L"
-            ObjectsAlignLefts
+            PPTK_AlignEdge "L"
         Case "A R"
-            ObjectsAlignRights
+            PPTK_AlignEdge "R"
         Case "A T"
-            ObjectsAlignTops
+            PPTK_AlignEdge "T"
         Case "A B"
-            ObjectsAlignBottoms
+            PPTK_AlignEdge "B"
         Case "A M"
-            ObjectsAlignMiddles
+            PPTK_AlignEdge "M"
         Case "A C"
-            ObjectsAlignCenters
+            PPTK_AlignEdge "C"
         Case "A A"
             PPTK_MatchCornerRoundness
         Case "X T"
@@ -154,6 +154,28 @@ Public Sub PPTK_DispatchShortcut(ByVal token As String)
             PPTK_DeleteRightColumnShrink
         Case "CMD DELETE ROW SHRINK"
             PPTK_DeleteBottomRowShrink
+        Case "CMD SELECT FILL"
+            PPTK_SelectSimilarFill
+        Case "CMD SELECT OUTLINE"
+            PPTK_SelectSimilarOutline
+        Case "CMD SELECT FONT"
+            PPTK_SelectSimilarFont
+        Case "CMD SELECT FONT COLOR"
+            PPTK_SelectSimilarFontColor
+        Case "CMD SELECT TYPE"
+            PPTK_SelectSimilarType
+        Case "CMD SELECT SIZE"
+            PPTK_SelectSimilarSize
+        Case "CMD SELECT FONT SIZE"
+            PPTK_SelectSimilarFontSize
+        Case "CMD SELECT WIDTH"
+            PPTK_SelectSimilarWidth
+        Case "CMD SELECT HEIGHT"
+            PPTK_SelectSimilarHeight
+        Case "CMD REPLACE FONTS"
+            PPTK_ShowReplaceFonts
+        Case "CMD ALIGN REFERENCE"
+            PPTK_ToggleAlignReference
         Case "CMD FLIP SLIDE"
             PPTK_FlipCurrentSlide
         Case "CMD REPLACE COLORS"

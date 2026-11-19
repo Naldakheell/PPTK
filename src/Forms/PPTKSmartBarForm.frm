@@ -185,6 +185,25 @@ Private Sub lblField_Click()
     PPTK_FocusSearch
 End Sub
 
+' MouseDown, not only Click: Click needs the press and the release on the same control, so a quick or
+' slightly moving click on the search row was lost. Every part of the search row focuses on press.
+Private Sub lblField_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    PPTK_FocusSearch
+End Sub
+
+Private Sub lblCue_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    PPTK_FocusSearch
+End Sub
+
+Private Sub lblSearchIcon_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    PPTK_FocusSearch
+End Sub
+
+' The window background above the divider line is part of the search row too.
+Private Sub UserForm_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    If Y < lblAccent.Top Then PPTK_FocusSearch
+End Sub
+
 Private Sub lblSearchEnter_Click()
     PPTK_FocusSearch
 End Sub
@@ -275,7 +294,12 @@ Private Sub PPTK_ApplyChrome()
     lblBrand.Visible = False
     lblSearchEnter.Visible = False
     lblHint.Visible = False
-    lblField.Visible = False
+    ' lblField is the clickable search surface: transparent, behind the search box and icon, covering the
+    ' whole search row, so a click anywhere in that row focuses the search (PPTK_Layout places it).
+    lblField.Caption = ""
+    lblField.BackStyle = fmBackStyleTransparent
+    lblField.BorderStyle = fmBorderStyleNone
+    lblField.Visible = True
 
     PPTK_Font lblSearchIcon, 12, False, ColorAccent
     lblSearchIcon.Font.Name = IconFont
@@ -293,6 +317,8 @@ Private Sub PPTK_ApplyChrome()
     txtFilter.Multiline = False
     txtFilter.EnterKeyBehavior = False
     txtFilter.TextAlign = fmTextAlignLeft
+    ' Focus coming back to the search keeps the text and the caret where they were (no select-all).
+    txtFilter.EnterFieldBehavior = fmEnterFieldBehaviorRecallSelection
 
     PPTK_Font lblCue, 12, False, ColorMuted
     lblCue.Caption = "Search " & TotalCount & " commands..."
@@ -397,6 +423,12 @@ Private Sub PPTK_Layout()
     lblAccent.Width = inner
     lblAccent.Height = 0.75
 
+    ' Clickable search surface: the whole search row up to the ESC label.
+    lblField.Left = Pad - 6
+    lblField.Top = 2
+    lblField.Width = lblEsc.Left - 4 - lblField.Left
+    lblField.Height = lblAccent.Top - 4
+
     ' Section row
     lblSection.Left = Pad
     lblSection.Top = 52
@@ -449,6 +481,8 @@ Private Sub PPTK_Layout()
     If Abs(Me.Width - (ClientW + extraW)) >= 1 Then Me.Width = ClientW + extraW
     If Abs(Me.Height - (ClientH + extraH)) >= 1 Then Me.Height = ClientH + extraH
 
+    lblField.ZOrder 1
+    lblSearchIcon.ZOrder 0
     txtFilter.ZOrder 0
     lblCue.ZOrder 0
     lblEmpty.ZOrder 0

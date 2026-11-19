@@ -114,33 +114,49 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
+' Slide Library window, dark PPTK look. The entry list is a PPTKDarkList (Smart Bar scrollbar) in the place
+' of the designer ListBox lstEntries, which stays hidden. Click selects and previews, double-click inserts,
+' Up / Down in the search box move the selection, Esc closes. The buttons are PPTKFlatButton faces over the
+' real buttons.
+
 Private EntryNames() As String
 Private EntryPaths() As String
+Private WithEvents lstLibrary As PPTKDarkList
+Private WithEvents flatInsert As PPTKFlatButton
+Private WithEvents flatFolder As PPTKFlatButton
+Private WithEvents flatClose As PPTKFlatButton
 
 Private Sub UserForm_Initialize()
+    ' Dark PPTK window palette (ModulePPTKBrand, the Smart Bar's look).
     PPTK_StyleForm Me
-    Me.BackColor = PPTK_COLOR_LIGHT_BACKGROUND
+    Me.BackColor = PPTK_DARK_PAGE
     Me.Font.Name = "Segoe UI"
-    lblAccent.Caption = ""
-    lblAccent.BackColor = PPTK_COLOR_PRIMARY
+    lblAccent.Visible = False   ' no coloured line under the title
     PPTK_StyleField txtSearch
-    PPTK_StyleField lstEntries
     PPTK_StyleField imgPreview
     PPTK_StylePrimaryButton btnInsert
     PPTK_StyleSecondaryButton btnFolder
     PPTK_StyleSecondaryButton btnClose
     lblName.BackStyle = 0
-    lblName.ForeColor = PPTK_COLOR_DARK_TEXT
+    lblName.ForeColor = PPTK_DARK_INK
     lblFolder.BackStyle = 0
-    lblFolder.ForeColor = PPTK_COLOR_DARK_TEXT
-    lblEmpty.BackStyle = 0
-    lblEmpty.ForeColor = PPTK_COLOR_DARK_TEXT
+    lblFolder.ForeColor = PPTK_DARK_MUTED
+    lblEmpty.Visible = False
     lblPreview.BackStyle = 0
-    lblPreview.ForeColor = PPTK_COLOR_DARK_TEXT
-    chkSource.BackColor = PPTK_COLOR_LIGHT_BACKGROUND
-    chkSource.ForeColor = PPTK_COLOR_DARK_TEXT
-    lstEntries.ColumnCount = 2
-    lstEntries.ColumnWidths = "180 pt;0 pt"
+    lblPreview.ForeColor = PPTK_DARK_MUTED
+    chkSource.BackColor = PPTK_DARK_PAGE
+    chkSource.ForeColor = PPTK_DARK_INK
+    lstEntries.Visible = False
+    lstEntries.TabStop = False
+    Set lstLibrary = New PPTKDarkList
+    lstLibrary.Init Me, "lstLibrary", lstEntries.Left, lstEntries.Top, lstEntries.Width, lstEntries.Height, 18
+    lstLibrary.EmptyMessage = "No matching entries"
+    Set flatInsert = New PPTKFlatButton
+    flatInsert.Attach Me, btnInsert, True
+    Set flatFolder = New PPTKFlatButton
+    flatFolder.Attach Me, btnFolder, False
+    Set flatClose = New PPTKFlatButton
+    flatClose.Attach Me, btnClose, False
     txtSearch.Text = ""
     PPTK_Refill
 End Sub
@@ -149,16 +165,15 @@ Private Sub txtSearch_Change()
     PPTK_Refill
 End Sub
 
-Private Sub lstEntries_Click()
+Private Sub lstLibrary_Changed()
     PPTK_ShowSelected
 End Sub
 
-Private Sub btnInsert_Click()
+Private Sub lstLibrary_Activated()
     PPTK_InsertSelected
 End Sub
 
-Private Sub lstEntries_DblClick(ByVal Cancel As MSForms.ReturnBoolean)
-    Cancel = True
+Private Sub btnInsert_Click()
     PPTK_InsertSelected
 End Sub
 
@@ -170,10 +185,31 @@ Private Sub btnClose_Click()
     Unload Me
 End Sub
 
+Private Sub flatInsert_Click()
+    btnInsert_Click
+End Sub
+
+Private Sub flatFolder_Click()
+    btnFolder_Click
+End Sub
+
+Private Sub flatClose_Click()
+    btnClose_Click
+End Sub
+
+Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    flatInsert.Leave
+    flatFolder.Leave
+    flatClose.Leave
+    lstLibrary.Leave
+End Sub
+
 Private Sub txtSearch_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
     If KeyCode = vbKeyEscape Then
         KeyCode = 0
         Unload Me
+    ElseIf KeyCode = vbKeyDown Or KeyCode = vbKeyUp Or KeyCode = vbKeyPageDown Or KeyCode = vbKeyPageUp Then
+        If lstLibrary.HandleKey(KeyCode) Then KeyCode = 0
     End If
 End Sub
 
@@ -187,38 +223,49 @@ Public Sub PPTK_ApplySearch(ByVal query As String)
 End Sub
 
 Public Function PPTK_ListedCount() As Long
-    PPTK_ListedCount = lstEntries.ListCount
+    PPTK_ListedCount = lstLibrary.Count
 End Function
 
+' index is 0-based (as the ListBox it replaces).
 Public Function PPTK_ListedName(ByVal index As Long) As String
-    If index < 0 Or index >= lstEntries.ListCount Then Exit Function
-    PPTK_ListedName = CStr(lstEntries.List(index, 0))
+    If index < 0 Or index >= lstLibrary.Count Then Exit Function
+    PPTK_ListedName = lstLibrary.ItemText(index + 1)
 End Function
 
 Private Sub PPTK_Refill()
     Dim query As String
     Dim index As Long
+    Dim names() As String
+    Dim paths() As String
     Dim visibleCount As Long
     query = LCase$(Trim$(txtSearch.Text))
     PPTK_LibraryList EntryNames, EntryPaths
-    lstEntries.Clear
     visibleCount = 0
     If (Not Not EntryNames) <> 0 Then
         If UBound(EntryNames) >= LBound(EntryNames) And UBound(EntryNames) > 0 Then
+            ReDim names(1 To UBound(EntryNames) - LBound(EntryNames) + 1)
+            ReDim paths(1 To UBound(names))
             For index = LBound(EntryNames) To UBound(EntryNames)
                 If Len(query) = 0 Or InStr(1, LCase$(EntryNames(index)), query, vbTextCompare) > 0 Then
-                    lstEntries.AddItem EntryNames(index)
-                    lstEntries.List(lstEntries.ListCount - 1, 1) = EntryPaths(index)
                     visibleCount = visibleCount + 1
+                    names(visibleCount) = EntryNames(index)
+                    paths(visibleCount) = EntryPaths(index)
                 End If
             Next index
         End If
     End If
-    lblFolder.Caption = PPTK_LibraryFolder()
-    lblEmpty.Visible = (visibleCount = 0)
-    btnInsert.Enabled = (visibleCount > 0)
     If visibleCount > 0 Then
-        lstEntries.ListIndex = 0
+        ReDim Preserve names(1 To visibleCount)
+        ReDim Preserve paths(1 To visibleCount)
+        lstLibrary.SetItems names, paths
+    Else
+        lstLibrary.SetItems Empty
+    End If
+    lblFolder.Caption = PPTK_LibraryFolder()
+    btnInsert.Enabled = (visibleCount > 0)
+    flatInsert.Sync
+    If visibleCount > 0 Then
+        lstLibrary.ListIndex = 1
     Else
         lblName.Caption = "No entry selected"
         Set imgPreview.Picture = Nothing
@@ -230,9 +277,9 @@ End Sub
 Private Sub PPTK_ShowSelected()
     Dim libraryPath As String
     Dim previewPath As String
-    If lstEntries.ListIndex < 0 Then Exit Sub
-    libraryPath = CStr(lstEntries.List(lstEntries.ListIndex, 1))
-    lblName.Caption = CStr(lstEntries.List(lstEntries.ListIndex, 0))
+    If lstLibrary.ListIndex < 1 Then Exit Sub
+    libraryPath = lstLibrary.ItemTag(lstLibrary.ListIndex)
+    lblName.Caption = lstLibrary.ItemText(lstLibrary.ListIndex)
     previewPath = ""
     If LCase$(Right$(libraryPath, 5)) = ".pptx" Then
         previewPath = Left$(libraryPath, Len(libraryPath) - 5) & ".jpg"
@@ -252,7 +299,7 @@ End Sub
 
 Private Sub PPTK_InsertSelected()
     Dim libraryPath As String
-    If lstEntries.ListIndex < 0 Then Exit Sub
-    libraryPath = CStr(lstEntries.List(lstEntries.ListIndex, 1))
+    If lstLibrary.ListIndex < 1 Then Exit Sub
+    libraryPath = lstLibrary.ItemTag(lstLibrary.ListIndex)
     PPTK_LibraryInsert libraryPath, (chkSource.Value = True)
 End Sub

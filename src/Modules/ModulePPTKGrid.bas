@@ -15,15 +15,22 @@ Option Explicit
 ' change does not move the vertical footprint and a row change does not
 ' move the horizontal footprint.
 '
-' Flexible sizes and gaps share one scale. Each column or row also keeps
+' Gaps keep their size and only flexible shapes are rescaled, so spacing
+' stays even (when the gaps leave no room, gaps scale with the shapes as
+' before). Grow mode comes first: when the selection has shapes that must
+' keep their size (ovals, circles, groups, icons, locked aspect) or designs
+' made of several objects, Ctrl+2/3 and Alt+2/3 add or remove whole units
+' outward without resizing anything (see "grow mode" below).
+' Each column or row also keeps
 ' a fixed floor: the widest or tallest shape on that axis that must not
 ' be resized. Pictures, linked pictures, locked aspect ratios, groups
 ' that contain either are fixed. A TextFrame2 shape-to-fit-text shape is
 ' fixed in height; its width is fixed only when the text does not wrap.
 ' Fixed shapes are only moved inside their slot. If the fixed floors
 ' cannot fit in the original span with zero gaps, nothing is duplicated
-' or deleted. A new gap copies the gap before the duplicated edge, or
-' zero when the grid has only one column or row. Negative gaps are
+' or deleted. A new gap copies the gap before the duplicated edge. When the
+' grid has only one column or row (dividing one shape), it is the other
+' axis's gap, else GapDefault (8 pt). Negative gaps are
 ' treated as zero so the result does not overlap.
 '
 ' A native table is keep-bounds only when it is the single selected shape
@@ -71,6 +78,10 @@ Private Const GapDefault As Single = 8
 Private Const SlideMargin As Single = 8
 Private Const MinAxisSize As Single = 1
 Private Const BoundSlack As Single = 1.25
+' Grow mode: a smaller object at least UnitContain inside a larger one's box belongs to its design.
+' A partial overlap above OverlapIgnore between different designs is ambiguous: nothing is changed.
+Private Const UnitContain As Single = 0.8
+Private Const OverlapIgnore As Single = 0.1
 
 Public Sub PPTK_AddRightColumn()
     PPTK_StartUndo
@@ -130,6 +141,7 @@ Private Sub PPTK_AddAxisKeep(ByVal bottomRow As Boolean)
         PPTK_KeepAddTable tableShape, bottomRow
         Exit Sub
     End If
+    If PPTK_TryGrow(bottomRow, True) Then Exit Sub
     PPTK_KeepAddShapes bottomRow
 End Sub
 
@@ -140,6 +152,7 @@ Private Sub PPTK_DeleteAxisKeep(ByVal bottomRow As Boolean)
         PPTK_KeepDeleteTable tableShape, bottomRow
         Exit Sub
     End If
+    If PPTK_TryGrow(bottomRow, False) Then Exit Sub
     PPTK_KeepDeleteShapes bottomRow
 End Sub
 
@@ -972,6 +985,8 @@ Private Function PPTK_PlanKeep(ByVal bottomRow As Boolean, ByVal adding As Boole
     Dim fixedFloor() As Single
     Dim flexPart() As Single
     Dim gap() As Single
+    Dim gapSum As Single
+    Dim keepGaps As Boolean
     Dim extFix() As Single
     Dim extFlex() As Single
     Dim extGap() As Single
@@ -1090,6 +1105,10 @@ Private Function PPTK_PlanKeep(ByVal bottomRow As Boolean, ByVal adding As Boole
             If gap(axis) < 0 Then gap(axis) = 0
         Next axis
         newGap = gap(axisCount - 1)
+    ElseIf Not PPTK_ArrayGap(count, rowOf, colOf, lefts, tops, widths, heights, Not bottomRow, newGap) Then
+        ' The first split of one row or column: the other axis's spacing, else GapDefault,
+        ' so a divided rectangle gets visible gaps instead of touching cells.
+        newGap = GapDefault
     End If
 
     If adding Then
@@ -1126,15 +1145,20 @@ Private Function PPTK_PlanKeep(ByVal bottomRow As Boolean, ByVal adding As Boole
 
     flexSum = 0
     fixSum = 0
+    gapSum = 0
     For axis = 1 To newCount
         fixSum = fixSum + extFix(axis)
         flexSum = flexSum + extFlex(axis)
     Next axis
     If newCount >= 2 Then
         For axis = 1 To newCount - 1
-            flexSum = flexSum + extGap(axis)
+            gapSum = gapSum + extGap(axis)
         Next axis
     End If
+    ' Gaps keep their size and only the shapes are rescaled, so spacing stays even across
+    ' adds and deletes. When the gaps leave no room for the shapes, gaps scale with them.
+    keepGaps = (flexSum > 0.05 And target - fixSum - gapSum >= MinAxisSize * newCount)
+    If Not keepGaps Then flexSum = flexSum + gapSum
     If fixSum > target + BoundSlack Then
         failReason = PPTK_FixedFitMessage(bottomRow)
         Exit Function
@@ -1161,14 +1185,18 @@ Private Function PPTK_PlanKeep(ByVal bottomRow As Boolean, ByVal adding As Boole
             If outGap(newCount - 1) < 0 Then outGap(newCount - 1) = 0
         End If
     Else
-        factor = (target - fixSum) / flexSum
+        If keepGaps Then
+            factor = (target - fixSum - gapSum) / flexSum
+        Else
+            factor = (target - fixSum) / flexSum
+        End If
         If factor < 0 Then factor = 0
         For axis = 1 To newCount
             outSlot(axis) = extFix(axis) + extFlex(axis) * factor
         Next axis
         If newCount >= 2 Then
             For axis = 1 To newCount - 1
-                outGap(axis) = extGap(axis) * factor
+                If keepGaps Then outGap(axis) = extGap(axis) Else outGap(axis) = extGap(axis) * factor
                 If outGap(axis) < 0 Then outGap(axis) = 0
             Next axis
         End If
@@ -2045,6 +2073,499 @@ Private Sub PPTK_ClearCellText(ByVal shp As Shape)
     End If
     Err.Clear
 End Sub
+
+' ---------------------------------------------------------------- grow mode (Ctrl+2/3, Alt+2/3)
+' Shapes that must keep their size (ovals, circles, groups, icons, locked aspect) and designs made of
+' several objects are never rescaled. Objects form one design ("unit") when the smaller one lies at
+' least UnitContain inside the larger one's box (text in an oval, an oval in a ring); this is transitive.
+' A partial overlap between different units (above OverlapIgnore) is ambiguous in either mode: nothing
+' is changed and the user is asked to group each design. Units form rows and columns by their boxes (same tolerance
+' rules as PPTK_Recognize). Add copies every member of the edge units in full (text, formatting,
+' rotation, size, offsets and stacking order kept) beside the grid at the measured gap; delete removes
+' every member of the edge units. Nothing else moves, except PPTK_ShiftInside when copies would leave
+' the slide. When every unit is one plain resizable shape, the keep-bounds division runs instead.
+
+' True when grow mode handled the command (done, or refused with a message).
+Private Function PPTK_TryGrow(ByVal bottomRow As Boolean, ByVal adding As Boolean) As Boolean
+    Dim shapes() As Shape
+    Dim count As Long
+    Dim unitOf() As Long
+    Dim unitCount As Long
+    Dim ambiguous As Boolean
+    Dim needGrow As Boolean
+    Dim index As Long
+
+    PPTK_TryGrow = False
+    count = 0
+    On Error GoTo Clean
+    If ActiveWindow.Selection.Type <> ppSelectionShapes Then Exit Function
+    ReDim shapes(1 To ActiveWindow.Selection.ShapeRange.Count)
+    For index = 1 To ActiveWindow.Selection.ShapeRange.Count
+        If PPTK_GridShape(ActiveWindow.Selection.ShapeRange(index)) Then
+            count = count + 1
+            Set shapes(count) = ActiveWindow.Selection.ShapeRange(index)
+        End If
+    Next index
+    If count < 1 Then Exit Function
+    On Error GoTo 0
+
+    PPTK_BuildUnits shapes, count, unitOf, unitCount, ambiguous
+    If ambiguous Then
+        ' Partly overlapping objects are never combined or rearranged, in either mode.
+        PPTK_TryGrow = True
+        PPTK_Tell "Some objects overlap partly, so PPTK cannot tell which ones belong to one design. " & _
+                  "Nothing was changed. Group each design (Ctrl+G) and try again."
+        Exit Function
+    End If
+    needGrow = (unitCount < count)
+    If Not needGrow Then
+        For index = 1 To count
+            If PPTK_KeepsSize(shapes(index)) Then
+                needGrow = True
+                Exit For
+            End If
+        Next index
+    End If
+    If Not needGrow Then Exit Function
+
+    PPTK_TryGrow = True
+    On Error GoTo Failed
+    PPTK_GrowUnits shapes, count, unitOf, unitCount, bottomRow, adding
+    Exit Function
+Clean:
+    PPTK_TryGrow = False
+    Exit Function
+Failed:
+    PPTK_Tell "The row or column could not be changed. Use Undo (Ctrl+Z) if anything moved."
+End Function
+
+' Shapes that are copied at their size instead of being divided.
+Private Function PPTK_KeepsSize(ByVal shp As Shape) As Boolean
+    On Error GoTo Clean
+    If shp.Type = msoGroup Or shp.Type = msoPicture Or shp.Type = msoLinkedPicture Or shp.Type = 28 Then   ' 28 = msoGraphic (icon)
+        PPTK_KeepsSize = True
+        Exit Function
+    End If
+    If shp.LockAspectRatio = msoTrue Then
+        PPTK_KeepsSize = True
+        Exit Function
+    End If
+    If shp.Type = msoAutoShape Then
+        Select Case shp.AutoShapeType
+            Case msoShapeOval, msoShapeDonut, msoShapeFlowchartConnector
+                PPTK_KeepsSize = True
+        End Select
+    End If
+    Exit Function
+Clean:
+    PPTK_KeepsSize = False
+End Function
+
+' The box a shape covers on the slide, rotation included.
+Private Sub PPTK_VisBox(ByVal shp As Shape, ByRef l As Single, ByRef t As Single, ByRef r As Single, ByRef b As Single)
+    Dim rad As Double
+    Dim w As Double
+    Dim h As Double
+    Dim cx As Double
+    Dim cy As Double
+    rad = shp.Rotation * 3.14159265358979 / 180#
+    w = Abs(shp.Width * Cos(rad)) + Abs(shp.Height * Sin(rad))
+    h = Abs(shp.Width * Sin(rad)) + Abs(shp.Height * Cos(rad))
+    cx = shp.Left + shp.Width / 2
+    cy = shp.Top + shp.Height / 2
+    l = cx - w / 2
+    r = cx + w / 2
+    t = cy - h / 2
+    b = cy + h / 2
+End Sub
+
+' Share of the smaller box that lies inside the other box (0 to 1).
+Private Function PPTK_OverlapShare(ByVal al As Single, ByVal at As Single, ByVal ar As Single, ByVal ab As Single, ByVal bl As Single, ByVal bt As Single, ByVal br As Single, ByVal bb As Single) As Single
+    Dim iw As Single
+    Dim ih As Single
+    Dim areaA As Single
+    Dim areaB As Single
+    Dim smaller As Single
+    iw = PPTK_MinSingle(ar, br) - PPTK_MaxSingle(al, bl)
+    ih = PPTK_MinSingle(ab, bb) - PPTK_MaxSingle(at, bt)
+    If iw <= 0 Or ih <= 0 Then Exit Function
+    areaA = (ar - al) * (ab - at)
+    areaB = (br - bl) * (bb - bt)
+    smaller = PPTK_MinSingle(areaA, areaB)
+    If smaller <= 0.01 Then Exit Function
+    PPTK_OverlapShare = (iw * ih) / smaller
+End Function
+
+Private Sub PPTK_BuildUnits(ByRef shapes() As Shape, ByVal count As Long, ByRef unitOf() As Long, ByRef unitCount As Long, ByRef ambiguous As Boolean)
+    Dim parent() As Long
+    Dim l() As Single
+    Dim t() As Single
+    Dim r() As Single
+    Dim b() As Single
+    Dim share() As Single
+    Dim index As Long
+    Dim other As Long
+    Dim ids() As Long
+    ReDim parent(1 To count)
+    ReDim l(1 To count): ReDim t(1 To count): ReDim r(1 To count): ReDim b(1 To count)
+    ReDim share(1 To count, 1 To count)
+    For index = 1 To count
+        parent(index) = index
+        PPTK_VisBox shapes(index), l(index), t(index), r(index), b(index)
+    Next index
+    For index = 1 To count - 1
+        For other = index + 1 To count
+            share(index, other) = PPTK_OverlapShare(l(index), t(index), r(index), b(index), l(other), t(other), r(other), b(other))
+            If share(index, other) >= UnitContain Then PPTK_Union parent, index, other
+        Next other
+    Next index
+    ReDim ids(1 To count)
+    ReDim unitOf(1 To count)
+    unitCount = 0
+    For index = 1 To count
+        If ids(PPTK_Find(parent, index)) = 0 Then
+            unitCount = unitCount + 1
+            ids(PPTK_Find(parent, index)) = unitCount
+        End If
+        unitOf(index) = ids(PPTK_Find(parent, index))
+    Next index
+    ambiguous = False
+    For index = 1 To count - 1
+        For other = index + 1 To count
+            If unitOf(index) <> unitOf(other) And share(index, other) > OverlapIgnore Then ambiguous = True
+        Next other
+    Next index
+End Sub
+
+Private Sub PPTK_GrowUnits(ByRef shapes() As Shape, ByVal count As Long, ByRef unitOf() As Long, ByVal unitCount As Long, ByVal bottomRow As Boolean, ByVal adding As Boolean)
+    Dim uL() As Single
+    Dim uT() As Single
+    Dim uR() As Single
+    Dim uB() As Single
+    Dim l As Single
+    Dim t As Single
+    Dim r As Single
+    Dim b As Single
+    Dim rowOf() As Long
+    Dim colOf() As Long
+    Dim rows As Long
+    Dim cols As Long
+    Dim index As Long
+    Dim unit As Long
+    Dim isEdge() As Boolean
+    Dim gap As Single
+    Dim edgePos As Single
+    Dim order() As Long
+    Dim orderCount As Long
+    Dim i As Long
+    Dim j As Long
+    Dim swapIndex As Long
+    Dim copies() As Shape
+    Dim made As Long
+    Dim oldLeft() As Single
+    Dim oldTop() As Single
+    Dim edge() As Shape
+    Dim edgeCount As Long
+    Dim reason As String
+    Dim first As Boolean
+    Dim moveX As Single
+    Dim moveY As Single
+
+    ReDim uL(1 To unitCount): ReDim uT(1 To unitCount): ReDim uR(1 To unitCount): ReDim uB(1 To unitCount)
+    For unit = 1 To unitCount
+        uL(unit) = 1E+30: uT(unit) = 1E+30: uR(unit) = -1E+30: uB(unit) = -1E+30
+    Next unit
+    For index = 1 To count
+        PPTK_VisBox shapes(index), l, t, r, b
+        unit = unitOf(index)
+        If l < uL(unit) Then uL(unit) = l
+        If t < uT(unit) Then uT(unit) = t
+        If r > uR(unit) Then uR(unit) = r
+        If b > uB(unit) Then uB(unit) = b
+    Next index
+    If Not PPTK_RecognizeBoxes(uL, uT, uR, uB, unitCount, rowOf, colOf, rows, cols) Then
+        PPTK_Tell PPTK_NotGridMessage()
+        Exit Sub
+    End If
+    ReDim isEdge(1 To unitCount)
+    For unit = 1 To unitCount
+        isEdge(unit) = (bottomRow And rowOf(unit) = rows) Or (Not bottomRow And colOf(unit) = cols)
+    Next unit
+
+    If Not adding Then
+        If Not PPTK_LastEdgeGuard(bottomRow, rows, cols) Then Exit Sub
+        ReDim edge(1 To count)
+        edgeCount = 0
+        For index = 1 To count
+            If isEdge(unitOf(index)) Then
+                edgeCount = edgeCount + 1
+                Set edge(edgeCount) = shapes(index)
+            End If
+        Next index
+        If Not PPTK_DeleteEdgeSafely(edge, edgeCount, reason) Then
+            PPTK_Tell reason
+            Exit Sub
+        End If
+        On Error Resume Next
+        first = True
+        For index = 1 To count
+            If Not isEdge(unitOf(index)) Then
+                If first Then shapes(index).Select Else shapes(index).Select False
+                first = False
+            End If
+        Next index
+        Exit Sub
+    End If
+
+    ' Spacing: the median gap between units on this axis, else the other axis, else GapDefault.
+    If Not PPTK_BoxGap(uL, uT, uR, uB, unitCount, rowOf, colOf, bottomRow, gap) Then
+        If Not PPTK_BoxGap(uL, uT, uR, uB, unitCount, rowOf, colOf, Not bottomRow, gap) Then gap = GapDefault
+    End If
+    edgePos = -1E+30
+    For unit = 1 To unitCount
+        If isEdge(unit) Then
+            If bottomRow Then
+                If uB(unit) > edgePos Then edgePos = uB(unit)
+            Else
+                If uR(unit) > edgePos Then edgePos = uR(unit)
+            End If
+        End If
+    Next unit
+
+    ' Members of the edge units, back to front, so the copies keep the stacking order.
+    ReDim order(1 To count)
+    orderCount = 0
+    For index = 1 To count
+        If isEdge(unitOf(index)) Then
+            orderCount = orderCount + 1
+            order(orderCount) = index
+        End If
+    Next index
+    For i = 1 To orderCount - 1
+        For j = i + 1 To orderCount
+            If shapes(order(j)).ZOrderPosition < shapes(order(i)).ZOrderPosition Then
+                swapIndex = order(i): order(i) = order(j): order(j) = swapIndex
+            End If
+        Next j
+    Next i
+
+    ReDim oldLeft(1 To count)
+    ReDim oldTop(1 To count)
+    For index = 1 To count
+        oldLeft(index) = shapes(index).Left
+        oldTop(index) = shapes(index).Top
+    Next index
+    ReDim copies(1 To orderCount)
+    made = 0
+    On Error GoTo GrowFailed
+    For i = 1 To orderCount
+        index = order(i)
+        unit = unitOf(index)
+        If bottomRow Then
+            moveX = 0
+            moveY = edgePos + gap - uT(unit)
+        Else
+            moveX = edgePos + gap - uL(unit)
+            moveY = 0
+        End If
+        Set copies(i) = PPTK_DuplicateShape(shapes(index))
+        If copies(i) Is Nothing Then GoTo GrowFailed
+        made = i
+        copies(i).Left = shapes(index).Left + moveX
+        copies(i).Top = shapes(index).Top + moveY
+    Next i
+    PPTK_ShiftInside shapes, count, copies, made, bottomRow
+    On Error Resume Next
+    shapes(1).Select
+    For index = 2 To count
+        shapes(index).Select False
+    Next index
+    For i = 1 To made
+        copies(i).Select False
+    Next i
+    Exit Sub
+GrowFailed:
+    Resume GrowUndo
+GrowUndo:
+    On Error Resume Next
+    For index = 1 To count
+        shapes(index).Left = oldLeft(index)
+        shapes(index).Top = oldTop(index)
+    Next index
+    PPTK_DeleteCopies copies, made
+    PPTK_Tell "The row or column could not be added. The layout was restored."
+End Sub
+
+' Rows and columns of unit boxes, with the tolerance rules of PPTK_Recognize. Every row must have the
+' same number of units and the columns must line up; otherwise the selection is not a grid.
+Private Function PPTK_RecognizeBoxes(ByRef uL() As Single, ByRef uT() As Single, ByRef uR() As Single, ByRef uB() As Single, ByVal n As Long, ByRef rowOf() As Long, ByRef colOf() As Long, ByRef rows As Long, ByRef cols As Long) As Boolean
+    Dim parent() As Long
+    Dim values() As Single
+    Dim rowTol As Single
+    Dim colTol As Single
+    Dim index As Long
+    Dim other As Long
+    Dim rowId() As Long
+    Dim rowY() As Single
+    Dim rank() As Long
+    Dim perRow() As Long
+    Dim order() As Long
+    Dim seen As Long
+    Dim row As Long
+    Dim i As Long
+    Dim j As Long
+    Dim swapIndex As Long
+    Dim anchorX() As Single
+    Dim shorter As Single
+    Dim overlapY As Single
+
+    PPTK_RecognizeBoxes = False
+    ReDim values(1 To n)
+    For index = 1 To n: values(index) = uB(index) - uT(index): Next index
+    PPTK_SortNumbers values, n
+    rowTol = 0.35 * values((n + 1) \ 2)
+    If rowTol < 6 Then rowTol = 6
+    If rowTol > 18 Then rowTol = 18
+    For index = 1 To n: values(index) = uR(index) - uL(index): Next index
+    PPTK_SortNumbers values, n
+    colTol = 0.35 * values((n + 1) \ 2)
+    If colTol < 6 Then colTol = 6
+    If colTol > 18 Then colTol = 18
+
+    ReDim parent(1 To n)
+    For index = 1 To n: parent(index) = index: Next index
+    For index = 1 To n - 1
+        For other = index + 1 To n
+            shorter = PPTK_MinSingle(uB(index) - uT(index), uB(other) - uT(other))
+            overlapY = PPTK_MinSingle(uB(index), uB(other)) - PPTK_MaxSingle(uT(index), uT(other))
+            If Abs((uT(index) + uB(index)) / 2 - (uT(other) + uB(other)) / 2) <= rowTol Or (shorter > 0 And overlapY >= shorter / 2) Then
+                PPTK_Union parent, index, other
+            End If
+        Next other
+    Next index
+    ReDim rowId(1 To n)
+    rows = 0
+    For index = 1 To n
+        If rowId(PPTK_Find(parent, index)) = 0 Then
+            rows = rows + 1
+            rowId(PPTK_Find(parent, index)) = rows
+        End If
+    Next index
+    ReDim rowY(1 To rows)
+    For index = 1 To n
+        rowY(rowId(PPTK_Find(parent, index))) = (uT(index) + uB(index)) / 2
+    Next index
+    ReDim rank(1 To rows)
+    For index = 1 To rows
+        rank(index) = 1
+        For other = 1 To rows
+            If rowY(other) < rowY(index) Or (rowY(other) = rowY(index) And other < index) Then rank(index) = rank(index) + 1
+        Next other
+    Next index
+    ReDim rowOf(1 To n)
+    ReDim perRow(1 To rows)
+    For index = 1 To n
+        rowOf(index) = rank(rowId(PPTK_Find(parent, index)))
+        perRow(rowOf(index)) = perRow(rowOf(index)) + 1
+    Next index
+    cols = perRow(1)
+    For row = 2 To rows
+        If perRow(row) <> cols Then Exit Function
+    Next row
+
+    ReDim colOf(1 To n)
+    ReDim anchorX(1 To cols)
+    ReDim order(1 To n)
+    For row = 1 To rows
+        seen = 0
+        For index = 1 To n
+            If rowOf(index) = row Then
+                seen = seen + 1
+                order(seen) = index
+            End If
+        Next index
+        For i = 1 To seen - 1
+            For j = i + 1 To seen
+                If uL(order(j)) + uR(order(j)) < uL(order(i)) + uR(order(i)) Then
+                    swapIndex = order(i): order(i) = order(j): order(j) = swapIndex
+                End If
+            Next j
+        Next i
+        For i = 1 To seen
+            If row = 1 Then
+                anchorX(i) = (uL(order(i)) + uR(order(i))) / 2
+            ElseIf Abs((uL(order(i)) + uR(order(i))) / 2 - anchorX(i)) > colTol Then
+                Exit Function
+            End If
+            colOf(order(i)) = i
+        Next i
+    Next row
+    PPTK_RecognizeBoxes = True
+End Function
+
+' Median gap between neighbouring unit boxes (negative counts as zero). False when there is no pair.
+Private Function PPTK_BoxGap(ByRef uL() As Single, ByRef uT() As Single, ByRef uR() As Single, ByRef uB() As Single, ByVal n As Long, ByRef rowOf() As Long, ByRef colOf() As Long, ByVal vertical As Boolean, ByRef median As Single) As Boolean
+    Dim gaps() As Single
+    Dim found As Long
+    Dim index As Long
+    Dim other As Long
+    Dim gap As Single
+    ReDim gaps(1 To n * n)
+    For index = 1 To n
+        For other = 1 To n
+            If vertical Then
+                If colOf(index) = colOf(other) And rowOf(other) = rowOf(index) + 1 Then
+                    found = found + 1
+                    gap = uT(other) - uB(index)
+                    If gap < 0 Then gap = 0
+                    gaps(found) = gap
+                End If
+            ElseIf rowOf(index) = rowOf(other) And colOf(other) = colOf(index) + 1 Then
+                found = found + 1
+                gap = uL(other) - uR(index)
+                If gap < 0 Then gap = 0
+                gaps(found) = gap
+            End If
+        Next other
+    Next index
+    PPTK_BoxGap = (found > 0)
+    If found > 0 Then
+        PPTK_SortNumbers gaps, found
+        median = gaps((found + 1) \ 2)
+    End If
+End Function
+
+' PPTK_MedianGap on captured positions (keep-bounds planning has no shape objects).
+Private Function PPTK_ArrayGap(ByVal count As Long, ByRef rowOf() As Long, ByRef colOf() As Long, ByRef lefts() As Single, ByRef tops() As Single, ByRef widths() As Single, ByRef heights() As Single, ByVal vertical As Boolean, ByRef median As Single) As Boolean
+    Dim gaps() As Single
+    Dim found As Long
+    Dim index As Long
+    Dim other As Long
+    Dim gap As Single
+    ReDim gaps(1 To count)
+    For index = 1 To count
+        For other = 1 To count
+            If vertical Then
+                If colOf(index) = colOf(other) And rowOf(other) = rowOf(index) + 1 Then
+                    found = found + 1
+                    gap = tops(other) - (tops(index) + heights(index))
+                    If gap < 0 Then gap = 0
+                    gaps(found) = gap
+                End If
+            ElseIf rowOf(index) = rowOf(other) And colOf(other) = colOf(index) + 1 Then
+                found = found + 1
+                gap = lefts(other) - (lefts(index) + widths(index))
+                If gap < 0 Then gap = 0
+                gaps(found) = gap
+            End If
+        Next other
+    Next index
+    PPTK_ArrayGap = (found > 0)
+    If found > 0 Then
+        PPTK_SortNumbers gaps, found
+        median = gaps((found + 1) \ 2)
+    End If
+End Function
 
 Private Function PPTK_MidX(ByVal shp As Shape) As Single
     PPTK_MidX = shp.Left + shp.Width / 2

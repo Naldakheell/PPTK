@@ -78,15 +78,18 @@ Option Explicit
 
 ' Radius dialog. Placement, angles, and the default radius stay in PPTK_AlignCentral.
 
-Private Const ColorPage As Long = 16513527
-Private Const ColorCard As Long = 16777215
-Private Const ColorInk As Long = 3879984
-Private Const ColorMuted As Long = &H706B6B
-Private Const ColorAccent As Long = 15514147
-Private Const ColorError As Long = &H2C26A4
+' Dark PPTK window palette (ModulePPTKBrand, the Smart Bar's look).
+Private Const ColorPage As Long = PPTK_DARK_PAGE
+Private Const ColorCard As Long = PPTK_DARK_SURFACE
+Private Const ColorInk As Long = PPTK_DARK_INK
+Private Const ColorMuted As Long = PPTK_DARK_MUTED
+Private Const ColorAccent As Long = PPTK_COLOR_PRIMARY
+Private Const ColorError As Long = PPTK_DARK_ERROR
 
 Private Accepted As Boolean
 Private Chosen As Single
+Private WithEvents flatOk As PPTKFlatButton
+Private WithEvents flatCancel As PPTKFlatButton
 
 Public Function PPTK_Ask(ByRef radius As Single) As Boolean
     Accepted = False
@@ -134,16 +137,24 @@ Private Sub cmdCancel_Click()
     Me.Hide
 End Sub
 
+Private Sub flatOk_Click()
+    cmdOk_Click
+End Sub
+
+Private Sub flatCancel_Click()
+    cmdCancel_Click
+End Sub
+
+Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    If Not flatOk Is Nothing Then flatOk.Leave
+    If Not flatCancel Is Nothing Then flatCancel.Leave
+End Sub
+
 Private Sub PPTK_Style()
     PPTK_StyleForm Me
     Me.BackColor = ColorPage
     Me.Font.Name = "Segoe UI"
-    lblAccent.Caption = ""
-    lblAccent.BackColor = ColorAccent
-    lblAccent.Left = 0
-    lblAccent.Top = 0
-    lblAccent.Height = 4
-    lblAccent.Width = 280
+    lblAccent.Visible = False   ' no coloured line under the title (dark PPTK look)
 
     PPTK_Font lblHint, 9, False, ColorMuted
     lblHint.BackStyle = fmBackStyleTransparent
@@ -193,6 +204,14 @@ Private Sub PPTK_Style()
     cmdCancel.Left = cmdOk.Left - 8 - cmdCancel.Width
     Me.Width = 420
     Me.Height = cmdOk.Top + cmdOk.Height + 28
+    If flatOk Is Nothing Then
+        Set flatOk = New PPTKFlatButton
+        flatOk.Attach Me, cmdOk, True
+        Set flatCancel = New PPTKFlatButton
+        flatCancel.Attach Me, cmdCancel, False
+    End If
+    flatOk.Sync
+    flatCancel.Sync
 End Sub
 
 Private Sub PPTK_Font(ByVal target As Object, ByVal size As Single, ByVal bold As Boolean, ByVal color As Long)

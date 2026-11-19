@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui">
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="PPTK_RibbonOnLoad">
   <ribbon>
     <tabs>
       <tab id="InstrumentaPowerpointToolbar" label="PPTK">
@@ -55,6 +55,7 @@
         <group id="Text" label="Text" image="pptk-text-large">
           <box id="FontBox1" boxStyle="horizontal">
           <control idMso="Font" showLabel="false" />
+          <button id="PPTKReplaceFonts" tag="CMD REPLACE FONTS" imageMso="FontsReplaceFonts" label="Replace Fonts" showLabel="false" size="normal" onAction="PPTK_RibbonShortcut" screentip="Replace Fonts" supertip="Replaces one font with another in the whole presentation: text, tables, groups, notes, masters, layouts and theme fonts, Arabic included" />
           </box>
           <box id="FontBox2" boxStyle="horizontal">
           <comboBox idMso="FontSize" showLabel="false" />
@@ -75,7 +76,6 @@
           <toggleButton idMso="Strikethrough" showLabel="false" />
           <control idMso="TextHighlightColorPickerLicensed" showLabel="false" />
           <control idMso="NumberingGallery" showLabel="false" />
-          <button idMso="FontsReplaceFonts" showLabel="false" />
           <toggleButton idMso="AlignJustify" showLabel="false" />
           <button idMso="EyedropperFillText" showLabel="false" />
           <gallery idMso="TextAlignGallery" showLabel="false" />
@@ -103,12 +103,13 @@
           <button id="PPTKAlignCentral" tag="A Z" label="Central" image="pptk-central" onAction="PPTK_RibbonShortcut" screentip="Align Central" supertip="Arranges the selected shapes around a center at a chosen radius" showLabel="true" size="normal" />
           <button id="PPTKAlignProcess" tag="A P" label="Process" image="pptk-process" onAction="PPTK_RibbonShortcut" screentip="Align Process" supertip="Arranges the selected shapes into an evenly spaced process" showLabel="true" size="normal" />
           <button id="PPTKAlignMatrix" tag="A X" label="Matrix" image="pptk-matrix" onAction="PPTK_RibbonShortcut" screentip="Align Matrix" supertip="Arranges the selected shapes into a chosen grid" showLabel="true" size="normal" />
-          <button id="ObjectsAlignLeftsButton" label="Left" showLabel="true" image="pptk-align-left" onAction="ObjectsAlignLefts" supertip="Aligns the selected objects to the left" screentip="Align Left" size="normal" />
-          <button id="ObjectsAlignCentersButton" label="Center" showLabel="true" image="pptk-align-center" onAction="ObjectsAlignCenters" supertip="Aligns the selected objects to the center" screentip="Align Center" size="normal" />
-          <button id="ObjectsAlignRightsButton" label="Right" showLabel="true" image="pptk-align-right" onAction="ObjectsAlignRights" supertip="Aligns the selected objects to the right" screentip="Align Right" size="normal" />
-          <button id="ObjectsAlignTopsButton" label="Top" showLabel="true" image="pptk-align-top" onAction="ObjectsAlignTops" supertip="Aligns the selected objects to the top" screentip="Align Top" size="normal" />
-          <button id="ObjectsAlignMiddlesButton" label="Middle" showLabel="true" image="pptk-align-middle" onAction="ObjectsAlignMiddles" supertip="Aligns the selected objects to the middle" screentip="Align Middle" size="normal" />
-          <button id="ObjectsAlignBottomsButton" label="Bottom" showLabel="true" image="pptk-align-bottom" onAction="ObjectsAlignBottoms" supertip="Aligns the selected objects to the bottom" screentip="Align Bottom" size="normal" />
+          <button id="ObjectsAlignLeftsButton" label="Left" showLabel="true" image="pptk-align-left" tag="A L" onAction="PPTK_RibbonShortcut" supertip="Aligns the selected shapes to the left edge of the first selected shape, or of the whole selection when Align to selection is checked. One shape aligns to the slide. A L" screentip="Align Left" size="normal" />
+          <button id="ObjectsAlignCentersButton" label="Center" showLabel="true" image="pptk-align-center" tag="A C" onAction="PPTK_RibbonShortcut" supertip="Aligns the selected shapes to the center of the first selected shape, or of the whole selection when Align to selection is checked. One shape aligns to the slide. A C" screentip="Align Center" size="normal" />
+          <button id="ObjectsAlignRightsButton" label="Right" showLabel="true" image="pptk-align-right" tag="A R" onAction="PPTK_RibbonShortcut" supertip="Aligns the selected shapes to the right edge of the first selected shape, or of the whole selection when Align to selection is checked. One shape aligns to the slide. A R" screentip="Align Right" size="normal" />
+          <button id="ObjectsAlignTopsButton" label="Top" showLabel="true" image="pptk-align-top" tag="A T" onAction="PPTK_RibbonShortcut" supertip="Aligns the selected shapes to the top edge of the first selected shape, or of the whole selection when Align to selection is checked. One shape aligns to the slide. A T" screentip="Align Top" size="normal" />
+          <button id="ObjectsAlignMiddlesButton" label="Middle" showLabel="true" image="pptk-align-middle" tag="A M" onAction="PPTK_RibbonShortcut" supertip="Aligns the selected shapes to the middle of the first selected shape, or of the whole selection when Align to selection is checked. One shape aligns to the slide. A M" screentip="Align Middle" size="normal" />
+          <checkBox id="PPTKAlignToSelection" label="To selection" getPressed="PPTK_AlignToSelectionGetPressed" onAction="PPTK_AlignToSelectionClick" screentip="Align to Selection" supertip="Checked: Align lines shapes up with the edge of the whole selection (PowerPoint style). Unchecked: with the first selected shape, which stays in place. Click the reference shape first, then Ctrl+click the others." />
+          <button id="ObjectsAlignBottomsButton" label="Bottom" showLabel="true" image="pptk-align-bottom" tag="A B" onAction="PPTK_RibbonShortcut" supertip="Aligns the selected shapes to the bottom edge of the first selected shape, or of the whole selection when Align to selection is checked. One shape aligns to the slide. A B" screentip="Align Bottom" size="normal" />
           <button id="ObjectsArrangeShapesButton" image="pptk-arrange" label="Arrange shapes" showLabel="false" onAction="ArrangeShapes" supertip="Arranges the selected shapes into a structured layout" screentip="Arrange Shapes" size="normal" />
           <menu id="ObjectsStretchMenu" label="Stretch shapes" image="pptk-stretch" showLabel="false" supertip="Opens the tools for stretching multiple shapes toward a chosen edge" screentip="Stretch Shapes" size="normal">
           <button id="ObjectsStretchLeft" label="Stretch shapes to left" onAction="ObjectsStretchLeft" supertip="Stretches the selected shapes toward the left" screentip="Stretch Left" image="pptk-stretch-left" />
@@ -156,11 +157,11 @@
           </splitButton>
         </group>
         <group id="PPTKGrid" label="Rows / TK" image="sb-row-add-keep-large">
-          <button id="PPTKAddBottomRow" tag="CTRL 3" label="Add Row" image="sb-row-add-keep" onAction="PPTK_RibbonShortcut" screentip="Add Bottom Row &#x2014; Keep Bounds (Ctrl+3)" supertip="Duplicates the bottom row of the selected grid or table and redistributes every row inside the original height. The outer bounds do not change." showLabel="true" size="normal" />
-          <button id="PPTKDeleteBottomRow" tag="ALT 3" label="Del Row" image="sb-row-del-keep" onAction="PPTK_RibbonShortcut" screentip="Delete Bottom Row &#x2014; Keep Bounds (Alt+3)" supertip="Deletes the bottom row of the selected grid or table and makes the remaining rows fill the original height. The last row is never deleted." showLabel="true" size="normal" />
+          <button id="PPTKAddBottomRow" tag="CTRL 3" label="Add Row" image="sb-row-add-keep" onAction="PPTK_RibbonShortcut" screentip="Add Bottom Row &#x2014; Keep Bounds (Ctrl+3)" supertip="Rectangles, text boxes and tables: duplicates the bottom row and fits every row inside the original height (8 pt gaps when one shape is divided). Ovals, groups, icons and designs made of several objects keep their size: a full copy of the bottom row is added below." showLabel="true" size="normal" />
+          <button id="PPTKDeleteBottomRow" tag="ALT 3" label="Del Row" image="sb-row-del-keep" onAction="PPTK_RibbonShortcut" screentip="Delete Bottom Row &#x2014; Keep Bounds (Alt+3)" supertip="Rectangles, text boxes and tables: deletes the bottom row and the remaining rows fill the original height. Ovals, groups, icons and designs: deletes the bottom row (whole designs) without resizing the rest. The last row is never deleted." showLabel="true" size="normal" />
           <button id="PPTKAddBottomTK" tag="CTRL 5" label="Bottom TK" image="pptk-tk-bottom" onAction="PPTK_RibbonShortcut" screentip="Add Bottom TK" supertip="Inserts an editable TK placeholder below the selection" showLabel="true" size="normal" />
-          <button id="PPTKAddRightColumn" tag="CTRL 2" label="Add Col" image="sb-col-add-keep" onAction="PPTK_RibbonShortcut" screentip="Add Right Column &#x2014; Keep Bounds (Ctrl+2)" supertip="Duplicates the rightmost column of the selected grid or table and redistributes every column inside the original width. The outer bounds do not change." showLabel="true" size="normal" />
-          <button id="PPTKDeleteRightColumn" tag="ALT 2" label="Del Col" image="sb-col-del-keep" onAction="PPTK_RibbonShortcut" screentip="Delete Right Column &#x2014; Keep Bounds (Alt+2)" supertip="Deletes the rightmost column of the selected grid or table and widens the remaining columns to the original width. The last column is never deleted." showLabel="true" size="normal" />
+          <button id="PPTKAddRightColumn" tag="CTRL 2" label="Add Col" image="sb-col-add-keep" onAction="PPTK_RibbonShortcut" screentip="Add Right Column &#x2014; Keep Bounds (Ctrl+2)" supertip="Rectangles, text boxes and tables: duplicates the rightmost column and fits every column inside the original width (8 pt gaps when one shape is divided). Ovals, groups, icons and designs made of several objects keep their size: a full copy of the right column is added beside it." showLabel="true" size="normal" />
+          <button id="PPTKDeleteRightColumn" tag="ALT 2" label="Del Col" image="sb-col-del-keep" onAction="PPTK_RibbonShortcut" screentip="Delete Right Column &#x2014; Keep Bounds (Alt+2)" supertip="Rectangles, text boxes and tables: deletes the rightmost column and the remaining columns fill the original width. Ovals, groups, icons and designs: deletes the right column (whole designs) without resizing the rest. The last column is never deleted." showLabel="true" size="normal" />
           <button id="PPTKAddRightTK" tag="CTRL 4" label="Right TK" image="pptk-tk-right" onAction="PPTK_RibbonShortcut" screentip="Add Right TK" supertip="Inserts an editable TK placeholder to the right of the selection" showLabel="true" size="normal" />
           <button id="PPTKAddTopTK" tag="CTRL 6" label="Add Top TK" image="pptk-tk-top" onAction="PPTK_RibbonShortcut" screentip="Add Top TK" supertip="Inserts an editable TK placeholder above the selection" showLabel="false" size="normal" />
           <button id="PPTKAddLeftTK" tag="CTRL 7" label="Add Left TK" image="pptk-tk-left" onAction="PPTK_RibbonShortcut" screentip="Add Left TK" supertip="Inserts an editable TK placeholder to the left of the selection" showLabel="false" size="normal" />
@@ -194,6 +195,16 @@
           <button idMso="TableRowsDistribute" showLabel="false" />
           <button idMso="TableColumnsDistribute" showLabel="false" />
           </menu><toggleButton idMso="SelectionPane" />
+          <menu id="PPTKSelectSimilarMenu" label="Select Similar" imageMso="SelectAll" showLabel="false" itemSize="normal" screentip="Select Similar" supertip="Selects the shapes on this slide that match the first selected shape">
+          <button id="PPTKSelectSimilarFill" tag="CMD SELECT FILL" label="Same fill color" onAction="PPTK_RibbonShortcut" screentip="Select Similar Fill" supertip="Selects the shapes on this slide with the same fill color as the first selected shape" />
+          <button id="PPTKSelectSimilarOutline" tag="CMD SELECT OUTLINE" label="Same outline color" onAction="PPTK_RibbonShortcut" screentip="Select Similar Outline" supertip="Selects the shapes on this slide with the same outline color as the first selected shape" />
+          <button id="PPTKSelectSimilarFont" tag="CMD SELECT FONT" label="Same font" onAction="PPTK_RibbonShortcut" screentip="Select Similar Font" supertip="Selects the shapes on this slide whose text uses the same font as the first selected shape (Arabic text by its Arabic font)" />
+          <button id="PPTKSelectSimilarFontColor" tag="CMD SELECT FONT COLOR" label="Same font color" onAction="PPTK_RibbonShortcut" screentip="Select Similar Font Color" supertip="Selects the shapes on this slide whose text has the same color as the first selected shape's text" />
+          <button id="PPTKSelectSimilarType" tag="CMD SELECT TYPE" label="Same shape type" onAction="PPTK_RibbonShortcut" screentip="Select Similar Type" supertip="Selects the shapes on this slide of the same type as the first selected shape" />
+          <button id="PPTKSelectSimilarFontSize" tag="CMD SELECT FONT SIZE" label="Same font size" onAction="PPTK_RibbonShortcut" screentip="Select Similar Font Size" supertip="Selects the shapes on this slide whose text has the same font size as the first selected shape's text" />
+          <button id="PPTKSelectSimilarWidth" tag="CMD SELECT WIDTH" label="Same width" onAction="PPTK_RibbonShortcut" screentip="Select Similar Width" supertip="Selects the shapes on this slide with the same width as the first selected shape" />
+          <button id="PPTKSelectSimilarHeight" tag="CMD SELECT HEIGHT" label="Same height" onAction="PPTK_RibbonShortcut" screentip="Select Similar Height" supertip="Selects the shapes on this slide with the same height as the first selected shape" />          <button id="PPTKSelectSimilarSize" tag="CMD SELECT SIZE" label="Same size" onAction="PPTK_RibbonShortcut" screentip="Select Similar Size" supertip="Selects the shapes on this slide with the same width and height as the first selected shape" />
+          </menu>
           <button idMso="FileSaveAsPdfOrXps" showLabel="false" />
           <button idMso="ObjectSaveAsPicture" imageMso="PictureReset" showLabel="false" />
           <menu id="CopyStorylineMenu" label="Copy storyline/slide note" image="pptk-storyline" showLabel="false" supertip="Opens the tools for copying slide notes or storyline content to Word or the clipboard" screentip="Copy Storyline / Notes">
@@ -242,4 +253,76 @@
       </tab>
     </tabs>
   </ribbon>
+  <contextMenus>
+    <contextMenu idMso="ContextMenuFrame">
+          <menu id="PPTKSelectMenuFrame" label="Select" image="pptk-sel-menu">
+          <button id="PPTKSelectAllFrame" label="Select All" image="pptk-sel-all" onAction="PPTK_SelectMenuAll" />
+          <button id="PPTKSelectTextFrame" label="Select All Text on Slide" image="pptk-sel-text" onAction="PPTK_SelectMenuText" />
+          <dynamicMenu id="PPTKSelectByFILLFrame" label="Select By Fill Color" image="pptk-sel-fill" tag="FILL" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByOUTLINEFrame" label="Select By Border Color" image="pptk-sel-border" tag="OUTLINE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByFONTCOLORFrame" label="Select By Font Color" image="pptk-sel-font-color" tag="FONT COLOR" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByFONTSIZEFrame" label="Select By Font Size" image="pptk-sel-font-size" tag="FONT SIZE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByTYPEFrame" label="Select By Object Type" image="pptk-sel-type" tag="TYPE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByWIDTHFrame" label="Select Shapes of Same Width" image="pptk-sel-width" tag="WIDTH" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByHEIGHTFrame" label="Select Shapes of Same Height" image="pptk-sel-height" tag="HEIGHT" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectBySIZEFrame" label="Select Shapes of Same Size" image="pptk-sel-size" tag="SIZE" getContent="PPTK_SelectMenuContent" />
+          </menu>
+    </contextMenu>
+    <contextMenu idMso="ContextMenuShape">
+          <menu id="PPTKSelectMenuShape" label="Select" image="pptk-sel-menu">
+          <button id="PPTKSelectAllShape" label="Select All" image="pptk-sel-all" onAction="PPTK_SelectMenuAll" />
+          <button id="PPTKSelectTextShape" label="Select All Text on Slide" image="pptk-sel-text" onAction="PPTK_SelectMenuText" />
+          <dynamicMenu id="PPTKSelectByFILLShape" label="Select By Fill Color" image="pptk-sel-fill" tag="FILL" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByOUTLINEShape" label="Select By Border Color" image="pptk-sel-border" tag="OUTLINE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByFONTCOLORShape" label="Select By Font Color" image="pptk-sel-font-color" tag="FONT COLOR" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByFONTSIZEShape" label="Select By Font Size" image="pptk-sel-font-size" tag="FONT SIZE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByTYPEShape" label="Select By Object Type" image="pptk-sel-type" tag="TYPE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByWIDTHShape" label="Select Shapes of Same Width" image="pptk-sel-width" tag="WIDTH" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByHEIGHTShape" label="Select Shapes of Same Height" image="pptk-sel-height" tag="HEIGHT" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectBySIZEShape" label="Select Shapes of Same Size" image="pptk-sel-size" tag="SIZE" getContent="PPTK_SelectMenuContent" />
+          </menu>
+    </contextMenu>
+    <contextMenu idMso="ContextMenuObjectsGroup">
+          <menu id="PPTKSelectMenuGroup" label="Select" image="pptk-sel-menu">
+          <button id="PPTKSelectAllGroup" label="Select All" image="pptk-sel-all" onAction="PPTK_SelectMenuAll" />
+          <button id="PPTKSelectTextGroup" label="Select All Text on Slide" image="pptk-sel-text" onAction="PPTK_SelectMenuText" />
+          <dynamicMenu id="PPTKSelectByFILLGroup" label="Select By Fill Color" image="pptk-sel-fill" tag="FILL" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByOUTLINEGroup" label="Select By Border Color" image="pptk-sel-border" tag="OUTLINE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByFONTCOLORGroup" label="Select By Font Color" image="pptk-sel-font-color" tag="FONT COLOR" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByFONTSIZEGroup" label="Select By Font Size" image="pptk-sel-font-size" tag="FONT SIZE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByTYPEGroup" label="Select By Object Type" image="pptk-sel-type" tag="TYPE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByWIDTHGroup" label="Select Shapes of Same Width" image="pptk-sel-width" tag="WIDTH" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByHEIGHTGroup" label="Select Shapes of Same Height" image="pptk-sel-height" tag="HEIGHT" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectBySIZEGroup" label="Select Shapes of Same Size" image="pptk-sel-size" tag="SIZE" getContent="PPTK_SelectMenuContent" />
+          </menu>
+    </contextMenu>
+    <contextMenu idMso="ContextMenuPicture">
+          <menu id="PPTKSelectMenuPicture" label="Select" image="pptk-sel-menu">
+          <button id="PPTKSelectAllPicture" label="Select All" image="pptk-sel-all" onAction="PPTK_SelectMenuAll" />
+          <button id="PPTKSelectTextPicture" label="Select All Text on Slide" image="pptk-sel-text" onAction="PPTK_SelectMenuText" />
+          <dynamicMenu id="PPTKSelectByFILLPicture" label="Select By Fill Color" image="pptk-sel-fill" tag="FILL" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByOUTLINEPicture" label="Select By Border Color" image="pptk-sel-border" tag="OUTLINE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByFONTCOLORPicture" label="Select By Font Color" image="pptk-sel-font-color" tag="FONT COLOR" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByFONTSIZEPicture" label="Select By Font Size" image="pptk-sel-font-size" tag="FONT SIZE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByTYPEPicture" label="Select By Object Type" image="pptk-sel-type" tag="TYPE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByWIDTHPicture" label="Select Shapes of Same Width" image="pptk-sel-width" tag="WIDTH" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByHEIGHTPicture" label="Select Shapes of Same Height" image="pptk-sel-height" tag="HEIGHT" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectBySIZEPicture" label="Select Shapes of Same Size" image="pptk-sel-size" tag="SIZE" getContent="PPTK_SelectMenuContent" />
+          </menu>
+    </contextMenu>
+    <contextMenu idMso="ContextMenuGraphic">
+          <menu id="PPTKSelectMenuGraphic" label="Select" image="pptk-sel-menu">
+          <button id="PPTKSelectAllGraphic" label="Select All" image="pptk-sel-all" onAction="PPTK_SelectMenuAll" />
+          <button id="PPTKSelectTextGraphic" label="Select All Text on Slide" image="pptk-sel-text" onAction="PPTK_SelectMenuText" />
+          <dynamicMenu id="PPTKSelectByFILLGraphic" label="Select By Fill Color" image="pptk-sel-fill" tag="FILL" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByOUTLINEGraphic" label="Select By Border Color" image="pptk-sel-border" tag="OUTLINE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByFONTCOLORGraphic" label="Select By Font Color" image="pptk-sel-font-color" tag="FONT COLOR" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByFONTSIZEGraphic" label="Select By Font Size" image="pptk-sel-font-size" tag="FONT SIZE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByTYPEGraphic" label="Select By Object Type" image="pptk-sel-type" tag="TYPE" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByWIDTHGraphic" label="Select Shapes of Same Width" image="pptk-sel-width" tag="WIDTH" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectByHEIGHTGraphic" label="Select Shapes of Same Height" image="pptk-sel-height" tag="HEIGHT" getContent="PPTK_SelectMenuContent" />
+          <dynamicMenu id="PPTKSelectBySIZEGraphic" label="Select Shapes of Same Size" image="pptk-sel-size" tag="SIZE" getContent="PPTK_SelectMenuContent" />
+          </menu>
+    </contextMenu>
+  </contextMenus>
 </customUI>

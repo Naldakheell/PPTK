@@ -24,13 +24,19 @@ Option Explicit
 '   is left in place rather than squashing the shapes.
 '
 ' Align Matrix (A X):
-'   A modal grid picker opens. The default is the nearest square
-'   that can hold the selection. Rows times columns must be at least the
-'   shape count, and each side must be from 1 through 12.
+'   An interactive grid picker opens (PPTKMatrixForm, Auxy style). The column
+'   under the mouse sets the columns; the row sets the rows, raised to
+'   ceil(shapes / columns) when that is too few, so every cell is a valid
+'   choice. Extra empty rows are allowed. Moving over the grid previews the
+'   layout on the slide; a click keeps it, Esc or Cancel puts every shape back.
+'   Rows and columns go up to MatrixMaxExtent each.
 '   Shapes are ordered by top, then left, then Id, and filled row by row.
 '   Each shape keeps its size and is centered in a cell of the largest width
-'   and height. The gap starts at 12 points and shrinks to 4 before the grid
-'   is allowed to meet the slide margin. The grid is centered on the slide.
+'   and height. The grid starts at the top-left corner of the selection.
+'   The gap is the median gap already between the shapes (reading order),
+'   or 12 points when there is none or it is larger than MatrixGapMax. It
+'   shrinks to 4 points, and then the grid is moved in, to stay on the slide.
+'   The final layout is one Undo step (Application.StartNewUndoEntry).
 '
 ' Align Central (A Z):
 '   One selected shape is left unchanged. Two or more open a radius picker,
@@ -43,7 +49,20 @@ Option Explicit
 Private Const ProcessGapDefault As Single = 8
 Private Const MatrixGap As Single = 12
 Private Const MatrixGapFloor As Single = 4
+Private Const MatrixGapMax As Single = 72
+Public Const MatrixMaxExtent As Long = 30
 Private Const SlideMargin As Single = 8
+
+' Align Matrix session: the shapes in reading order and where they were before any preview.
+Private mxItems() As Shape
+Private mxCount As Long
+Private mxLeft() As Single
+Private mxTop() As Single
+Private mxOriginX As Single
+Private mxOriginY As Single
+Private mxCellW As Single
+Private mxCellH As Single
+Private mxGap As Single
 
 Public Sub PPTK_AlignProcess()
     Dim items() As Shape
@@ -63,70 +82,127 @@ Public Sub PPTK_AlignProcess()
 End Sub
 
 Public Sub PPTK_AlignMatrix(Optional ByVal rows As Long = 0, Optional ByVal cols As Long = 0)
-    Dim items() As Shape
     Dim count As Long
-    Dim cellW As Single
-    Dim cellH As Single
-    Dim gapX As Single
-    Dim gapY As Single
-    Dim totalW As Single
-    Dim totalH As Single
-    Dim originX As Single
-    Dim originY As Single
-    Dim index As Long
-    Dim row As Long
-    Dim col As Long
-    Dim slideW As Single
-    Dim slideH As Single
-    Dim ask As Boolean
-
-    PPTK_CollectUsable items, count, False
+    count = PPTK_MatrixBegin()
     If count < 2 Then Exit Sub
-    ask = (rows < 1 Or cols < 1)
-    If ask Then
+    If rows < 1 Or cols < 1 Then
         cols = CLng(Int(Sqr(count)))
         If cols < 1 Then cols = 1
         If cols * cols < count Then cols = cols + 1
         rows = (count + cols - 1) \ cols
-        If Not PPTKMatrixForm.PPTK_Ask(count, rows, cols) Then Exit Sub
+        If Not PPTKMatrixForm.PPTK_Ask(count, rows, cols) Then
+            PPTK_MatrixRestore
+            Exit Sub
+        End If
+        PPTK_MatrixRestore
     End If
-    If rows < 1 Or cols < 1 Or rows > 12 Or cols > 12 Then Exit Sub
-    If rows * cols < count Then Exit Sub
+    PPTK_MatrixFinal rows & "|" & cols
+End Sub
 
-    PPTK_SortReading items, count
-    cellW = 0
-    cellH = 0
-    For index = 1 To count
-        If items(index).Width > cellW Then cellW = items(index).Width
-        If items(index).Height > cellH Then cellH = items(index).Height
+' Starts a Matrix session on the current selection: reading order, original positions, cell and gap.
+' Returns the number of shapes (below 2: nothing to arrange).
+Public Function PPTK_MatrixBegin() As Long
+    Dim index As Long
+    Dim minX As Single
+    Dim minY As Single
+    PPTK_CollectUsable mxItems, mxCount, False
+    PPTK_MatrixBegin = mxCount
+    If mxCount < 2 Then Exit Function
+    PPTK_SortReading mxItems, mxCount
+    ReDim mxLeft(1 To mxCount)
+    ReDim mxTop(1 To mxCount)
+    mxCellW = 0
+    mxCellH = 0
+    minX = mxItems(1).Left
+    minY = mxItems(1).Top
+    For index = 1 To mxCount
+        mxLeft(index) = mxItems(index).Left
+        mxTop(index) = mxItems(index).Top
+        If mxItems(index).Width > mxCellW Then mxCellW = mxItems(index).Width
+        If mxItems(index).Height > mxCellH Then mxCellH = mxItems(index).Height
+        If mxItems(index).Left < minX Then minX = mxItems(index).Left
+        If mxItems(index).Top < minY Then minY = mxItems(index).Top
     Next index
+    mxOriginX = minX
+    mxOriginY = minY
+    mxGap = PPTK_MedianGap(mxItems, mxCount, True)
+    If mxGap <= 0 Or mxGap > MatrixGapMax Then mxGap = MatrixGap
+End Function
+
+' Places the session's shapes in the grid given as "rows|cols". Used by the live preview and by the final layout.
+Public Sub PPTK_MatrixPreview(ByVal spec As String)
+    Dim parts() As String
+    Dim rows As Long
+    Dim cols As Long
+    Dim usedCols As Long
+    Dim usedRows As Long
+    Dim gapX As Single
+    Dim gapY As Single
+    Dim originX As Single
+    Dim originY As Single
+    Dim totalW As Single
+    Dim totalH As Single
+    Dim slideW As Single
+    Dim slideH As Single
+    Dim index As Long
+    If mxCount < 2 Then Exit Sub
+    parts = Split(spec, "|")
+    If UBound(parts) < 1 Then Exit Sub
+    rows = Val(parts(0))
+    cols = Val(parts(1))
+    If cols < 1 Then cols = 1
+    If cols > MatrixMaxExtent Then cols = MatrixMaxExtent
+    If rows < (mxCount + cols - 1) \ cols Then rows = (mxCount + cols - 1) \ cols
+    usedCols = cols
+    If usedCols > mxCount Then usedCols = mxCount
+    usedRows = (mxCount + cols - 1) \ cols
 
     slideW = ActivePresentation.PageSetup.SlideWidth
     slideH = ActivePresentation.PageSetup.SlideHeight
-    gapX = MatrixGap
-    gapY = MatrixGap
-    If cols > 1 Then
-        gapX = PPTK_FitGap(slideW - (SlideMargin * 2), cols, cellW, MatrixGap, MatrixGapFloor)
-    End If
-    If rows > 1 Then
-        gapY = PPTK_FitGap(slideH - (SlideMargin * 2), rows, cellH, MatrixGap, MatrixGapFloor)
-    End If
-    totalW = cols * cellW
-    If cols > 1 Then totalW = totalW + (cols - 1) * gapX
-    totalH = rows * cellH
-    If rows > 1 Then totalH = totalH + (rows - 1) * gapY
-    originX = (slideW - totalW) / 2
-    originY = (slideH - totalH) / 2
+    gapX = mxGap
+    gapY = mxGap
+    If usedCols > 1 Then gapX = PPTK_FitGap(slideW - SlideMargin - mxOriginX, usedCols, mxCellW, mxGap, MatrixGapFloor)
+    If usedRows > 1 Then gapY = PPTK_FitGap(slideH - SlideMargin - mxOriginY, usedRows, mxCellH, mxGap, MatrixGapFloor)
+    totalW = usedCols * mxCellW + (usedCols - 1) * gapX
+    totalH = usedRows * mxCellH + (usedRows - 1) * gapY
+    originX = mxOriginX
+    originY = mxOriginY
+    If originX + totalW > slideW - SlideMargin Then originX = slideW - SlideMargin - totalW
+    If originY + totalH > slideH - SlideMargin Then originY = slideH - SlideMargin - totalH
     If originX < SlideMargin Then originX = SlideMargin
     If originY < SlideMargin Then originY = SlideMargin
 
-    For index = 1 To count
-        row = (index - 1) \ cols
-        col = (index - 1) Mod cols
-        items(index).Left = originX + col * (cellW + gapX) + (cellW - items(index).Width) / 2
-        items(index).Top = originY + row * (cellH + gapY) + (cellH - items(index).Height) / 2
+    For index = 1 To mxCount
+        mxItems(index).Left = originX + ((index - 1) Mod cols) * (mxCellW + gapX) + (mxCellW - mxItems(index).Width) / 2
+        mxItems(index).Top = originY + ((index - 1) \ cols) * (mxCellH + gapY) + (mxCellH - mxItems(index).Height) / 2
     Next index
 End Sub
+
+' Puts every shape of the session back where it was (Cancel, Esc, or before the final layout).
+Public Sub PPTK_MatrixRestore()
+    Dim index As Long
+    On Error Resume Next
+    For index = 1 To mxCount
+        mxItems(index).Left = mxLeft(index)
+        mxItems(index).Top = mxTop(index)
+    Next index
+End Sub
+
+' The chosen layout as its own Undo step. "rows|cols"; the session must have begun.
+Public Sub PPTK_MatrixFinal(ByVal spec As String)
+    If mxCount < 2 Then Exit Sub
+    On Error Resume Next
+    Application.StartNewUndoEntry
+    On Error GoTo 0
+    PPTK_MatrixPreview spec
+End Sub
+
+' Non-interactive Align Matrix for tests and callers: begins on the selection and applies "rows|cols".
+' Returns the number of shapes arranged.
+Public Function PPTK_AlignMatrixSpec(ByVal spec As String) As Long
+    PPTK_AlignMatrixSpec = PPTK_MatrixBegin()
+    If PPTK_AlignMatrixSpec >= 2 Then PPTK_MatrixFinal spec
+End Function
 
 Public Sub PPTK_AlignCentral(Optional ByVal radius As Single = -1)
     Dim items() As Shape

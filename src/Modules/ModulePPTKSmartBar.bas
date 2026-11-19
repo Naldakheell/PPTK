@@ -41,7 +41,7 @@ Public Sub PPTK_HideSmartBar()
 End Sub
 
 Public Function PPTK_CommandCount() As Long
-    PPTK_CommandCount = 60
+    PPTK_CommandCount = 71
 End Function
 
 Public Sub PPTK_CommandAt(ByVal index As Long, ByRef commandName As String, ByRef shortcut As String, ByRef token As String, ByRef aliases As String)
@@ -110,6 +110,17 @@ Public Sub PPTK_CommandAt(ByVal index As Long, ByRef commandName As String, ByRe
         Case 58: PPTK_Set commandName, shortcut, token, aliases, "Flip Entire Presentation", "", "CMD FLIP PRESENTATION", "mirror presentation deck all slides horizontal flip rtl ltr layout"
         Case 59: PPTK_Set commandName, shortcut, token, aliases, "Unify Shape Type", "X T", "X T", "shape type autoshape change same match"
         Case 60: PPTK_Set commandName, shortcut, token, aliases, "Find & Replace Colors", "", "CMD REPLACE COLORS", "color colour colors replace find swap recolor hex palette fill outline font edit"
+        Case 61: PPTK_Set commandName, shortcut, token, aliases, "Align Reference - First Shape / Selection", "", "CMD ALIGN REFERENCE", "align reference first selected shape anchor key object selection bounds edge toggle"
+        Case 62: PPTK_Set commandName, shortcut, token, aliases, "Replace Fonts", "", "CMD REPLACE FONTS", "font fonts replace change swap typeface family presentation"
+        Case 63: PPTK_Set commandName, shortcut, token, aliases, "Select Similar - Fill Color", "", "CMD SELECT FILL", "select similar same fill color colour matching shapes"
+        Case 64: PPTK_Set commandName, shortcut, token, aliases, "Select Similar - Outline Color", "", "CMD SELECT OUTLINE", "select similar same outline line border color colour matching shapes"
+        Case 65: PPTK_Set commandName, shortcut, token, aliases, "Select Similar - Font", "", "CMD SELECT FONT", "select similar same font typeface family text matching shapes"
+        Case 66: PPTK_Set commandName, shortcut, token, aliases, "Select Similar - Font Color", "", "CMD SELECT FONT COLOR", "select similar same font text color colour matching shapes"
+        Case 67: PPTK_Set commandName, shortcut, token, aliases, "Select Similar - Shape Type", "", "CMD SELECT TYPE", "select similar same shape type kind matching shapes"
+        Case 68: PPTK_Set commandName, shortcut, token, aliases, "Select Similar - Size", "", "CMD SELECT SIZE", "select similar same size width height matching shapes"
+        Case 69: PPTK_Set commandName, shortcut, token, aliases, "Select Similar - Font Size", "", "CMD SELECT FONT SIZE", "select similar same font size text points matching shapes"
+        Case 70: PPTK_Set commandName, shortcut, token, aliases, "Select Similar - Width", "", "CMD SELECT WIDTH", "select similar same width matching shapes"
+        Case 71: PPTK_Set commandName, shortcut, token, aliases, "Select Similar - Height", "", "CMD SELECT HEIGHT", "select similar same height matching shapes"
     End Select
 End Sub
 
