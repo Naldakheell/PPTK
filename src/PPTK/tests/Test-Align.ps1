@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-  Automated PowerPoint test for PPTK alignment (ModulePPTKAlign: the first selected shape is the reference).
+  Automated PowerPoint test for PPTK alignment (ModulePPTKAlign: the first selected shape is the reference)
+  and for D H / D V (PPTK_DistributeLine: one row or column with even gaps; the ribbon buttons run the same code).
 
 .DESCRIPTION
   Runs in a private PowerPoint instance (PowerPoint must be closed first), on a new unsaved presentation, with
@@ -129,6 +130,73 @@ try {
     NewShapes; $app.ActiveWindow.Selection.Unselect(); $before = (Pos) -join ' '
     Run 'ModulePPTKAlign.PPTK_AlignEdge' 'L'
     Record 'N1' 'no selection: nothing happens' (((Pos) -join ' ') -eq $before) ''
+
+    # ---- 9. D H / D V (PPTK_DistributeLine): one row or column, even gaps; ribbon and Smart Bar run the same code
+    # Line check: every shape on the reference's middle (row) or center (column); gaps along the axis all equal
+    # $gap (or all equal to each other when $gap is $null); the first shape along the axis starts at $start.
+    function LineOk([string[]]$names, [string]$axis, [double]$cross, $start, $gap) {
+        $boxes = @($names | ForEach-Object { Box ($slide.Shapes.Item($_)) })
+        if ($axis -eq 'H') { $lo = 'L'; $hi = 'R'; $mid = 'M' } else { $lo = 'T'; $hi = 'B'; $mid = 'C' }
+        $sorted = @($boxes | Sort-Object { $_.$lo })
+        foreach ($b in $boxes) { if (-not (Near $b.$mid $cross)) { return $false } }
+        if ($null -ne $start -and -not (Near $sorted[0].$lo $start)) { return $false }
+        $first = $sorted[1].$lo - $sorted[0].$hi
+        if ($null -ne $gap -and -not (Near $first $gap)) { return $false }
+        if ($first -lt -0.05) { return $false }
+        for ($i = 2; $i -lt $sorted.Count; $i++) { if (-not (Near ($sorted[$i].$lo - $sorted[$i - 1].$hi) $first)) { return $false } }
+        return $true
+    }
+    function Stack([string]$axis) {
+        while ($slide.Shapes.Count -gt 0) { $slide.Shapes.Item(1).Delete() }
+        foreach ($k in 0..2) {
+            if ($axis -eq 'H') { $x = $slide.Shapes.AddShape(1, 405, 220 + 12 * $k, 150, 100) } else { $x = $slide.Shapes.AddShape(1, 300 + 12 * $k, 200, 150, 100) }
+            $x.Name = [string][char](65 + $k)
+        }
+    }
+    Run 'ModulePPTKAlign.PPTK_SetAlignReference' 'First'
+
+    # Scattered A B C, first selected A: the row is on A's middle, from the leftmost (A, 100) to the rightmost (C, 580).
+    NewShapes; SelectOrder @('A', 'B', 'C'); $m = (Box ($slide.Shapes.Item('A'))).M
+    Run 'ModulePPTKShortcuts.PPTK_DispatchShortcut' 'D H'
+    Record 'DH1' 'D H: one row on the first selected, even gaps, outer edges kept' ((LineOk @('A', 'B', 'C') 'H' $m 100 $null) -and (Near (Box ($slide.Shapes.Item('C'))).R 580)) ((Pos) -join ' ')
+    NewShapes; SelectOrder @('A', 'B', 'C'); $c = (Box ($slide.Shapes.Item('A'))).C
+    Run 'ModulePPTKShortcuts.PPTK_DispatchShortcut' 'D V'
+    Record 'DV1' 'D V: one column on the first selected, even gaps, outer edges kept' ((LineOk @('A', 'B', 'C') 'V' $c 50 $null) -and (Near (Box ($slide.Shapes.Item('B'))).B 260)) ((Pos) -join ' ')
+
+    # Two shapes: they line up (the old Distribute did nothing with two).
+    NewShapes; $slide.Shapes.Item('C').Delete(); SelectOrder @('A', 'B'); $m = (Box ($slide.Shapes.Item('A'))).M
+    Run 'ModulePPTKShortcuts.PPTK_DispatchShortcut' 'D H'
+    Record 'DH2' 'D H with two shapes: same row, A stays, B keeps its left' ((LineOk @('A', 'B') 'H' $m 100 $null) -and (Near $slide.Shapes.Item('B').Left 300) -and (Near $slide.Shapes.Item('A').Top 100)) ("A=$($slide.Shapes.Item('A').Left),$($slide.Shapes.Item('A').Top) B=$($slide.Shapes.Item('B').Left),$($slide.Shapes.Item('B').Top)")
+
+    # Stacked copies (overlapping): they spread out with an 8 pt gap, a column becomes a row and a row a column.
+    Stack 'H'; SelectOrder @('A', 'B', 'C')
+    Run 'ModulePPTKShortcuts.PPTK_DispatchShortcut' 'D H'
+    Record 'DH3' 'D H on a stacked column: a row with 8 pt gaps, in top-to-bottom order' ((LineOk @('A', 'B', 'C') 'H' 270 405 8) -and ($slide.Shapes.Item('A').Left -lt $slide.Shapes.Item('B').Left) -and ($slide.Shapes.Item('B').Left -lt $slide.Shapes.Item('C').Left)) ((Pos) -join ' ')
+    Stack 'V'; SelectOrder @('A', 'B', 'C')
+    Run 'ModulePPTKShortcuts.PPTK_DispatchShortcut' 'D V'
+    Record 'DV3' 'D V on a stacked row: a column with 8 pt gaps, in left-to-right order' ((LineOk @('A', 'B', 'C') 'V' 375 200 8) -and ($slide.Shapes.Item('A').Top -lt $slide.Shapes.Item('B').Top) -and ($slide.Shapes.Item('B').Top -lt $slide.Shapes.Item('C').Top)) ((Pos) -join ' ')
+
+    # The ribbon buttons run the same code as the shortcut.
+    NewShapes; SelectOrder @('A', 'B', 'C'); $m = (Box ($slide.Shapes.Item('A'))).M
+    Run 'ModuleObjectsAlignAndDistribute.ObjectsDistributeHorizontally'
+    Record 'DR1' 'ribbon Distribute Horizontally = D H' ((LineOk @('A', 'B', 'C') 'H' $m 100 $null) -and (Near (Box ($slide.Shapes.Item('C'))).R 580)) ((Pos) -join ' ')
+
+    # Bounds reference: the row is on the middle of the selection bounds (50..260 -> 155).
+    Run 'ModulePPTKAlign.PPTK_SetAlignReference' 'Bounds'
+    NewShapes; SelectOrder @('A', 'B', 'C')
+    Run 'ModulePPTKShortcuts.PPTK_DispatchShortcut' 'D H'
+    Record 'DB1' 'D H in bounds mode: the row is on the middle of the selection' (LineOk @('A', 'B', 'C') 'H' 155 100 $null) ((Pos) -join ' ')
+    Run 'ModulePPTKAlign.PPTK_SetAlignReference' 'First'
+
+    # One shape: centered on the slide (unchanged); one Undo restores everything.
+    NewShapes; SelectOrder @('B')
+    Run 'ModulePPTKShortcuts.PPTK_DispatchShortcut' 'D H'
+    Record 'DS1' 'D H with one shape: centered on the slide' (Near ((Box ($slide.Shapes.Item('B'))).C) ($pres.PageSetup.SlideWidth / 2)) ((Pos) -join ' ')
+    NewShapes; SelectOrder @('A', 'B', 'C'); $before = (Pos) -join ' '
+    Run 'ModulePPTKShortcuts.PPTK_DispatchShortcut' 'D V'
+    $after = (Pos) -join ' '
+    $app.CommandBars.ExecuteMso('Undo')
+    Record 'DU1' 'D V: one Undo restores all shapes' ($after -ne $before -and ((Pos) -join ' ') -eq $before) "after: $after | undone: $((Pos) -join ' ')"
 } catch {
     Record 'X' 'unexpected error' $false $_.Exception.Message
 } finally {

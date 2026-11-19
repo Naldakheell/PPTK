@@ -1229,38 +1229,14 @@ Sub ObjectsAlignMiddles(Optional ByVal control As IRibbonControl)
 End Sub
 
 
+' Ribbon, Smart Bar and D H: one row, spaced evenly (PPTK_DistributeLine in ModulePPTKAlign).
 Sub ObjectsDistributeHorizontally(Optional ByVal control As IRibbonControl)
-    Set MyDocument = Application.ActiveWindow
-    
-    If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
-    
-    ' Shapes selected inside a group come first: their ShapeRange is the parent group.
-    If MyDocument.Selection.HasChildShapeRange Then
-        If MyDocument.Selection.ChildShapeRange.count > 2 Then
-            MyDocument.Selection.ChildShapeRange.Distribute msoDistributeHorizontally, msoFalse
-        End If
-    ElseIf MyDocument.Selection.ShapeRange.count > 2 Then
-        MyDocument.Selection.ShapeRange.Distribute msoDistributeHorizontally, msoFalse
-    ElseIf MyDocument.Selection.ShapeRange.count = 1 Then
-        MyDocument.Selection.ShapeRange.Align msoAlignCenters, msoTrue
-    End If
+    PPTK_DistributeLine "H"
 End Sub
 
+' Ribbon, Smart Bar and D V: one column, spaced evenly (PPTK_DistributeLine in ModulePPTKAlign).
 Sub ObjectsDistributeVertically(Optional ByVal control As IRibbonControl)
-    Set MyDocument = Application.ActiveWindow
-    
-    If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
-    
-    ' Shapes selected inside a group come first: their ShapeRange is the parent group.
-    If MyDocument.Selection.HasChildShapeRange Then
-        If MyDocument.Selection.ChildShapeRange.count > 2 Then
-            MyDocument.Selection.ChildShapeRange.Distribute msoDistributeVertically, msoFalse
-        End If
-    ElseIf MyDocument.Selection.ShapeRange.count > 2 Then
-        MyDocument.Selection.ShapeRange.Distribute msoDistributeVertically, msoFalse
-    ElseIf MyDocument.Selection.ShapeRange.count = 1 Then
-        MyDocument.Selection.ShapeRange.Align msoAlignMiddles, msoTrue
-    End If
+    PPTK_DistributeLine "V"
 End Sub
 
 Sub ObjectsAlignShapeAngle(Optional ByVal control As IRibbonControl)

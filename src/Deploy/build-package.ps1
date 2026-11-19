@@ -324,11 +324,22 @@ function Test-PpamStructure($parts, [string]$label, [string]$root) {
     foreach ($req in '[Content_Types].xml', 'ppt/vbaProject.bin', 'customUI/customUI.xml', 'customUI/_rels/customUI.xml.rels', '_rels/.rels') {
         if (-not $parts.Contains($req)) { Fail "$label is missing the part $req" }
     }
-    # The ribbon uses the Office 2010+ schema (2009/07, needed for the right-click Select menu). PowerPoint loads it
-    # only through the 2007 ui/extensibility relationship; with the 2006 type it ignores the whole ribbon.
+    # The ribbon schema and the root relationship that loads it must match, or PowerPoint ignores the whole ribbon:
+    # 2009/07 schema (Office 2010+, needed for the right-click Select menu, from 1.2.0) <-> 2007 ui/extensibility
+    # relationship; 2006/01 schema (releases up to 1.1.0) <-> 2006 relationship. Older releases stay verifiable;
+    # a new build is held to the 2009/07 schema by the comparison with src\PPTK\Ribbon\CustomUI.xml below.
     $rootRels = [Text.Encoding]::UTF8.GetString($parts['_rels/.rels'])
-    if ($rootRels -notmatch 'Type="http://schemas\.microsoft\.com/office/2007/relationships/ui/extensibility"\s+Target="customUI/customUI\.xml"' -and $rootRels -notmatch 'Target="customUI/customUI\.xml"[^>]*Type="http://schemas\.microsoft\.com/office/2007/relationships/ui/extensibility"') { Fail "$label does not link customUI/customUI.xml with the 2007 ui/extensibility relationship (Office 2010+ ribbon)" }
-    if ([Text.Encoding]::UTF8.GetString($parts['customUI/customUI.xml']) -notmatch 'xmlns="http://schemas\.microsoft\.com/office/2009/07/customui"') { Fail "$label ribbon is not on the 2009/07 customUI schema" }
+    $uiText = [Text.Encoding]::UTF8.GetString($parts['customUI/customUI.xml'])
+    $relYear = $null
+    foreach ($year in '2007', '2006') {
+        $t = "http://schemas\.microsoft\.com/office/$year/relationships/ui/extensibility"
+        if ($rootRels -match "Type=""$t""\s+Target=""customUI/customUI\.xml""" -or $rootRels -match "Target=""customUI/customUI\.xml""[^>]*Type=""$t""") { $relYear = $year; break }
+    }
+    if (-not $relYear) { Fail "$label does not link customUI/customUI.xml with a ui/extensibility relationship" }
+    if ($uiText -match 'xmlns="http://schemas\.microsoft\.com/office/2009/07/customui"') { $uiSchema = '2009/07' }
+    elseif ($uiText -match 'xmlns="http://schemas\.microsoft\.com/office/2006/01/customui"') { $uiSchema = '2006/01' }
+    else { Fail "$label ribbon has no known customUI schema" }
+    if (($uiSchema -eq '2009/07') -ne ($relYear -eq '2007')) { Fail "$label ribbon schema $uiSchema does not match its $relYear ui/extensibility relationship (PowerPoint would not load the ribbon)" }
     if ([Text.Encoding]::UTF8.GetString($parts['[Content_Types].xml']) -notmatch [regex]::Escape($AddinContentType)) { Fail "$label is not a macro-enabled PowerPoint add-in ($AddinContentType not found)" }
     $relsText = [Text.Encoding]::UTF8.GetString($parts['customUI/_rels/customUI.xml.rels'])
     $targets = @([regex]::Matches($relsText, 'Target="images/([^"]+)"') | ForEach-Object { $_.Groups[1].Value })

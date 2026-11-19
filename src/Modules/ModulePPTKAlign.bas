@@ -148,3 +148,112 @@ Private Function PPTK_AlignCommand(ByVal edge As String) As Long
         Case Else: PPTK_AlignCommand = -1
     End Select
 End Function
+
+' ---------------------------------------------------------------- distribute on one line (D H, D V)
+
+' axis "H" (D H): the selected shapes line up on one row (Align Middle, same reference as A M) and are spaced
+' evenly from left to right. axis "V" (D V): one column (Align Center, as A C), spaced evenly top to bottom.
+' Works from two shapes. Order along the axis is the current position (left, or top); shapes at the same
+' position are ordered by the other axis, so a column becomes a row and a row becomes a column.
+' The outer shapes keep the span when everything fits in it; when the shapes do not fit (overlapping or
+' stacked), they are laid out from the first one with an 8 pt gap. One shape: as before (to the slide).
+Public Sub PPTK_DistributeLine(ByVal axis As String)
+    Const OverlapGap As Single = 8
+    Dim win As Object
+    Dim inGroup As Boolean
+    Dim selected As ShapeRange
+    Dim order() As Shape
+    Dim count As Long, index As Long, inner As Long
+    Dim held As Shape
+    Dim horizontal As Boolean
+    Dim startPos As Single, endPos As Single, total As Single, gap As Single, position As Single
+
+    axis = UCase$(Trim$(axis))
+    If axis <> "H" And axis <> "V" Then Exit Sub
+    horizontal = (axis = "H")
+    On Error GoTo Clean
+    Set win = Application.ActiveWindow
+    If win.Selection.Type <> ppSelectionShapes Then Exit Sub
+    inGroup = win.Selection.HasChildShapeRange
+    If inGroup Then Set selected = win.Selection.ChildShapeRange Else Set selected = win.Selection.ShapeRange
+    count = selected.Count
+    If count < 2 Then
+        ' One shape: centered on the slide (unchanged). One shape inside a group: nothing to do.
+        If inGroup Then Exit Sub
+        Application.StartNewUndoEntry
+        If horizontal Then selected.Align msoAlignCenters, msoTrue Else selected.Align msoAlignMiddles, msoTrue
+        Exit Sub
+    End If
+
+    Application.StartNewUndoEntry
+
+    ' 1. One line, with the Align reference setting (first selected shape, or the selection bounds).
+    If PPTK_AlignReference() = PPTK_ALIGN_BOUNDS Then
+        If horizontal Then selected.Align msoAlignMiddles, msoFalse Else selected.Align msoAlignCenters, msoFalse
+    Else
+        For index = 2 To count
+            If horizontal Then
+                PPTK_AlignToReference selected(index), selected(1), "M"
+            Else
+                PPTK_AlignToReference selected(index), selected(1), "C"
+            End If
+        Next index
+    End If
+
+    ' 2. Order along the axis (insertion sort; selections are small).
+    ReDim order(1 To count)
+    For index = 1 To count
+        Set order(index) = selected(index)
+    Next index
+    For index = 2 To count
+        Set held = order(index)
+        inner = index - 1
+        Do While inner >= 1
+            If Not PPTK_LineBefore(held, order(inner), horizontal) Then Exit Do
+            Set order(inner + 1) = order(inner)
+            inner = inner - 1
+        Loop
+        Set order(inner + 1) = held
+    Next index
+
+    ' 3. Even gaps between the outer edges; a fixed gap when the shapes do not fit.
+    startPos = PPTK_LineStart(order(1), horizontal)
+    endPos = startPos
+    total = 0
+    For index = 1 To count
+        total = total + PPTK_LineSize(order(index), horizontal)
+        If PPTK_LineStart(order(index), horizontal) + PPTK_LineSize(order(index), horizontal) > endPos Then
+            endPos = PPTK_LineStart(order(index), horizontal) + PPTK_LineSize(order(index), horizontal)
+        End If
+    Next index
+    gap = (endPos - startPos - total) / (count - 1)
+    If gap < 0 Then gap = OverlapGap
+
+    position = startPos
+    For index = 1 To count
+        If horizontal Then SetRealLeft order(index), position Else SetRealTop order(index), position
+        position = position + PPTK_LineSize(order(index), horizontal) + gap
+    Next index
+Clean:
+End Sub
+
+' True when shape a comes before shape b along the axis (ties: the other axis).
+Private Function PPTK_LineBefore(ByVal a As Shape, ByVal b As Shape, ByVal horizontal As Boolean) As Boolean
+    Const Tolerance As Single = 0.5
+    Dim mainA As Single, mainB As Single
+    mainA = PPTK_LineStart(a, horizontal)
+    mainB = PPTK_LineStart(b, horizontal)
+    If Abs(mainA - mainB) > Tolerance Then
+        PPTK_LineBefore = (mainA < mainB)
+    Else
+        PPTK_LineBefore = (PPTK_LineStart(a, Not horizontal) < PPTK_LineStart(b, Not horizontal) - Tolerance)
+    End If
+End Function
+
+Private Function PPTK_LineStart(ByVal target As Shape, ByVal horizontal As Boolean) As Single
+    If horizontal Then PPTK_LineStart = GetRealLeft(target) Else PPTK_LineStart = GetRealTop(target)
+End Function
+
+Private Function PPTK_LineSize(ByVal target As Shape, ByVal horizontal As Boolean) As Single
+    If horizontal Then PPTK_LineSize = GetRealWidth(target) Else PPTK_LineSize = GetRealHeight(target)
+End Function
