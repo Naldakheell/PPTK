@@ -21,7 +21,7 @@ Attribute VB_Name = "ModuleObjectsSizeAndPosition"
 'OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 'SOFTWARE.
 
-Sub ObjectsSizeToTallest(Optional control As IRibbonControl)
+Sub ObjectsSizeToTallest(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim Tallest     As Single
@@ -58,7 +58,7 @@ Sub ObjectsSizeToTallest(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsSizeToShortest(Optional control As IRibbonControl)
+Sub ObjectsSizeToShortest(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim Shortest    As Single
@@ -96,7 +96,7 @@ Sub ObjectsSizeToShortest(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsSizeToWidest(Optional control As IRibbonControl)
+Sub ObjectsSizeToWidest(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim width       As Single
     Dim Widest      As Single
@@ -134,7 +134,7 @@ Sub ObjectsSizeToWidest(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsSizeToNarrowest(Optional control As IRibbonControl)
+Sub ObjectsSizeToNarrowest(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim width       As Single
     Dim Narrowest   As Single
@@ -172,7 +172,7 @@ Sub ObjectsSizeToNarrowest(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsSameHeight(Optional control As IRibbonControl)
+Sub ObjectsSameHeight(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim SlideShape  As shape
@@ -210,7 +210,7 @@ Sub ObjectsSameHeight(Optional control As IRibbonControl)
     End If
 End Sub
 
-Sub ObjectsSameWidth(Optional control As IRibbonControl)
+Sub ObjectsSameWidth(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim width       As Single
     Dim SlideShape  As shape
@@ -248,14 +248,15 @@ Sub ObjectsSameWidth(Optional control As IRibbonControl)
     End If
 End Sub
 
-Sub ObjectsSameHeightAndWidth(Optional control As IRibbonControl)
+Sub ObjectsSameHeightAndWidth(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim height      As Single
     Dim width       As Single
     Dim SlideShape  As shape
-    Dim unmatched   As Boolean
+    Dim sizeFailed  As Boolean
     
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
+    sizeFailed = False
     
     If GetSetting("Instrumenta", "AlignDistributeSize", "DefaultTransformationMethod", "0") = 0 Then
         If MyDocument.Selection.HasChildShapeRange Then
@@ -263,14 +264,14 @@ Sub ObjectsSameHeightAndWidth(Optional control As IRibbonControl)
             width = GetRealWidth(MyDocument.Selection.ChildShapeRange(1))
             
             For Each SlideShape In MyDocument.Selection.ChildShapeRange
-                If Not SetRealSize(SlideShape, width, height) Then unmatched = True
+                If Not SetRealSize(SlideShape, width, height) Then sizeFailed = True
             Next SlideShape
         Else
             height = GetRealHeight(MyDocument.Selection.ShapeRange(1))
             width = GetRealWidth(MyDocument.Selection.ShapeRange(1))
             
             For Each SlideShape In MyDocument.Selection.ShapeRange
-                If Not SetRealSize(SlideShape, width, height) Then unmatched = True
+                If Not SetRealSize(SlideShape, width, height) Then sizeFailed = True
             Next SlideShape
         End If
     Else
@@ -279,90 +280,85 @@ Sub ObjectsSameHeightAndWidth(Optional control As IRibbonControl)
             width = GetRealWidth(MyDocument.Selection.ChildShapeRange(MyDocument.Selection.ChildShapeRange.count))
             
             For Each SlideShape In MyDocument.Selection.ChildShapeRange
-                If Not SetRealSize(SlideShape, width, height) Then unmatched = True
+                If Not SetRealSize(SlideShape, width, height) Then sizeFailed = True
             Next SlideShape
         Else
             height = GetRealHeight(MyDocument.Selection.ShapeRange(MyDocument.Selection.ShapeRange.count))
             width = GetRealWidth(MyDocument.Selection.ShapeRange(MyDocument.Selection.ShapeRange.count))
             
             For Each SlideShape In MyDocument.Selection.ShapeRange
-                If Not SetRealSize(SlideShape, width, height) Then unmatched = True
+                If Not SetRealSize(SlideShape, width, height) Then sizeFailed = True
             Next SlideShape
         End If
     End If
-    If unmatched Then
-        MsgBox "Cannot match both the visual width and height at this rotation."
+
+    If sizeFailed Then
+        MsgBox "Same Size could not match both visual dimensions for one or more shapes at their current rotation.", vbExclamation, "PPTK"
     End If
 End Sub
 
-Sub ObjectsSwapPosition(Optional control As IRibbonControl)
+' Swaps the stacking positions of two shapes and leaves every other shape where it was.
+' The upper shape goes down d steps (to the lower slot, pushing the lower shape up one),
+' then the lower shape goes up d-1 steps (to the upper slot).
+Private Sub PPTK_SwapZOrder(ByVal first As Shape, ByVal second As Shape)
+    Dim upper As Shape
+    Dim lower As Shape
+    Dim steps As Long
+    Dim i As Long
+    If first.ZOrderPosition > second.ZOrderPosition Then
+        Set upper = first
+        Set lower = second
+    Else
+        Set upper = second
+        Set lower = first
+    End If
+    steps = upper.ZOrderPosition - lower.ZOrderPosition
+    For i = 1 To steps
+        upper.ZOrder msoSendBackward
+    Next i
+    For i = 1 To steps - 1
+        lower.ZOrder msoBringForward
+    Next i
+End Sub
+
+' Swap Positions (/ shortcut, ribbon, Smart Bar): each shape moves to the centre of the other one.
+' Centres, not left/top edges, so shapes of different sizes land exactly where the other one was
+' (2026-11-18; before, the visible left/top edges were swapped, which shifted a narrow shape against a wide
+' one). Left + Width / 2 is the rotation centre, which is also the centre of the visible (rotated) box, so
+' this is exact for rotated shapes too. Both centres are read before anything moves. Sizes, rotation,
+' formatting, text, stacking order and the selection are not changed. One Undo step.
+Private Sub PPTK_SwapCentres(ByVal first As Shape, ByVal second As Shape)
+    Dim firstX As Single
+    Dim firstY As Single
+    Dim secondX As Single
+    Dim secondY As Single
+    firstX = first.Left + first.Width / 2
+    firstY = first.Top + first.Height / 2
+    secondX = second.Left + second.Width / 2
+    secondY = second.Top + second.Height / 2
+    first.Left = secondX - first.Width / 2
+    first.Top = secondY - first.Height / 2
+    second.Left = firstX - second.Width / 2
+    second.Top = firstY - second.Height / 2
+End Sub
+
+Sub ObjectsSwapPosition(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
-    
-    Dim Left1       As Single
-    Dim Left2       As Single
-    Dim Top1        As Single
-    Dim Top2        As Single
-    Dim ZOrder1     As Single
-    Dim ZOrder2     As Single
-    
+    On Error Resume Next
+    PPTK_NewUndoEntry  ' Mac: the early-bound call does not compile on PowerPoint for Mac (see ModulePPTKShortcuts)
+    On Error GoTo 0
+
     If ActiveWindow.Selection.ShapeRange.count = 2 Then
-        
-        Left1 = GetRealLeft(ActiveWindow.Selection.ShapeRange(1))
-        Left2 = GetRealLeft(ActiveWindow.Selection.ShapeRange(2))
-        Top1 = GetRealTop(ActiveWindow.Selection.ShapeRange(1))
-        Top2 = GetRealTop(ActiveWindow.Selection.ShapeRange(2))
-        
-        SetRealLeft ActiveWindow.Selection.ShapeRange(1), Left2
-        SetRealLeft ActiveWindow.Selection.ShapeRange(2), Left1
-        SetRealTop ActiveWindow.Selection.ShapeRange(1), Top2
-        SetRealTop ActiveWindow.Selection.ShapeRange(2), Top1
-        
-        ZOrder1 = ActiveWindow.Selection.ShapeRange(1).ZOrderPosition
-        ZOrder2 = ActiveWindow.Selection.ShapeRange(2).ZOrderPosition
-        
-        If ZOrder1 < ZOrder2 Then
-            For i = 1 To (ZOrder2 - ZOrder1)
-                ActiveWindow.Selection.ShapeRange(2).ZOrder msoSendBackward
-                ActiveWindow.Selection.ShapeRange(1).ZOrder msoBringForward
-            Next i
-        Else
-            For i = 1 To (ZOrder1 - ZOrder2)
-                ActiveWindow.Selection.ShapeRange(1).ZOrder msoSendBackward
-                ActiveWindow.Selection.ShapeRange(2).ZOrder msoBringForward
-            Next i
-        End If
-        
+
+        PPTK_SwapCentres ActiveWindow.Selection.ShapeRange(1), ActiveWindow.Selection.ShapeRange(2)
+
     ElseIf MyDocument.Selection.HasChildShapeRange Then
-        
+
         If MyDocument.Selection.ChildShapeRange.count = 2 Then
-            
-            Left1 = GetRealLeft(MyDocument.Selection.ChildShapeRange(1))
-            Left2 = GetRealLeft(MyDocument.Selection.ChildShapeRange(2))
-            Top1 = GetRealTop(MyDocument.Selection.ChildShapeRange(1))
-            Top2 = GetRealTop(MyDocument.Selection.ChildShapeRange(2))
-            
-            SetRealLeft ActiveWindow.Selection.ChildShapeRange(1), Left2
-            SetRealLeft ActiveWindow.Selection.ChildShapeRange(2), Left1
-            SetRealTop ActiveWindow.Selection.ChildShapeRange(1), Top2
-            SetRealTop ActiveWindow.Selection.ChildShapeRange(2), Top1
-            
-            ZOrder1 = ActiveWindow.Selection.ChildShapeRange(1).ZOrderPosition
-            ZOrder2 = ActiveWindow.Selection.ChildShapeRange(2).ZOrderPosition
-            
-            If ZOrder1 < ZOrder2 Then
-                For i = 1 To (ZOrder2 - ZOrder1)
-                    ActiveWindow.Selection.ChildShapeRange(2).ZOrder msoSendBackward
-                    ActiveWindow.Selection.ChildShapeRange(1).ZOrder msoBringForward
-                Next i
-            Else
-                For i = 1 To (ZOrder1 - ZOrder2)
-                    ActiveWindow.Selection.ChildShapeRange(1).ZOrder msoSendBackward
-                    ActiveWindow.Selection.ChildShapeRange(2).ZOrder msoBringForward
-                Next i
-                
-            End If
-            
+
+            PPTK_SwapCentres MyDocument.Selection.ChildShapeRange(1), MyDocument.Selection.ChildShapeRange(2)
+
         Else
             
             MsgBox "Select two shapes To swap positions."
@@ -377,13 +373,11 @@ Sub ObjectsSwapPosition(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsSwapPositionCentered(Optional control As IRibbonControl)
+Sub ObjectsSwapPositionCentered(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
     
     Dim Left1, Left2, Top1, Top2, Width1, Width2, Height1, Height2 As Single
-    Dim ZOrder1     As Single
-    Dim ZOrder2     As Single
     
     If ActiveWindow.Selection.ShapeRange.count = 2 Then
         
@@ -401,20 +395,8 @@ Sub ObjectsSwapPositionCentered(Optional control As IRibbonControl)
         SetRealTop ActiveWindow.Selection.ShapeRange(1), (Top2 + (Height2 - Height1) / 2)
         SetRealTop ActiveWindow.Selection.ShapeRange(2), (Top1 + (Height1 - Height2) / 2)
 
-        ZOrder1 = ActiveWindow.Selection.ShapeRange(1).ZOrderPosition
-        ZOrder2 = ActiveWindow.Selection.ShapeRange(2).ZOrderPosition
         
-        If ZOrder1 < ZOrder2 Then
-            For i = 1 To (ZOrder2 - ZOrder1)
-                ActiveWindow.Selection.ShapeRange(2).ZOrder msoSendBackward
-                ActiveWindow.Selection.ShapeRange(1).ZOrder msoBringForward
-            Next i
-        Else
-            For i = 1 To (ZOrder1 - ZOrder2)
-                ActiveWindow.Selection.ShapeRange(1).ZOrder msoSendBackward
-                ActiveWindow.Selection.ShapeRange(2).ZOrder msoBringForward
-            Next i
-        End If
+        PPTK_SwapZOrder ActiveWindow.Selection.ShapeRange(1), ActiveWindow.Selection.ShapeRange(2)
         
     ElseIf MyDocument.Selection.HasChildShapeRange Then
         
@@ -434,20 +416,8 @@ Sub ObjectsSwapPositionCentered(Optional control As IRibbonControl)
         SetRealTop ActiveWindow.Selection.ChildShapeRange(1), (Top2 + (Height2 - Height1) / 2)
         SetRealTop ActiveWindow.Selection.ChildShapeRange(2), (Top1 + (Height1 - Height2) / 2)
 
-        ZOrder1 = ActiveWindow.Selection.ChildShapeRange(1).ZOrderPosition
-        ZOrder2 = ActiveWindow.Selection.ChildShapeRange(2).ZOrderPosition
         
-        If ZOrder1 < ZOrder2 Then
-            For i = 1 To (ZOrder2 - ZOrder1)
-                ActiveWindow.Selection.ChildShapeRange(2).ZOrder msoSendBackward
-                ActiveWindow.Selection.ChildShapeRange(1).ZOrder msoBringForward
-            Next i
-        Else
-            For i = 1 To (ZOrder1 - ZOrder2)
-                ActiveWindow.Selection.ChildShapeRange(1).ZOrder msoSendBackward
-                ActiveWindow.Selection.ChildShapeRange(2).ZOrder msoBringForward
-            Next i
-        End If
+        PPTK_SwapZOrder ActiveWindow.Selection.ChildShapeRange(1), ActiveWindow.Selection.ChildShapeRange(2)
             
         Else
             

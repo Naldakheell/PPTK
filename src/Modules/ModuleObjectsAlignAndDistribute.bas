@@ -21,37 +21,37 @@ Attribute VB_Name = "ModuleObjectsAlignAndDistribute"
 'OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 'SOFTWARE.
 
-Sub ResizeAndSpaceEvenHorizontal(Optional control As IRibbonControl)
+Sub ResizeAndSpaceEvenHorizontal(Optional ByVal control As IRibbonControl)
 
 Call ResizeAndSpaceEvenly("evenhorizontal")
 
 End Sub
 
-Sub ResizeAndSpaceEvenHorizontalPreserveFirst(Optional control As IRibbonControl)
+Sub ResizeAndSpaceEvenHorizontalPreserveFirst(Optional ByVal control As IRibbonControl)
 
 Call ResizeAndSpaceEvenly("evenhorizontalpreservefirst")
 
 End Sub
 
-Sub ResizeAndSpaceEvenHorizontalPreserveLast(Optional control As IRibbonControl)
+Sub ResizeAndSpaceEvenHorizontalPreserveLast(Optional ByVal control As IRibbonControl)
 
 Call ResizeAndSpaceEvenly("evenhorizontalpreservelast")
 
 End Sub
 
-Sub ResizeAndSpaceEvenVertical(Optional control As IRibbonControl)
+Sub ResizeAndSpaceEvenVertical(Optional ByVal control As IRibbonControl)
 
 Call ResizeAndSpaceEvenly("evenvertical")
 
 End Sub
 
-Sub ResizeAndSpaceEvenVerticalPreserveFirst(Optional control As IRibbonControl)
+Sub ResizeAndSpaceEvenVerticalPreserveFirst(Optional ByVal control As IRibbonControl)
 
 Call ResizeAndSpaceEvenly("evenverticalpreservefirst")
 
 End Sub
 
-Sub ResizeAndSpaceEvenVerticalPreserveLast(Optional control As IRibbonControl)
+Sub ResizeAndSpaceEvenVerticalPreserveLast(Optional ByVal control As IRibbonControl)
 
 Call ResizeAndSpaceEvenly("evenverticalpreservelast")
 
@@ -64,16 +64,30 @@ Sub ResizeAndSpaceEvenly(SpacingType As String)
 
     Set MyDocument = Application.ActiveWindow
 
+    If MyDocument Is Nothing Then Exit Sub
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
 
     Dim ShapeCount As Long
     Dim SlideShape() As shape
+    Dim HasChildren As Boolean
 
-    If MyDocument.Selection.HasChildShapeRange Then
+    On Error Resume Next
+    HasChildren = MyDocument.Selection.HasChildShapeRange
+    If Err.Number <> 0 Then
+        Err.Clear
+        On Error GoTo 0
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    If HasChildren Then
         Set ShapeRange = MyDocument.Selection.ChildShapeRange
     Else
         Set ShapeRange = MyDocument.Selection.ShapeRange
     End If
+
+    If ShapeRange Is Nothing Then Exit Sub
+    If ShapeRange.count < 2 Then Exit Sub
 
     ReDim SlideShape(1 To ShapeRange.count)
 
@@ -211,7 +225,7 @@ End If
 End Sub
 
 
-Sub ObjectsStretchTop(Optional control As IRibbonControl)
+Sub ObjectsStretchTop(Optional ByVal control As IRibbonControl)
     
     Set MyDocument = Application.ActiveWindow
     
@@ -244,7 +258,7 @@ Sub ObjectsStretchTop(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsStretchLeft(Optional control As IRibbonControl)
+Sub ObjectsStretchLeft(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -276,7 +290,7 @@ Sub ObjectsStretchLeft(Optional control As IRibbonControl)
     Next ShapeCount
 End Sub
 
-Sub ObjectsStretchBottom(Optional control As IRibbonControl)
+Sub ObjectsStretchBottom(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -307,7 +321,7 @@ Sub ObjectsStretchBottom(Optional control As IRibbonControl)
     Next ShapeCount
 End Sub
 
-Sub ObjectsStretchRight(Optional control As IRibbonControl)
+Sub ObjectsStretchRight(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -338,7 +352,7 @@ Sub ObjectsStretchRight(Optional control As IRibbonControl)
     Next ShapeCount
 End Sub
 
-Sub ObjectsStretchTopShapeBottom(Optional control As IRibbonControl)
+Sub ObjectsStretchTopShapeBottom(Optional ByVal control As IRibbonControl)
     
     Set MyDocument = Application.ActiveWindow
     
@@ -371,7 +385,7 @@ Sub ObjectsStretchTopShapeBottom(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsStretchLeftShapeRight(Optional control As IRibbonControl)
+Sub ObjectsStretchLeftShapeRight(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -403,7 +417,7 @@ Sub ObjectsStretchLeftShapeRight(Optional control As IRibbonControl)
     Next ShapeCount
 End Sub
 
-Sub ObjectsStretchBottomShapeTop(Optional control As IRibbonControl)
+Sub ObjectsStretchBottomShapeTop(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -434,7 +448,7 @@ Sub ObjectsStretchBottomShapeTop(Optional control As IRibbonControl)
     Next ShapeCount
 End Sub
 
-Sub ObjectsStretchRightShapeLeft(Optional control As IRibbonControl)
+Sub ObjectsStretchRightShapeLeft(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -465,7 +479,7 @@ Sub ObjectsStretchRightShapeLeft(Optional control As IRibbonControl)
     Next ShapeCount
 End Sub
 
-Sub ObjectsRemoveSpacingHorizontal(Optional control As IRibbonControl)
+Sub ObjectsRemoveSpacingHorizontal(Optional ByVal control As IRibbonControl)
     
     Set MyDocument = Application.ActiveWindow
     
@@ -494,7 +508,7 @@ Sub ObjectsRemoveSpacingHorizontal(Optional control As IRibbonControl)
        
 End Sub
 
-Sub ObjectsRemoveSpacingHorizontalRight(Optional control As IRibbonControl)
+Sub ObjectsRemoveSpacingHorizontalRight(Optional ByVal control As IRibbonControl)
     
     Set MyDocument = Application.ActiveWindow
     
@@ -524,7 +538,7 @@ Sub ObjectsRemoveSpacingHorizontalRight(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsRemoveSpacingVertical(Optional control As IRibbonControl)
+Sub ObjectsRemoveSpacingVertical(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
     
@@ -553,7 +567,7 @@ Sub ObjectsRemoveSpacingVertical(Optional control As IRibbonControl)
 
 End Sub
 
-Sub ObjectsRemoveSpacingVerticalDown(Optional control As IRibbonControl)
+Sub ObjectsRemoveSpacingVerticalDown(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
     
@@ -583,7 +597,7 @@ Sub ObjectsRemoveSpacingVerticalDown(Optional control As IRibbonControl)
 
 End Sub
 
-Sub ObjectsIncreaseSpacingHorizontal(Optional control As IRibbonControl)
+Sub ObjectsIncreaseSpacingHorizontal(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -611,7 +625,7 @@ Sub ObjectsIncreaseSpacingHorizontal(Optional control As IRibbonControl)
     Next ShapeCount
 End Sub
 
-Sub ObjectsDecreaseSpacingHorizontal(Optional control As IRibbonControl)
+Sub ObjectsDecreaseSpacingHorizontal(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -639,7 +653,7 @@ Sub ObjectsDecreaseSpacingHorizontal(Optional control As IRibbonControl)
     Next ShapeCount
 End Sub
 
-Sub ObjectsIncreaseSpacingVertical(Optional control As IRibbonControl)
+Sub ObjectsIncreaseSpacingVertical(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -667,7 +681,7 @@ Sub ObjectsIncreaseSpacingVertical(Optional control As IRibbonControl)
     Next ShapeCount
 End Sub
 
-Sub ObjectsDecreaseSpacingVertical(Optional control As IRibbonControl)
+Sub ObjectsDecreaseSpacingVertical(Optional ByVal control As IRibbonControl)
 
     Set MyDocument = Application.ActiveWindow
 
@@ -855,7 +869,7 @@ Sub ObjectsSortByBottomPosition(ArrayToSort() As shape)
     Set SlideShapes = Nothing
 End Sub
 
-Sub ObjectsAlignLefts(Optional control As IRibbonControl)
+Sub ObjectsAlignLefts(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim Left1 As Single
     Dim Left2 As Single
@@ -908,7 +922,7 @@ Sub ObjectsAlignLefts(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsAlignTops(Optional control As IRibbonControl)
+Sub ObjectsAlignTops(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim Top1 As Single
     Dim Top2 As Single
@@ -964,7 +978,7 @@ Sub ObjectsAlignTops(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsAlignRights(Optional control As IRibbonControl)
+Sub ObjectsAlignRights(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     
     Dim Right1 As Single
@@ -1028,7 +1042,7 @@ Sub ObjectsAlignRights(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsAlignBottoms(Optional control As IRibbonControl)
+Sub ObjectsAlignBottoms(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     
     Dim Bottom1 As Single
@@ -1093,7 +1107,7 @@ Sub ObjectsAlignBottoms(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsAlignCenters(Optional control As IRibbonControl)
+Sub ObjectsAlignCenters(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim Center1, Center2 As Single
     
@@ -1154,7 +1168,7 @@ Sub ObjectsAlignCenters(Optional control As IRibbonControl)
     
 End Sub
 
-Sub ObjectsAlignMiddles(Optional control As IRibbonControl)
+Sub ObjectsAlignMiddles(Optional ByVal control As IRibbonControl)
     Set MyDocument = Application.ActiveWindow
     Dim Middle1, Middle2 As Single
     
@@ -1215,47 +1229,55 @@ Sub ObjectsAlignMiddles(Optional control As IRibbonControl)
 End Sub
 
 
-Sub ObjectsDistributeHorizontally(Optional control As IRibbonControl)
-    Set MyDocument = Application.ActiveWindow
-    
-    If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
-    
-    If MyDocument.Selection.ShapeRange.count > 2 Then
-        MyDocument.Selection.ShapeRange.Distribute msoDistributeHorizontally, msoFalse
-    ElseIf MyDocument.Selection.ShapeRange.count = 1 Then
-     MyDocument.Selection.ShapeRange.Align msoAlignCenters, msoTrue
-        
-    ElseIf MyDocument.Selection.HasChildShapeRange Then
-        
-        If MyDocument.Selection.ChildShapeRange.count > 2 Then
-            MyDocument.Selection.ChildShapeRange.Distribute msoDistributeHorizontally, msoFalse
-        End If
-    End If
-    
+' Ribbon, Smart Bar and D H: one row, spaced evenly (PPTK_DistributeLine in ModulePPTKAlign).
+Sub ObjectsDistributeHorizontally(Optional ByVal control As IRibbonControl)
+    PPTK_DistributeLine "H"
 End Sub
 
-Sub ObjectsDistributeVertically(Optional control As IRibbonControl)
-    Set MyDocument = Application.ActiveWindow
-    
-    If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
-    
-    If MyDocument.Selection.ShapeRange.count > 2 Then
-        MyDocument.Selection.ShapeRange.Distribute msoDistributeVertically, msoFalse
-    ElseIf MyDocument.Selection.ShapeRange.count = 1 Then
-    
-     MyDocument.Selection.ShapeRange.Align msoAlignMiddles, msoTrue
-    
-    ElseIf MyDocument.Selection.HasChildShapeRange Then
-        
-        If MyDocument.Selection.ChildShapeRange.count > 2 Then
-            
-            MyDocument.Selection.ChildShapeRange.Distribute msoDistributeVertically, msoFalse
-            
-        End If
-    End If
+' Ribbon, Smart Bar and D V: one column, spaced evenly (PPTK_DistributeLine in ModulePPTKAlign).
+Sub ObjectsDistributeVertically(Optional ByVal control As IRibbonControl)
+    PPTK_DistributeLine "V"
 End Sub
 
-Sub ArrangeShapes(Optional control As IRibbonControl)
+Sub ObjectsAlignShapeAngle(Optional ByVal control As IRibbonControl)
+    Dim Selected As ShapeRange
+    Dim HasChildren As Boolean
+    Dim AnchorAngle As Single
+    Dim Index As Long
+
+    Set MyDocument = Application.ActiveWindow
+    If MyDocument Is Nothing Then Exit Sub
+    If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
+
+    On Error Resume Next
+    HasChildren = MyDocument.Selection.HasChildShapeRange
+    If Err.Number <> 0 Then Exit Sub
+    Err.Clear
+    If HasChildren Then
+        Set Selected = MyDocument.Selection.ChildShapeRange
+    Else
+        Set Selected = MyDocument.Selection.ShapeRange
+    End If
+    If Err.Number <> 0 Then Exit Sub
+    Err.Clear
+    On Error GoTo 0
+
+    If Selected Is Nothing Then Exit Sub
+    If Selected.count < 2 Then Exit Sub
+    If Selected(1).Type = msoTable Then Exit Sub
+
+    On Error Resume Next
+    AnchorAngle = Selected(1).Rotation
+    If Err.Number <> 0 Then Exit Sub
+    Err.Clear
+
+    For Index = 2 To Selected.count
+        If Selected(Index).Type <> msoTable Then Selected(Index).Rotation = AnchorAngle
+        Err.Clear
+    Next Index
+End Sub
+
+Sub ArrangeShapes(Optional ByVal control As IRibbonControl)
     Dim SlideShape         As shape
     Dim ShapeGroups      As Collection
     Dim FirstShape As shape
@@ -1263,9 +1285,25 @@ Sub ArrangeShapes(Optional control As IRibbonControl)
     Dim SelectedShapeRange As ShapeRange
        
     Set MyDocument = Application.ActiveWindow
+    If MyDocument Is Nothing Then Exit Sub
     If Not MyDocument.Selection.Type = ppSelectionShapes Then Exit Sub
-    
+
+    Dim HasChildren As Boolean
+    On Error Resume Next
+    HasChildren = MyDocument.Selection.HasChildShapeRange
+    If Err.Number <> 0 Then HasChildren = True
+    Err.Clear
+    On Error GoTo 0
+    ' Child shapes belong to a group. This command addresses slide-level shapes.
+    If HasChildren Then Exit Sub
+
     Set SelectedShapeRange = MyDocument.Selection.ShapeRange
+    If SelectedShapeRange Is Nothing Then Exit Sub
+    If SelectedShapeRange.count < 2 Then Exit Sub
+
+    For Each SlideShape In SelectedShapeRange
+        If SlideShape.Type = msoPlaceholder Then Exit Sub
+    Next SlideShape
     
     Randomize
     NameRandomizer = Rnd(5)
@@ -1304,6 +1342,8 @@ Sub ArrangeShapes(Optional control As IRibbonControl)
     Next SlideShape
     
     Dim GroupNames() As String
+    Dim GroupsToUngroup() As String
+    Dim UngroupCount As Long
     ReDim GroupNames(ShapeGroups.count - 1)
     
     For i = 1 To ShapeGroups.count
@@ -1325,6 +1365,9 @@ Sub ArrangeShapes(Optional control As IRibbonControl)
             'MyDocument.Selection.SlideRange.Shapes.Range(ShapeNames).Distribute msoDistributeVertically, msoFalse
             Set ColumnGroup = MyDocument.Selection.SlideRange.shapes.Range(ShapeNames).Group
             ColumnGroup.name = "ColumnGroup" & a & " " & NameRandomizer
+            UngroupCount = UngroupCount + 1
+            ReDim Preserve GroupsToUngroup(UngroupCount - 1)
+            GroupsToUngroup(UngroupCount - 1) = ColumnGroup.name
         Else
             
             Set ColumnGroup = MyDocument.Selection.SlideRange.shapes.Range(ShapeNames)
@@ -1338,7 +1381,9 @@ Sub ArrangeShapes(Optional control As IRibbonControl)
     MyDocument.Selection.SlideRange.shapes.Range(GroupNames).Distribute msoDistributeHorizontally, msoFalse
     End If
     
-    MyDocument.Selection.SlideRange.shapes.Range(GroupNames).Ungroup
+    If UngroupCount > 0 Then
+        MyDocument.Selection.SlideRange.shapes.Range(GroupsToUngroup).Ungroup
+    End If
     
     Set ShapeGroups = Nothing
     Set ShapeGroup = Nothing
@@ -1368,6 +1413,8 @@ Sub ArrangeShapes(Optional control As IRibbonControl)
     Next SlideShape
     
     a = 0
+    UngroupCount = 0
+    Erase GroupsToUngroup
     Dim GroupNames2() As String
     ReDim GroupNames2(ShapeGroups.count - 1)
     
@@ -1390,6 +1437,9 @@ Sub ArrangeShapes(Optional control As IRibbonControl)
             'MyDocument.Selection.SlideRange.Shapes.Range(ShapeNames2).Distribute msoDistributeHorizontally, msoFalse
             Set RowGroup = MyDocument.Selection.SlideRange.shapes.Range(ShapeNames2).Group
             RowGroup.name = "RowGroup" & a & " " & NameRandomizer
+            UngroupCount = UngroupCount + 1
+            ReDim Preserve GroupsToUngroup(UngroupCount - 1)
+            GroupsToUngroup(UngroupCount - 1) = RowGroup.name
         Else
             
             Set RowGroup = MyDocument.Selection.SlideRange.shapes.Range(ShapeNames2)
@@ -1403,6 +1453,8 @@ Sub ArrangeShapes(Optional control As IRibbonControl)
     MyDocument.Selection.SlideRange.shapes.Range(GroupNames2).Distribute msoDistributeVertically, msoFalse
     End If
     
-    MyDocument.Selection.SlideRange.shapes.Range(GroupNames2).Ungroup
+    If UngroupCount > 0 Then
+        MyDocument.Selection.SlideRange.shapes.Range(GroupsToUngroup).Ungroup
+    End If
     
 End Sub

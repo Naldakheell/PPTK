@@ -670,72 +670,9 @@ Sub NewElementFromSelectedText(deleteOriginal As Boolean)
 End Sub
 
 Sub ObjectsTextMerge()
-
-    Dim MyDocument As DocumentWindow
-    Dim SlideShape As shape
-    Dim SlideShapeRange As ShapeRange
-    Dim MergeShape As shape
-    Dim tgt As TextRange2
-    Dim src As TextRange2
-    Dim i As Long
-
-    Set MyDocument = Application.ActiveWindow
-
-    If Not MyDocument.Selection.Type = ppSelectionShapes Then
-        MsgBox "No shapes selected."
-        Exit Sub
-    End If
-
-    If MyDocument.Selection.ShapeRange.count = 1 Then
-        MsgBox "Please select more than one shape."
-        Exit Sub
-    End If
-
-    Set SlideShapeRange = MyDocument.Selection.ShapeRange
-    Set SlideShape = SlideShapeRange(1)
-
-    If Not SlideShape.HasTextFrame Then
-        MsgBox "The first selected shape has no textframe."
-        Exit Sub
-    End If
-
-    Set tgt = SlideShape.TextFrame2.textRange
-
-    If tgt.Length > 0 Then
-        tgt.InsertAfter vbCrLf
-    End If
-
-    For i = 2 To SlideShapeRange.count
-
-        Set MergeShape = SlideShapeRange(i)
-
-        If MergeShape.HasTextFrame And MergeShape.TextFrame2.HasText Then
-
-            Set src = MergeShape.TextFrame2.textRange
-
-            If src.Length > 0 Then
-
-                src.Copy
-                DoEvents
-
-                With tgt
-                    .Characters(.Length + 1, 0).Paste
-                End With
-                DoEvents
-
-                tgt.InsertAfter vbCrLf
-            End If
-        End If
-    Next i
-
-    For i = SlideShapeRange.count To 2 Step -1
-        SlideShapeRange(i).Delete
-    Next i
-
+    ' PPTK: same behavior as the . T shortcut (Windows PPTK_MergeText). Kept for the ribbon and Feature Search.
+    PPTK_MergeText
 End Sub
-
-
-
 Sub ObjectsTextInsertSpecialCharacter(SpecialCharacter As Long)
     
     If ActiveWindow.Selection.Type = ppSelectionText Then

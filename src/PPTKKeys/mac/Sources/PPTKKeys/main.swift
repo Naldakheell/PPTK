@@ -38,10 +38,13 @@ private let keyLetters: [Int64: String] = [
     0x02: "D",
     0x04: "H",
     0x05: "G",
+    0x06: "Z",
     0x07: "X",
     0x08: "C",
     0x09: "V",
     0x0B: "B",
+    0x0C: "Q",
+    0x0E: "E",
     0x0D: "W",
     0x0F: "R",
     0x11: "T",
@@ -54,10 +57,10 @@ private let keyLetters: [Int64: String] = [
     0x2E: "M",
 ]
 
-private let directTokens: Set<String> = ["T", "R", "U", "O", "C", "P", "G", "M", "N", "I", "/"]
+private let directTokens: Set<String> = ["T", "R", "U", "O", "C", "P", "G", "M", "N", "I", "/", "E", "Q"]
 private let prefixLetters: Set<String> = ["A", "S", "D", "H", "V", ".", "X"]
 private let sequenceTokens: Set<String> = [
-    "A L", "A R", "A T", "A B", "A M", "A C", "A A",
+    "A L", "A R", "A T", "A B", "A M", "A C", "A A", "A P", "A X", "A Z",
     "S W", "S H", "S S",
     "D H", "D V",
     "H +", "H -",
@@ -66,10 +69,24 @@ private let sequenceTokens: Set<String> = [
     "X T",
 ]
 private let shiftKeycodes: Set<Int64> = [0x38, 0x3C]
+/// Physical top-row digits 2-7 (ANSI key codes).
+/// Keypad 2-7 count too (Windows ShortcutChords accepts the numpad digits).
+private let digitKeycodes: [Int64: Int] = [
+    0x13: 2, 0x14: 3, 0x15: 4, 0x17: 5, 0x16: 6, 0x1A: 7,
+    0x54: 2, 0x55: 3, 0x56: 4, 0x57: 5, 0x58: 6, 0x59: 7,
+]
+/// US period and slash positions. When the layout types a letter there, they keep the US meaning (Windows KeyLayout.KeepUsKey).
+private let usPeriodKeycode: UInt16 = 0x2F
+private let usSlashKeycode: UInt16 = 0x2C
+/// Windows ignores injected keys. Tests may opt in to synthetic keys with this environment variable.
+private let allowSyntheticKeys = ProcessInfo.processInfo.environment["PPTK_ALLOW_SYNTHETIC_KEYS"] == "1"
+private let lockPath = NSHomeDirectory() + "/Library/Application Support/PPTK/PPTKKeys.lock"
+private let gridTokens: Set<String> = ["CTRL 2", "CTRL 3", "OPT 2", "OPT 3"]
+private let gridPacingMicroseconds: useconds_t = 100_000
 private let escapeKeycode: Int64 = 0x35
 private let prefixWindow: TimeInterval = 1.0
 
-private typealias ModeRead = (gate: FocusGate, show: ShowGate, detail: String)
+private typealias ModeRead = (gate: FocusGate, show: ShowGate, detail: String, pane: PaneKind)
 /// Marks keys this helper replays so the tap lets them through. ASCII "PPTK".
 private let replayMarker: Int64 = 0x5050_544B
 /// Same cap as the Windows helper's QueueLimit.
@@ -112,11 +129,21 @@ private enum ShowGate {
     case unknown
 }
 
+/// PowerPoint's active pane, read with the selection (Windows ShortcutGate.Classify uses the same view types).
+private enum PaneKind {
+    case slide
+    case thumbnails
+    case sorter
+    case blocked
+    case unknown
+}
+
 private struct KeyContext {
     var gate: FocusGate
     var show: ShowGate
     var surface: Surface
     var detail: String
+    var pane: PaneKind = .unknown
 }
 
 private final class Helper: @unchecked Sendable {
@@ -125,6 +152,7 @@ private final class Helper: @unchecked Sendable {
     private var repeatGate = FocusGate.unknown
     private var loggedAccessibility = false
     private var loggedAutomation = false
+    private var loggedReadFailure = false
     private var prefix: String?
     private var prefixDeadline: Date?
     private var prefixTimer: DispatchWorkItem?
@@ -146,8 +174,23 @@ private final class Helper: @unchecked Sendable {
     // Replayed keys not yet seen back at the tap. A live key must not overtake them.
     private var replaysInFlight = 0
     private var lastReplayAt = Date.distantPast
+    private var repeatPane = PaneKind.unknown
+    // T replay target (Windows ReplayGuard): the PowerPoint process and window that were active at T.
+    private var replayOriginPID: pid_t = 0
+    private var replayOriginWindow: AXUIElement?
+    private var lockDescriptor: Int32 = -1
+    private var sourceLogCount = 0
 
     func start() -> Int32 {
+        guard acquireSingleInstanceLock() else {
+            fputs("PPTKKeys is already running. Only one helper may run at a time.\n", stderr)
+            return 2
+        }
+        if allowSyntheticKeys {
+            fputs("Synthetic keys: ACCEPTED (PPTK_ALLOW_SYNTHETIC_KEYS=1, test mode only)\n", stderr)
+        } else {
+            fputs("Synthetic keys: ignored (keys posted by other programs pass through)\n", stdout)
+        }
         let trusted = AXIsProcessTrustedWithOptions(accessibilityPromptOptions)
         if trusted {
             fputs("Accessibility: granted\n", stdout)
@@ -206,6 +249,27 @@ private final class Helper: @unchecked Sendable {
         return 0
     }
 
+    /// One helper per user session (Windows uses a named mutex). The kernel drops the lock when the process ends.
+    private func acquireSingleInstanceLock() -> Bool {
+        let folder = (lockPath as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
+        guard fd >= 0 else { return true }
+        if flock(fd, LOCK_EX | LOCK_NB) != 0 {
+            close(fd)
+            return false
+        }
+        lockDescriptor = fd
+        return true
+    }
+
+    /// Posted by another program (not the keyboard, not this helper). Windows: LLKHF_INJECTED.
+    private func isSynthetic(_ event: CGEvent) -> Bool {
+        guard !allowSyntheticKeys else { return false }
+        let pid = event.getIntegerValueField(.eventSourceUnixProcessID)
+        return pid != 0 && pid != Int64(getpid())
+    }
+
     func restoreTapIfNeeded() {
         guard let tap, !CGEvent.tapIsEnabled(tap: tap) else { return }
         CGEvent.tapEnable(tap: tap, enable: true)
@@ -246,7 +310,7 @@ private final class Helper: @unchecked Sendable {
     private func ownsShortcut(_ event: CGEvent, keycode: Int64) -> Bool {
         if prefix != nil { return true }
         if commandSlashEvent(event) || formatChord(event) != nil || bracketChord(event) != nil
-            || optionPeriodEvent(event) || bareSlideToken(event) != nil {
+            || optionPeriodEvent(event) || bareSlideToken(event) != nil || digitChord(event) != nil {
             return true
         }
         if plainPunctuation(event) != nil { return true }
@@ -263,9 +327,17 @@ private final class Helper: @unchecked Sendable {
             if replaysInFlight > 0 { replaysInFlight -= 1 }
             return Unmanaged.passUnretained(event)
         }
+        if sourceLogCount < 5, isPowerPointFrontmost() {
+            sourceLogCount += 1
+            fputs("[PPTKKeys] key source pid=\(event.getIntegerValueField(.eventSourceUnixProcessID)) state=\(event.getIntegerValueField(.eventSourceStateID))\n", stderr)
+        }
         defer { scheduleDrainIfIdle() }
         if isHandling || waiting || !pending.isEmpty || replayStillInFlight() {
+            // Held in order; a synthetic key is replayed as typed, never read as a shortcut (see drain).
             return hold(event)
+        }
+        if isSynthetic(event) {
+            return Unmanaged.passUnretained(event)
         }
         if needsSelectionRead(event) {
             guard let copy = event.copy() else { return Unmanaged.passUnretained(event) }
@@ -341,7 +413,7 @@ private final class Helper: @unchecked Sendable {
             // T macro did not finish. Replay only back into PowerPoint, never into a dialog (Windows ReplayGuard).
             replayVerbatimPending = false
             endWait()
-            if isPowerPointFrontmost(), !focusInsideDialog() {
+            if replayTargetValid() {
                 fputs("[PPTKKeys] T slow, replaying held keys\n", stderr)
                 replayVerbatim = true
                 drain()
@@ -351,7 +423,7 @@ private final class Helper: @unchecked Sendable {
             return
         }
         fputs("[PPTKKeys] selection read timed out, key typed\n", stderr)
-        resolveFirst((.unknown, .unknown, "selection=timeout"))
+        resolveFirst((.unknown, .unknown, "selection=timeout", .unknown))
     }
 
     private func endWait() {
@@ -389,7 +461,7 @@ private final class Helper: @unchecked Sendable {
                 return
             }
             let event = pending.removeFirst()
-            if replayVerbatim {
+            if replayVerbatim || isSynthetic(event) {
                 replay(event)
                 continue
             }
@@ -411,6 +483,7 @@ private final class Helper: @unchecked Sendable {
     /// T runs on `queue` like every other macro. Keys typed meanwhile are held and
     /// replayed as typed once the text box exists, so none reach the slide early.
     private func dispatchTextbox() {
+        recordReplayOrigin()
         waiting = true
         replayVerbatimPending = true
         generation += 1
@@ -427,11 +500,31 @@ private final class Helper: @unchecked Sendable {
         guard token == generation, waiting else { return }
         replayVerbatimPending = false
         endWait()
+        guard replayTargetValid() else {
+            discardPending("replay target changed")
+            return
+        }
         if !pending.isEmpty {
             fputs("[PPTKKeys] replaying \(pending.count) held keys\n", stderr)
         }
         replayVerbatim = true
         drain()
+    }
+
+    private func recordReplayOrigin() {
+        replayOriginPID = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
+        replayOriginWindow = focusedWindow(pid: replayOriginPID)
+    }
+
+    /// Same PowerPoint process and window as at T, and no dialog or menu in front (Windows ReplayGuard).
+    private func replayTargetValid() -> Bool {
+        guard isPowerPointFrontmost() else { return false }
+        let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
+        guard pid == replayOriginPID else { return false }
+        if let origin = replayOriginWindow, let now = focusedWindow(pid: pid), !CFEqual(origin, now) {
+            return false
+        }
+        return !focusInsideDialog() && !focusInsideMenu()
     }
 
     /// A replayed key that never comes back (another tap dropped it) stops counting after a second.
@@ -517,13 +610,19 @@ private final class Helper: @unchecked Sendable {
                 return handleCommandSlash(event: event, keycode: keycode, isRepeat: isRepeat)
             } else if let chord = formatChord(event) {
                 dropPrefix(timeout: false)
+                if chord == pasteContentToken {
+                    return handleBracket(event: event, keycode: keycode, isRepeat: isRepeat, token: chord)
+                }
                 return handleCanvasToken(event: event, keycode: keycode, isRepeat: isRepeat, token: chord)
             } else if let token = bracketChord(event) {
                 dropPrefix(timeout: false)
                 return handleBracket(event: event, keycode: keycode, isRepeat: isRepeat, token: token)
+            } else if let token = digitChord(event) {
+                dropPrefix(timeout: false)
+                return handleCanvasToken(event: event, keycode: keycode, isRepeat: isRepeat, token: token)
             } else if optionPeriodEvent(event) {
                 dropPrefix(timeout: false)
-                return handleCanvasToken(event: event, keycode: keycode, isRepeat: isRepeat, token: "OPT .")
+                return handleBracket(event: event, keycode: keycode, isRepeat: isRepeat, token: "OPT .")
             } else if let token = bareSlideToken(event) {
                 dropPrefix(timeout: false)
                 return handleSlideToken(event: event, keycode: keycode, isRepeat: isRepeat, token: token)
@@ -539,6 +638,17 @@ private final class Helper: @unchecked Sendable {
                 }
                 dropPrefix(timeout: false)
                 return handleUnprefixed(token: punct, keycode: keycode, isRepeat: isRepeat, event: event, context: context)
+            } else if keycode == escapeKeycode, !modified {
+                // Windows: Esc cancels the sequence and is swallowed while the canvas is legal.
+                let context = readContext(isRepeat: false, letter: "ESC")
+                dropPrefix(timeout: false)
+                if sequenceAllowed(context) {
+                    fputs("[PPTKKeys] sequence cancelled, Esc swallowed\n", stderr)
+                    swallowedKeycode = keycode
+                    return nil
+                }
+                swallowedKeycode = nil
+                return Unmanaged.passUnretained(event)
             } else if modified || keycode == escapeKeycode || letter == nil {
                 dropPrefix(timeout: false)
                 swallowedKeycode = nil
@@ -571,6 +681,9 @@ private final class Helper: @unchecked Sendable {
                 swallowedKeycode = nil
                 return Unmanaged.passUnretained(event)
             }
+            if chord == pasteContentToken {
+                return handleBracket(event: event, keycode: keycode, isRepeat: isRepeat, token: chord)
+            }
             return handleCanvasToken(event: event, keycode: keycode, isRepeat: isRepeat, token: chord)
         }
 
@@ -582,12 +695,20 @@ private final class Helper: @unchecked Sendable {
             return handleBracket(event: event, keycode: keycode, isRepeat: isRepeat, token: token)
         }
 
+        if let token = digitChord(event) {
+            guard front else {
+                swallowedKeycode = nil
+                return Unmanaged.passUnretained(event)
+            }
+            return handleCanvasToken(event: event, keycode: keycode, isRepeat: isRepeat, token: token)
+        }
+
         if optionPeriodEvent(event) {
             guard front else {
                 swallowedKeycode = nil
                 return Unmanaged.passUnretained(event)
             }
-            return handleCanvasToken(event: event, keycode: keycode, isRepeat: isRepeat, token: "OPT .")
+            return handleBracket(event: event, keycode: keycode, isRepeat: isRepeat, token: "OPT .")
         }
 
         if let token = bareSlideToken(event) {
@@ -687,7 +808,8 @@ private final class Helper: @unchecked Sendable {
     }
 
     private func saveSlidesAllowed(_ context: KeyContext) -> Bool {
-        guard context.show == .editing, context.gate == .slides, context.surface != .blocked else { return false }
+        // Windows DecideSaveSlides: thumbnail pane with slides selected only (not the sorter, not the slide pane).
+        guard context.show == .editing, context.gate == .slides, context.pane == .thumbnails, context.surface != .blocked else { return false }
         return !focusInsideExcludedPane()
     }
 
@@ -766,12 +888,13 @@ private final class Helper: @unchecked Sendable {
 
     private func readContext(isRepeat: Bool, letter: String) -> KeyContext {
         if isRepeat, repeatGate != .unknown {
-            return KeyContext(gate: repeatGate, show: .editing, surface: surfaceFor(repeatGate), detail: "repeat")
+            return KeyContext(gate: repeatGate, show: .editing, surface: surfaceFor(repeatGate), detail: "repeat", pane: repeatPane)
         }
         // Never ask PowerPoint on the tap thread. The read was made on `queue` before this key was handled.
-        let read = suppliedRead ?? (.unknown, .unknown, "selection=not read")
+        let read = suppliedRead ?? (.unknown, .unknown, "selection=not read", .unknown)
         repeatGate = read.gate
-        let context = KeyContext(gate: read.gate, show: read.show, surface: surfaceFor(read.gate), detail: read.detail)
+        repeatPane = read.pane
+        let context = KeyContext(gate: read.gate, show: read.show, surface: surfaceFor(read.gate), detail: read.detail, pane: read.pane)
         fputs("\(letter) \(context.gate) \(context.detail)\n", stderr)
         return context
     }
@@ -859,22 +982,50 @@ private final class Helper: @unchecked Sendable {
     /// after leaving text inserts a shape. A background poll was always one step late.
     private func modeRead() -> ModeRead {
         switch appleScript(modeScript) {
-        case .failed(let number, _):
+        case .failed(let number, let message):
             if number == -1743, !loggedAutomation {
                 loggedAutomation = true
                 fputs("Automation: not granted. The key is not intercepted. Allow this program to control Microsoft PowerPoint.\n", stderr)
+            } else if !loggedReadFailure {
+                loggedReadFailure = true
+                fputs("Selection read failed \(number) \(message). The key is not intercepted.\n", stderr)
             }
-            return (.unknown, .unknown, "selection=unknown")
+            return (.unknown, .unknown, "selection=unknown", .unknown)
         case .value(let text) where text == "show":
-            return (.notCanvas, .slideshow, "slideshow")
-        case .value(let text) where text.contains("text"):
-            return (.editing, .editing, "selection=text")
-        case .value(let text) where text.contains("slide"):
-            return (.slides, .editing, "selection=\(text)")
-        case .value(let text) where text.contains("shape") || text.contains("none"):
-            return (.canvas, .editing, "selection=\(text)")
-        default:
-            return (.unknown, .unknown, "selection=unknown")
+            return (.notCanvas, .slideshow, "slideshow", .blocked)
+        case .value(let text):
+            return classify(text)
+        }
+    }
+
+    /// Windows ShortcutGate.Classify: text wins; masters, notes page, outline and print preview block;
+    /// thumbnails and the sorter are the slides surface; the slide pane is the canvas unless slides are selected.
+    private func classify(_ text: String) -> ModeRead {
+        let parts = text.components(separatedBy: "|")
+        let view = parts.count > 1 ? parts[0] : "unknown"
+        let selection = parts.count > 1 ? parts[1] : text
+        let detail = "view=\(view) selection=\(selection)"
+        if selection.contains("text") { return (.editing, .editing, detail, paneKind(view)) }
+        let pane = paneKind(view)
+        switch pane {
+        case .blocked:
+            return (.notCanvas, .editing, detail, pane)
+        case .thumbnails, .sorter:
+            return (.slides, .editing, detail, pane)
+        case .slide, .unknown:
+            if selection.contains("slide") { return (.slides, .editing, detail, pane) }
+            if selection.contains("shape") || selection.contains("none") { return (.canvas, .editing, detail, pane) }
+            return (.unknown, .unknown, detail, pane)
+        }
+    }
+
+    private func paneKind(_ view: String) -> PaneKind {
+        switch view {
+        case "slide view", "normal view": return .slide
+        case "thumbnail view": return .thumbnails
+        case "slide sorter view": return .sorter
+        case "unknown": return .unknown
+        default: return .blocked
         }
     }
 
@@ -885,6 +1036,10 @@ private final class Helper: @unchecked Sendable {
             run VB macro macro name "\(macroName)" list of parameters {"\(parameter)"}
         end tell
         """
+        defer {
+            // Windows DispatchPacing: grid commands crashed Office when run back to back.
+            if gridTokens.contains(token) { usleep(gridPacingMicroseconds) }
+        }
         switch appleScript(source) {
         case .value:
             fputs("Dispatched \(macroName) \(token)\n", stdout)
@@ -917,9 +1072,20 @@ private func plainPunctuation(_ event: CGEvent) -> String? {
         return nil
     }
     let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+    // Windows KeyLayout: letter keys are never punctuation.
+    if keyLetters[Int64(keycode)] != nil { return nil }
     let shift = event.flags.contains(.maskShift)
     guard let text = layoutCharacter(keycode: keycode, shift: shift) else { return nil }
     if text == "/" || text == "." { return text }
+    if !shift, let kept = keptUsPunctuation(keycode: keycode, text: text) { return kept }
+    return nil
+}
+
+/// Windows KeyLayout.KeepUsKey: if the US "." or "/" key types a letter on this layout, it keeps its US meaning.
+private func keptUsPunctuation(keycode: UInt16, text: String) -> String? {
+    guard let scalar = text.unicodeScalars.first, CharacterSet.letters.contains(scalar) else { return nil }
+    if keycode == usPeriodKeycode { return "." }
+    if keycode == usSlashKeycode { return "/" }
     return nil
 }
 
@@ -966,14 +1132,35 @@ private func bracketChord(_ event: CGEvent) -> String? {
     return nil
 }
 
-/// Command+Shift+C and Command+Shift+V. Option and Control stay with macOS.
-/// The letter is the same physical key as C and V, so Shift does not turn it into another character.
+/// Command+Shift+C, Command+Shift+V and Command+Shift+T (Windows Ctrl+Shift+C/V/T). Option and Control stay with macOS.
+/// The letter is the same physical key as C, V and T, so Shift does not turn it into another character.
 private func formatChord(_ event: CGEvent) -> String? {
     let flags = event.flags.intersection([.maskCommand, .maskShift, .maskAlternate, .maskControl])
     guard flags == [.maskCommand, .maskShift] else { return nil }
     let keycode = event.getIntegerValueField(.keyboardEventKeycode)
-    guard let letter = keyLetters[keycode], letter == "C" || letter == "V" else { return nil }
+    guard let letter = keyLetters[keycode], letter == "C" || letter == "V" || letter == "T" else { return nil }
     return "CMD SHIFT \(letter)"
+}
+
+/// Physical K key (ANSI 0x28): not in keyLetters, so a plain K never costs a context read.
+private let smartBarKeycode: Int64 = 0x28
+
+/// Paste Content Only also works while editing text (Windows: canvas or text pane), like Option+.
+private let pasteContentToken = "CMD SHIFT T"
+
+/// Grid and TK chords on the physical 2-7 keys, so every layout gives the same key.
+/// Control alone: CTRL 2...7 (Windows Ctrl+2...7). Option alone: OPT 2 and OPT 3 (Windows Alt+2/3).
+/// Command and Shift stay with PowerPoint (Command+2...5 switch views on Mac).
+private func digitChord(_ event: CGEvent) -> String? {
+    let flags = event.flags.intersection([.maskCommand, .maskShift, .maskAlternate, .maskControl])
+    let keycode = event.getIntegerValueField(.keyboardEventKeycode)
+    // Control+K opens the Smart Bar (Windows Ctrl+K / Ctrl+Space; Command+K is Hyperlink and
+    // Control+Space switches the input source on Mac). Canvas only, so Control+K keeps its text meaning.
+    if flags == [.maskControl], keycode == smartBarKeycode { return "CTRL K" }
+    guard let digit = digitKeycodes[keycode] else { return nil }
+    if flags == [.maskControl] { return "CTRL \(digit)" }
+    if flags == [.maskAlternate], digit == 2 || digit == 3 { return "OPT \(digit)" }
+    return nil
 }
 
 /// Option+. only. The key is the one that types "." without Option.
@@ -981,7 +1168,8 @@ private func optionPeriodEvent(_ event: CGEvent) -> Bool {
     guard event.flags.contains(.maskAlternate) else { return false }
     guard event.flags.intersection([.maskCommand, .maskControl, .maskShift]).isEmpty else { return false }
     let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-    return layoutCharacter(keycode: keycode, shift: false) == "."
+    guard let text = layoutCharacter(keycode: keycode, shift: false) else { return false }
+    return text == "." || keptUsPunctuation(keycode: keycode, text: text) == "."
 }
 
 /// Command+/ only. Option and Control stay with macOS. Shift counts only when it is how "/" is typed.
@@ -990,7 +1178,8 @@ private func commandSlashEvent(_ event: CGEvent) -> Bool {
     guard event.flags.intersection([.maskAlternate, .maskControl]).isEmpty else { return false }
     let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
     let shift = event.flags.contains(.maskShift)
-    return layoutCharacter(keycode: keycode, shift: shift) == "/"
+    guard let text = layoutCharacter(keycode: keycode, shift: shift) else { return false }
+    return text == "/" || (!shift && keptUsPunctuation(keycode: keycode, text: text) == "/")
 }
 
 /// The character this keydown inserts. Shift is part of the character. Command, Option, and Control are not.
@@ -1031,6 +1220,27 @@ private func layoutCharacter(keycode: UInt16, shift: Bool) -> String? {
         guard status == noErr, length > 0 else { return nil }
         return String(utf16CodeUnits: chars, count: length)
     }
+}
+
+/// The focused window of a process, with a short messaging timeout.
+private func focusedWindow(pid: pid_t) -> AXUIElement? {
+    guard AXIsProcessTrusted(), pid > 0 else { return nil }
+    let application = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(application, 0.08)
+    guard let raw = copyAttribute(application, kAXFocusedWindowAttribute as String) else { return nil }
+    return axElement(raw)
+}
+
+/// An open menu (menu bar or context menu) owns the keyboard (Windows FocusProbe treats menu mode as pass).
+private func focusInsideMenu() -> Bool {
+    guard AXIsProcessTrusted(), let app = NSWorkspace.shared.frontmostApplication else { return false }
+    let application = AXUIElementCreateApplication(app.processIdentifier)
+    AXUIElementSetMessagingTimeout(application, 0.05)
+    guard let raw = copyAttribute(application, kAXFocusedUIElementAttribute as String),
+          let element = axElement(raw) else { return false }
+    AXUIElementSetMessagingTimeout(element, 0.05)
+    let role = attribute(element, kAXRoleAttribute) ?? ""
+    return role == "AXMenu" || role == "AXMenuItem" || role == "AXMenuBarItem"
 }
 
 /// Focus sits inside a dialog or sheet. A dialog that is only open in the background does not count.
@@ -1372,10 +1582,14 @@ tell application "Microsoft PowerPoint"
     if (count of slide show windows) > 0 then
         return "show"
     end if
+    set paneView to "unknown"
     try
-        return selection type of selection of active window as text
+        set paneView to (pane view type of active pane of active window) as text
+    end try
+    try
+        return paneView & "|" & ((selection type of selection of active window) as text)
     on error
-        return "unknown"
+        return paneView & "|unknown"
     end try
 end tell
 """
@@ -1475,6 +1689,9 @@ private func describeScrollAreas(in window: AXUIElement, limit: Int) {
 }
 
 // MARK: - Entry
+
+// Line-buffered stdout: under launchd the output goes to a log file, which would otherwise be block-buffered.
+setvbuf(stdout, nil, _IOLBF, 0)
 
 private let helper = Helper()
 
