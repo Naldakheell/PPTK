@@ -7,7 +7,7 @@
   <key>PayloadType</key><string>Configuration</string>
   <key>PayloadVersion</key><integer>1</integer>
   <key>PayloadIdentifier</key><string>com.pptk.keys.loginitems</string>
-  <key>PayloadUUID</key><string>82FB8D0F-4B89-4D66-9CB2-0BE8A37DBA6B</string>
+  <key>PayloadUUID</key><string>2D9460E1-803A-4517-B767-B70259D81578</string>
   <key>PayloadDisplayName</key><string>PPTK Keys background item</string>
   <key>PayloadScope</key><string>System</string>
   <key>PayloadContent</key>
@@ -16,7 +16,7 @@
       <key>PayloadType</key><string>com.apple.servicemanagement</string>
       <key>PayloadVersion</key><integer>1</integer>
       <key>PayloadIdentifier</key><string>com.pptk.keys.loginitems.rules</string>
-      <key>PayloadUUID</key><string>ABB183DF-23DE-4C0C-9595-3079D9553284</string>
+      <key>PayloadUUID</key><string>9A4247B9-59A4-4544-981A-39BEEC92E9A9</string>
       <key>PayloadDisplayName</key><string>PPTK Keys</string>
       <key>Rules</key>
       <array>

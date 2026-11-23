@@ -82,6 +82,8 @@ private let usSlashKeycode: UInt16 = 0x2C
 private let allowSyntheticKeys = ProcessInfo.processInfo.environment["PPTK_ALLOW_SYNTHETIC_KEYS"] == "1"
 private let lockPath = NSHomeDirectory() + "/Library/Application Support/PPTK/PPTKKeys.lock"
 private let gridTokens: Set<String> = ["CTRL 2", "CTRL 3", "OPT 2", "OPT 3"]
+/// Minimum time between two hold-to-repeat spacing runs (Windows ShortcutRepeat.MinIntervalMs).
+private let spacingRepeatInterval: CFAbsoluteTime = 0.05
 private let gridPacingMicroseconds: useconds_t = 100_000
 private let escapeKeycode: Int64 = 0x35
 private let prefixWindow: TimeInterval = 1.0
@@ -158,6 +160,10 @@ private final class Helper: @unchecked Sendable {
     private var prefixDeadline: Date?
     private var prefixTimer: DispatchWorkItem?
     private var swallowedKeycode: Int64?
+    // Hold-to-repeat for H+ / H- / V+ / V- (Windows ShortcutRepeat). Main thread only.
+    private var heldSpacingToken: String?
+    private var spacingInFlight = false
+    private var lastSpacingRun: CFAbsoluteTime = 0
     private var focusObserver: AXObserver?
     private var observedPID: pid_t = 0
 
@@ -249,6 +255,29 @@ private final class Helper: @unchecked Sendable {
         }
         CFRunLoopRun()
         return 0
+    }
+
+    /// Windows ShortcutRepeat: while the second key of H+ / H- / V+ / V- is held, each auto-repeat of that key runs
+    /// the spacing again. Only on the slide (not in text or a dialog), only while the key keeps its meaning (+ or -),
+    /// and only after the previous run finished and at least 50 ms passed. Any other key ends it.
+    private func repeatSpacing(_ held: String, event: CGEvent) {
+        guard let symbol = spacingSecondKey(event), held.hasSuffix(symbol),
+              !focusInsideDialog(), !focusAcceptsTyping() else {
+            heldSpacingToken = nil
+            return
+        }
+        guard !spacingInFlight, CFAbsoluteTimeGetCurrent() - lastSpacingRun >= spacingRepeatInterval else { return }
+        runSpacing(held)
+    }
+
+    private func runSpacing(_ token: String) {
+        heldSpacingToken = token
+        spacingInFlight = true
+        lastSpacingRun = CFAbsoluteTimeGetCurrent()
+        queue.async { [weak self] in
+            self?.dispatch(token)
+            DispatchQueue.main.async { self?.spacingInFlight = false }
+        }
     }
 
     /// Packaged installs only (PPTK.pkg): the add-in itself is installed by the package into Office's system-wide
@@ -591,9 +620,14 @@ private final class Helper: @unchecked Sendable {
                 return Unmanaged.passUnretained(event)
             }
         }
+        if isRepeat, keycode == swallowedKeycode, front, let held = heldSpacingToken {
+            repeatSpacing(held, event: event)
+            return nil
+        }
         if isRepeat, keycode == swallowedKeycode, front {
             return nil
         }
+        if !isRepeat { heldSpacingToken = nil }   // any new key ends hold-to-repeat
 
         let letter = keyLetters[keycode]
         let modified = !event.flags.intersection([.maskCommand, .maskShift, .maskAlternate, .maskControl]).isEmpty
@@ -610,7 +644,7 @@ private final class Helper: @unchecked Sendable {
                 if sequenceTokens.contains(combined), sequenceAllowed(context) {
                     dropPrefix(timeout: false)
                     fputs("[PPTKKeys] dispatch \(combined)\n", stderr)
-                    queue.async { [weak self] in self?.dispatch(combined) }
+                    runSpacing(combined)
                     swallowedKeycode = keycode
                     return nil
                 }

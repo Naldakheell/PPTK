@@ -7,13 +7,13 @@
   "minimumMacOS": "13.0",
   "architectures": ["arm64", "x86_64"],
   "signed": false,
-  "build": {"commit": "45069bd", "dirty": true, "date": "2026-11-23T08:33:51Z"},
+  "build": {"commit": "16119f9", "dirty": true, "date": "2026-11-23T12:15:02Z"},
   "files": {
     "Library/Application Support/Microsoft/Office365/User Content.localized/Startup/PowerPoint/PPTK.ppam": {"sha256": "9d22cd00f223629b74cf9eaeab507db9abdaf3ba688e64b7d8848249700e77a0", "size": 2087350},
     "Library/Application Support/PPTK/InstrumentaAppleScriptPlugin.applescript": {"sha256": "a8e5e69eea5bbcc119a64c78ee22d92df87e71c704d73b56efd3d86421fa894e", "size": 2852},
     "Library/Application Support/PPTK/pptk-uninstall.sh": {"sha256": "750f185830f8705e620b9f8686dd9314b3fdb4d7bfe2fd9ae6d2052fddbb7837", "size": 5818},
     "Library/Application Support/PPTK/pptk-detect.sh": {"sha256": "dc95a3fa0c84a88b1898d40b05186273f5c9bc4b35f60163109d375e3e851a07", "size": 7739},
-    "Applications/PPTK Keys.app/Contents/MacOS/PPTKKeys": {"sha256": "dc9141515239b5188fd55cd45e568875f9e80c1df0b0245f1f8d87fceca791ba", "size": 504608},
+    "Applications/PPTK Keys.app/Contents/MacOS/PPTKKeys": {"sha256": "a792630716cdae28ba2ff832316026c3b986536e9e9bf8ecd06b47dc73a63781", "size": 522400},
     "Applications/PPTK Keys.app/Contents/Info.plist": {"sha256": "42c73a79b4b2ab0c980e9bd7827fcde79d80fd5ea8647cce21848692a03adf76", "size": 907}
   }
 }

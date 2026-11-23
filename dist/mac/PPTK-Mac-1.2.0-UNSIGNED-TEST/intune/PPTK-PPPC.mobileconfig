@@ -9,7 +9,7 @@
   <key>PayloadType</key><string>Configuration</string>
   <key>PayloadVersion</key><integer>1</integer>
   <key>PayloadIdentifier</key><string>com.pptk.keys.pppc</string>
-  <key>PayloadUUID</key><string>33A15371-4475-4ED7-BCC5-A2389F1ED03A</string>
+  <key>PayloadUUID</key><string>DB4FBAB2-9869-4323-9CE5-6CFED217471E</string>
   <key>PayloadDisplayName</key><string>PPTK Keys permissions</string>
   <key>PayloadScope</key><string>System</string>
   <key>PayloadContent</key>
@@ -18,7 +18,7 @@
       <key>PayloadType</key><string>com.apple.TCC.configuration-profile-policy</string>
       <key>PayloadVersion</key><integer>1</integer>
       <key>PayloadIdentifier</key><string>com.pptk.keys.pppc.tcc</string>
-      <key>PayloadUUID</key><string>03F51207-FA82-4DFA-AF88-A486A075FFDB</string>
+      <key>PayloadUUID</key><string>DB344129-4ABE-44FB-844B-0A5C02B0C978</string>
       <key>PayloadDisplayName</key><string>PPTK Keys privacy</string>
       <key>Services</key>
       <dict>
