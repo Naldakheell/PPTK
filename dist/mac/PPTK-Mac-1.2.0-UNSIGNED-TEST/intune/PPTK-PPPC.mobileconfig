@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- PPTK Keys privacy permissions (PPPC). Deploy with Intune as a custom macOS configuration profile.
+     Grants Accessibility and Automation (PowerPoint). Input Monitoring cannot be granted by a profile (Apple):
+     it lets a standard user approve it instead. The code requirement below is the one of THIS build:
+     UNSIGNED TEST build: ad-hoc requirement (cdhash) - valid for this exact binary only. Do not deploy. -->
+<plist version="1.0">
+<dict>
+  <key>PayloadType</key><string>Configuration</string>
+  <key>PayloadVersion</key><integer>1</integer>
+  <key>PayloadIdentifier</key><string>com.pptk.keys.pppc</string>
+  <key>PayloadUUID</key><string>33A15371-4475-4ED7-BCC5-A2389F1ED03A</string>
+  <key>PayloadDisplayName</key><string>PPTK Keys permissions</string>
+  <key>PayloadScope</key><string>System</string>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadType</key><string>com.apple.TCC.configuration-profile-policy</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>com.pptk.keys.pppc.tcc</string>
+      <key>PayloadUUID</key><string>03F51207-FA82-4DFA-AF88-A486A075FFDB</string>
+      <key>PayloadDisplayName</key><string>PPTK Keys privacy</string>
+      <key>Services</key>
+      <dict>
+        <key>Accessibility</key>
+        <array><dict>
+          <key>Identifier</key><string>com.pptk.keys</string>
+          <key>IdentifierType</key><string>bundleID</string>
+          <key>CodeRequirement</key><string></string>
+          <key>StaticCode</key><false/>
+          <key>Authorization</key><string>Allow</string>
+          <key>Comment</key><string>Keyboard shortcuts: reads the focused PowerPoint element</string>
+        </dict></array>
+        <key>AppleEvents</key>
+        <array><dict>
+          <key>Identifier</key><string>com.pptk.keys</string>
+          <key>IdentifierType</key><string>bundleID</string>
+          <key>CodeRequirement</key><string></string>
+          <key>AEReceiverIdentifier</key><string>com.microsoft.Powerpoint</string>
+          <key>AEReceiverIdentifierType</key><string>bundleID</string>
+          <key>AEReceiverCodeRequirement</key><string>identifier "com.microsoft.Powerpoint" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] and certificate leaf[field.1.2.840.113635.100.6.1.13] and certificate leaf[subject.OU] = UBF8T346G9</string>
+          <key>Authorization</key><string>Allow</string>
+          <key>Comment</key><string>Runs PPTK add-in commands in PowerPoint for the keyboard shortcuts</string>
+        </dict></array>
+        <key>ListenEvent</key>
+        <array><dict>
+          <key>Identifier</key><string>com.pptk.keys</string>
+          <key>IdentifierType</key><string>bundleID</string>
+          <key>CodeRequirement</key><string></string>
+          <key>Authorization</key><string>AllowStandardUserToSetSystemService</string>
+          <key>Comment</key><string>Input Monitoring: the user approves it (cannot be granted by MDM)</string>
+        </dict></array>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>

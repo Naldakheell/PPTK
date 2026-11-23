@@ -1,0 +1,8 @@
+PPTK for Mac 1.2.0
+built        2026-11-23T08:33:51Z from commit 45069bd (working tree dirty: true)
+add-in       /Users/noufaldakheel/Documents/GitHub/PPTK/bin/PPTK DEV.ppam (PPTK_VERSION 1.2.0) -> /Library/Application Support/Microsoft/Office365/User Content.localized/Startup/PowerPoint/PPTK.ppam
+helper       universal (arm64, x86_64), minimum macOS 13.0
+app signing  ad-hoc - UNSIGNED TEST BUILD, not for distribution
+pkg signing  unsigned - UNSIGNED TEST BUILD, not for distribution
+notarized    false
+designated   

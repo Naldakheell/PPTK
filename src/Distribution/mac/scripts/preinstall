@@ -1,0 +1,36 @@
+#!/bin/bash
+# PPTK for Mac - package preinstall (runs as root, before the payload is copied).
+#  1. Refuses a downgrade (a newer PPTK is installed): nothing is changed, the installer reports failure.
+#  2. Stops the helper in every logged-in session, so files are not replaced under a running helper.
+#  3. Migrates a legacy per-user install (~/Library/LaunchAgents/com.pptk.keys.plist, from development /
+#     pptkkeys-ctl) into a backup folder, so only the package's system-wide agent remains: one helper, one label.
+set -u
+DIR="$(cd "$(dirname "$0")" && pwd)"
+PPTK_TARGET="${3:-/}"   # installer target volume
+. "$DIR/common.sh"
+
+NEW_VERSION="__PPTK_VERSION__"
+INSTALLED=$(json_version "$SYS/version.json")
+
+if [ -n "$INSTALLED" ] && version_gt "$INSTALLED" "$NEW_VERSION" && [ "${PPTK_ALLOW_DOWNGRADE:-0}" != "1" ]; then
+    log "PPTK $INSTALLED is installed; refusing to install the older $NEW_VERSION (nothing was changed)."
+    exit 1
+fi
+if [ -n "$INSTALLED" ]; then log "updating $INSTALLED -> $NEW_VERSION"; else log "installing $NEW_VERSION"; fi
+
+stop_helpers
+
+STAMP=$(/bin/date +%Y%m%d-%H%M%S)
+user_homes | while read -r home; do
+    legacy_agent="$home/$USER_AGENT"
+    [ -f "$legacy_agent" ] || continue
+    backup="$home/$USER_PPTK/backups/legacy-install-$STAMP"
+    owner=$(/usr/bin/stat -f %Su "$home")
+    /bin/mkdir -p "$backup"
+    /bin/mv "$legacy_agent" "$backup/" && log "moved legacy agent of $owner to $backup"
+    for item in "PPTKKeys.app" "pptkkeys-ctl"; do
+        [ -e "$home/$USER_PPTK/$item" ] && /bin/mv "$home/$USER_PPTK/$item" "$backup/"
+    done
+    /usr/sbin/chown -R "$owner" "$home/$USER_PPTK/backups" 2>/dev/null
+done
+exit 0

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- PPTK Keys managed login item (macOS 13+). The background item that starts the helper at login stays on;
+     users cannot turn it off in System Settings > General > Login Items. Matches the LaunchAgent label. -->
+<plist version="1.0">
+<dict>
+  <key>PayloadType</key><string>Configuration</string>
+  <key>PayloadVersion</key><integer>1</integer>
+  <key>PayloadIdentifier</key><string>com.pptk.keys.loginitems</string>
+  <key>PayloadUUID</key><string>82FB8D0F-4B89-4D66-9CB2-0BE8A37DBA6B</string>
+  <key>PayloadDisplayName</key><string>PPTK Keys background item</string>
+  <key>PayloadScope</key><string>System</string>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadType</key><string>com.apple.servicemanagement</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>com.pptk.keys.loginitems.rules</string>
+      <key>PayloadUUID</key><string>ABB183DF-23DE-4C0C-9595-3079D9553284</string>
+      <key>PayloadDisplayName</key><string>PPTK Keys</string>
+      <key>Rules</key>
+      <array>
+        <dict>
+          <key>RuleType</key><string>Label</string>
+          <key>RuleValue</key><string>com.pptk.keys</string>
+          <key>Comment</key><string>PPTK Keys LaunchAgent</string>
+        </dict>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>

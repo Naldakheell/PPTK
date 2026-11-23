@@ -149,6 +149,7 @@ private struct KeyContext {
 private final class Helper: @unchecked Sendable {
     var tap: CFMachPort?
     private let queue = DispatchQueue(label: "sa.odel.pptk.keys.dispatch")
+    private let deploymentQueue = DispatchQueue(label: "sa.odel.pptk.keys.deployment")
     private var repeatGate = FocusGate.unknown
     private var loggedAccessibility = false
     private var loggedAutomation = false
@@ -229,6 +230,7 @@ private final class Helper: @unchecked Sendable {
             self?.dropPrefix(timeout: false)
         }
         installFocusWatch()
+        deploymentCheck()
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
@@ -247,6 +249,16 @@ private final class Helper: @unchecked Sendable {
         }
         CFRunLoopRun()
         return 0
+    }
+
+    /// Packaged installs only (PPTK.pkg): the add-in itself is installed by the package into Office's system-wide
+    /// Startup folder, where PowerPoint loads it for every user. The helper only copies the Email Slides AppleScript
+    /// plugin into this user's PowerPoint scripts folder. Does nothing for a development install.
+    private func deploymentCheck() {
+        deploymentQueue.async {
+            let result = syncPowerPointPlugin()
+            if result != "not deployed" { fputs("[PPTKKeys] email plugin: \(result)\n", stdout) }
+        }
     }
 
     /// One helper per user session (Windows uses a named mutex). The kernel drops the lock when the process ends.
@@ -1617,6 +1629,33 @@ private func appleScript(_ source: String) -> ScriptResult {
     return .value(descriptor.stringValue ?? "")
 }
 
+// MARK: - Packaged install (PPTK.pkg)
+
+/// The package installs the add-in into Office's system-wide Startup folder
+/// (/Library/Application Support/Microsoft/Office365/User Content.localized/Startup/PowerPoint), where PowerPoint
+/// loads it at start for every user, with no registration, no file-access dialog and no per-user copy (tested
+/// 2026-11-22). The package also leaves the Email Slides AppleScript plugin in its own folder; Office runs it only
+/// from each user's PowerPoint scripts folder, so the helper copies it there. The PPTK_* variables are for tests.
+private let deploymentSystemRoot = ProcessInfo.processInfo.environment["PPTK_SYSTEM_ROOT"]
+    ?? "/Library/Application Support/PPTK"
+private let powerPointScriptsFolder = ProcessInfo.processInfo.environment["PPTK_APPLESCRIPTS_DIR"]
+    ?? (NSHomeDirectory() + "/Library/Application Scripts/com.microsoft.Powerpoint")
+
+private func syncPowerPointPlugin() -> String {
+    let fm = FileManager.default
+    let plugin = deploymentSystemRoot + "/InstrumentaAppleScriptPlugin.applescript"
+    guard let data = fm.contents(atPath: plugin) else { return "not deployed" }
+    let target = powerPointScriptsFolder + "/InstrumentaAppleScriptPlugin.applescript"
+    if fm.contents(atPath: target) == data { return "current" }
+    do {
+        try fm.createDirectory(atPath: powerPointScriptsFolder, withIntermediateDirectories: true)
+        try data.write(to: URL(fileURLWithPath: target), options: .atomic)
+        return "installed"
+    } catch {
+        return "error: \(error.localizedDescription)"
+    }
+}
+
 // MARK: - Describe
 
 private let accessibilityPromptOptions = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
@@ -1690,6 +1729,19 @@ private func describeScrollAreas(in window: AXUIElement, limit: Int) {
 
 // MARK: - Entry
 
+// The package's LaunchAgent is system-wide, so it cannot name a per-user log path: the helper opens its own log
+// (~/Library/Logs/PPTK/PPTKKeys.log, renamed to .1 above 5 MB) when PPTK_LOG_TO_USER_LIBRARY=1.
+if ProcessInfo.processInfo.environment["PPTK_LOG_TO_USER_LIBRARY"] == "1" {
+    let folder = NSHomeDirectory() + "/Library/Logs/PPTK"
+    let log = folder + "/PPTKKeys.log"
+    try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+    if let size = (try? FileManager.default.attributesOfItem(atPath: log))?[.size] as? Int, size > 5_000_000 {
+        try? FileManager.default.removeItem(atPath: log + ".1")
+        try? FileManager.default.moveItem(atPath: log, toPath: log + ".1")
+    }
+    freopen(log, "a", stdout)
+    freopen(log, "a", stderr)
+}
 // Line-buffered stdout: under launchd the output goes to a log file, which would otherwise be block-buffered.
 setvbuf(stdout, nil, _IOLBF, 0)
 
@@ -1698,8 +1750,15 @@ private let helper = Helper()
 switch CommandLine.arguments.dropFirst().first {
 case "--describe-focus":
     exit(describeFocus())
+case "--version":
+    let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development"
+    fputs("PPTKKeys \(version)\n", stdout)
+    exit(0)
+case "--sync-plugin":
+    fputs("\(syncPowerPointPlugin())\n", stdout)
+    exit(0)
 case "--help":
-    fputs("Usage: PPTKKeys [--describe-focus]\nCtrl+C stops the listener.\n", stdout)
+    fputs("Usage: PPTKKeys [--describe-focus | --version | --sync-plugin]\nCtrl+C stops the listener.\n", stdout)
     exit(0)
 default:
     exit(helper.start())

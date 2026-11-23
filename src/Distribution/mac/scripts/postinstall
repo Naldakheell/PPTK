@@ -1,0 +1,19 @@
+#!/bin/bash
+# PPTK for Mac - package postinstall (runs as root, after the payload is copied).
+# Sets ownership and permissions and starts the helper for every logged-in user. The add-in is already in Office's
+# Startup folder: PowerPoint loads it at its next start (an open PowerPoint keeps the version it loaded).
+# Users who are not logged in get the helper at their next login (system-wide LaunchAgent).
+set -u
+DIR="$(cd "$(dirname "$0")" && pwd)"
+PPTK_TARGET="${3:-/}"   # installer target volume
+. "$DIR/common.sh"
+
+if [ -z "$ROOT" ]; then
+    /usr/sbin/chown -R root:wheel "$APP" "$SYS" "$AGENT" "$ADDIN" 2>/dev/null
+fi
+/bin/chmod 644 "$AGENT" "$ADDIN" "$SYS/version.json" 2>/dev/null
+/bin/chmod 755 "$SYS/pptk-uninstall.sh" "$SYS/pptk-detect.sh" "$EXE" 2>/dev/null
+
+start_helpers
+log "installed $(json_version "$SYS/version.json")"
+exit 0
