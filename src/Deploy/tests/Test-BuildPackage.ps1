@@ -20,6 +20,9 @@ param([string]$RepoRoot = '')
 $ErrorActionPreference = 'Stop'
 if (-not $RepoRoot) { $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path }
 $Build = Join-Path $RepoRoot 'src\Deploy\build-package.ps1'
+# The release version in the source (PPTKKeys.csproj), and the next patch version for the stale-source case.
+$V = ([xml][IO.File]::ReadAllText((Join-Path $RepoRoot 'src\PPTKKeys\windows\PPTKKeys.csproj'))).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+$Vnext = ([version]$V).Major.ToString() + '.' + ([version]$V).Minor + '.' + (([version]$V).Build + 1)
 $TestRoot = Join-Path ([IO.Path]::GetTempPath()) ('PPTK-package-tests-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $TestRoot | Out-Null
 $results = New-Object System.Collections.ArrayList
@@ -65,9 +68,9 @@ try {
 
     # ---------------------------------------------------------------- A, J
     $outA = Join-Path $TestRoot 'outA'
-    $a = Invoke-Build @('-RepoRoot', $RepoRoot, '-OutputDir', $outA, '-ExpectedVersion', '1.1.0')
+    $a = Invoke-Build @('-RepoRoot', $RepoRoot, '-OutputDir', $outA, '-ExpectedVersion', $V)
     $pkgA = Join-Path $outA 'PPTK-Package'
-    Record 'A' 'successful build' ($a.Code -eq 0 -and $a.Text -match 'PACKAGE OK: PPTK 1\.1\.0') "exit $($a.Code)"
+    Record 'A' 'successful build' ($a.Code -eq 0 -and $a.Text -match ('PACKAGE OK: PPTK ' + [regex]::Escape($V))) "exit $($a.Code)"
     $expected = @('deploy-env.ps1', 'detect.ps1', 'install.ps1', 'payload/PPTK.ppam', 'payload/PPTKKeys/PPTKKeys.deps.json', 'payload/PPTKKeys/PPTKKeys.dll', 'payload/PPTKKeys/PPTKKeys.runtimeconfig.json', 'uninstall.ps1', 'version.json')
     $inv = Get-Inventory $pkgA
     Record 'J' 'package structure and inventory' (($inv -join '|') -eq ($expected -join '|')) ($inv -join ', ')
@@ -79,19 +82,19 @@ try {
     Record 'B' 'missing required source' ($r.Code -eq 1 -and $r.Text -match 'required source files are missing: src\\PPTK\\Brand\\ModulePPTKBrand\.bas') (($r.Text -split "`n" | Where-Object { $_ -match 'FAILED' }) -join ' ')
 
     $d = New-SourceCopy 'srcD'; $csproj = Join-Path $d 'src\PPTKKeys\windows\PPTKKeys.csproj'
-    [IO.File]::WriteAllText($csproj, ([IO.File]::ReadAllText($csproj) -replace '<Version>1\.1\.0</Version>', '<Version>1.1.1</Version>'))
+    [IO.File]::WriteAllText($csproj, ([IO.File]::ReadAllText($csproj).Replace("<Version>$V</Version>", "<Version>$Vnext</Version>")))
     $r = Invoke-Build @('-RepoRoot', $d, '-OutputDir', (Join-Path $TestRoot 'outD'), '-AllowNoGit')
-    Record 'D' 'mismatched versions' ($r.Code -eq 1 -and $r.Text -match 'versions disagree' -and $r.Text -match 'ModulePPTKBrand\.bas\) = 1\.1\.0' -and $r.Text -match 'PPTKKeys\.csproj\) = 1\.1\.1') (($r.Text -split "`n" | Where-Object { $_ -match 'disagree|= 1\.0' }) -join ' / ')
+    Record 'D' 'mismatched versions' ($r.Code -eq 1 -and $r.Text -match 'versions disagree' -and $r.Text -match ('ModulePPTKBrand\.bas\) = ' + [regex]::Escape($V)) -and $r.Text -match ('PPTKKeys\.csproj\) = ' + [regex]::Escape($Vnext))) (($r.Text -split "`n" | Where-Object { $_ -match 'disagree|= 1\.0' }) -join ' / ')
 
     $r = Invoke-Build @('-RepoRoot', $RepoRoot, '-OutputDir', (Join-Path $TestRoot 'outD2'), '-ExpectedVersion', '2.0.0')
-    Record 'D2' 'expected version differs from source' ($r.Code -eq 1 -and $r.Text -match 'expected version 2\.0\.0, but the source says 1\.1\.0') ''
+    Record 'D2' 'expected version differs from source' ($r.Code -eq 1 -and $r.Text -match ('expected version 2\.0\.0, but the source says ' + [regex]::Escape($V))) ''
 
     $e = New-SourceCopy 'srcE1'
     foreach ($f in (Join-Path $e 'src\PPTK\Brand\ModulePPTKBrand.bas'), (Join-Path $e 'src\PPTKKeys\windows\PPTKKeys.csproj')) {
-        [IO.File]::WriteAllText($f, ([IO.File]::ReadAllText($f).Replace('"1.1.0"', '"1.1.1"').Replace('<Version>1.1.0</Version>', '<Version>1.1.1</Version>')))
+        [IO.File]::WriteAllText($f, ([IO.File]::ReadAllText($f).Replace("`"$V`"", "`"$Vnext`"").Replace("<Version>$V</Version>", "<Version>$Vnext</Version>")))
     }
     $r = Invoke-Build @('-RepoRoot', $e, '-OutputDir', (Join-Path $TestRoot 'outE1'), '-AllowNoGit')
-    Record 'E1' 'source says 1.1.1 but the PPTM still has 1.1.0 (stale add-in source)' ($r.Code -eq 1 -and $r.Text -match 'the PPTM is stale' -and $r.Text -match 'ModulePPTKBrand') (($r.Text -split "`n" | Where-Object { $_ -match 'stale|<>' }) -join ' / ')
+    Record 'E1' "source says $Vnext but the PPTM still has $V (stale add-in source)" ($r.Code -eq 1 -and $r.Text -match 'the PPTM is stale' -and $r.Text -match 'ModulePPTKBrand') (($r.Text -split "`n" | Where-Object { $_ -match 'stale|<>' }) -join ' / ')
 
     $e2 = New-SourceCopy 'srcE2'; $bas = Join-Path $e2 'src\PPTK\Brand\ModulePPTKBrand.bas'
     [IO.File]::WriteAllLines($bas, @([IO.File]::ReadAllLines($bas) | Where-Object { $_ -notmatch 'PPTK_VERSION As String' }))
@@ -148,7 +151,7 @@ try {
 
     # ---------------------------------------------------------------- H (second build, same source)
     $outH = Join-Path $TestRoot 'outH'
-    $h = Invoke-Build @('-RepoRoot', $RepoRoot, '-OutputDir', $outH, '-ExpectedVersion', '1.1.0')
+    $h = Invoke-Build @('-RepoRoot', $RepoRoot, '-OutputDir', $outH, '-ExpectedVersion', $V)
     $manifestH = Get-Content -LiteralPath (Join-Path $outH 'PPTK-Package\version.json') -Raw | ConvertFrom-Json
     $detSame = $true; $lines = @()
     foreach ($fa in $manifestA.files) {
@@ -161,11 +164,11 @@ try {
 
     # ---------------------------------------------------------------- I (repeated build into the same folder)
     [IO.File]::WriteAllText((Join-Path $pkgA 'payload\leftover.tmp'), 'old')
-    $i1 = Invoke-Build @('-RepoRoot', $RepoRoot, '-OutputDir', $outA, '-ExpectedVersion', '1.1.0')
+    $i1 = Invoke-Build @('-RepoRoot', $RepoRoot, '-OutputDir', $outA, '-ExpectedVersion', $V)
     $inv2 = Get-Inventory $pkgA
     Record 'I1' 'repeated build leaves no old files' ($i1.Code -eq 0 -and ($inv2 -join '|') -eq ($expected -join '|')) ($inv2 -join ', ')
     $foreign = Join-Path $TestRoot 'outForeign\PPTK-Package'; New-Item -ItemType Directory -Force -Path $foreign | Out-Null; [IO.File]::WriteAllText((Join-Path $foreign 'keep.txt'), 'not a package')
-    $i2 = Invoke-Build @('-RepoRoot', $RepoRoot, '-OutputDir', (Join-Path $TestRoot 'outForeign'), '-ExpectedVersion', '1.1.0')
+    $i2 = Invoke-Build @('-RepoRoot', $RepoRoot, '-OutputDir', (Join-Path $TestRoot 'outForeign'), '-ExpectedVersion', $V)
     Record 'I2' 'refuses to delete a folder that is not a PPTK package' ($i2.Code -eq 1 -and $i2.Text -match 'is not a PPTK package; not deleting it' -and (Test-Path -LiteralPath (Join-Path $foreign 'keep.txt'))) ''
 
     Record 'X' 'no PowerPoint or temp build folder left behind' (-not (Get-Process POWERPNT -ErrorAction SilentlyContinue) -and @(Get-ChildItem ([IO.Path]::GetTempPath()) -Directory -Filter 'PPTK-package-build-*').Count -eq 0) ''

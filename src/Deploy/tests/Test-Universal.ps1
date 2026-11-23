@@ -142,6 +142,15 @@ try {
     $i = Install $r $P110
     Record 'U6' 'damaged runtime is repaired by installing again' ($i.Code -eq 0 -and (Detected $r $P110)) (Short $i)
 
+    # Same-version repair replaces versions\<v>, the folder the running helper uses (its files are locked):
+    # the helper is asked to close before the folder is replaced and started again afterwards.
+    $r = New-Root 'SameVersion'; [void](Install $r $P110)
+    Remove-Item -LiteralPath (Join-Path $r 'helper-actions.log') -ErrorAction SilentlyContinue
+    [IO.File]::AppendAllText((Join-Path $r 'LocalAppData\PPTK\versions\1.1.0\PPTKKeys\PPTKKeys.dll'), 'x')
+    $i = Install $r $P110
+    $acts = @(Get-Content (Join-Path $r 'helper-actions.log') -ErrorAction SilentlyContinue) -join ','
+    Record 'U6b' 'same-version repair of the helper folder: helper closed first, started again, detected' ($i.Code -eq 0 -and (Detected $r $P110) -and $acts -eq 'stop,start') "$(Short $i); actions $acts"
+
     $Punsigned = New-Package 'unsigned' '1.1.0' 'B' 'A' -Tweak { param($dir) [IO.File]::WriteAllText((Join-Path $dir 'payload\runtime\win-x64\shared\Microsoft.NETCore.App\10.0.15\Extra.dll'), 'not a signed binary') }
     $r = New-Root 'Unsigned'; $before = Snap $r; $i = Install $r $Punsigned
     Record 'U7' 'runtime with a file not signed by Microsoft: refused (InvalidRuntime), nothing installed' ($i.Code -eq 1 -and $i.Err -match 'InvalidRuntime' -and -not (Test-Path (Join-Path $r 'LocalAppData\PPTK\versions\1.1.0')) -and -not (Task $r)) (Short $i)

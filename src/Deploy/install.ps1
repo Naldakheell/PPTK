@@ -333,15 +333,27 @@ function Move-WithRetry([string]$from, [string]$to) {
 }
 
 # ---------------------------------------------------------------- steps shared by install and rollback
+# Files of versions\<v>: relative path -> package key. Universal package: only this device's runtime, as runtime\.
+function Get-StageSources($pkg) {
+    $sources = @{ 'PPTK.ppam' = 'payload/PPTK.ppam' }; foreach ($f in $KeysFiles) { $sources["PPTKKeys\$f"] = "payload/PPTKKeys/$f" }
+    if ($pkg.Rid) { foreach ($e in (Get-RuntimeEntries $pkg.Hash $pkg.Rid)) { $sources["runtime\$($e.Rel)"] = $e.Key } }
+    return $sources
+}
+
+# $true when versions\<v> exists but does not match the package, so Stage-Version will replace it.
+function Test-StageReplaces($pkg) {
+    $dest = Join-Path $PptkDir "versions\$($pkg.Version)"
+    if (-not (Test-Path -LiteralPath $dest)) { return $false }
+    $sources = Get-StageSources $pkg
+    foreach ($k in $sources.Keys) { $p = Join-Path $dest $k; if (-not (Test-Path -LiteralPath $p) -or (Get-Sha256 $p) -ne $pkg.Hash[$sources[$k]]) { return $true } }
+    return $false
+}
+
 function Stage-Version($pkg) {
     $dest = Join-Path $PptkDir "versions\$($pkg.Version)"
-    $sources = @{ 'PPTK.ppam' = 'payload/PPTK.ppam' }; foreach ($f in $KeysFiles) { $sources["PPTKKeys\$f"] = "payload/PPTKKeys/$f" }
-    # Universal package: only this device's runtime is staged, as versions\<v>\runtime\.
-    if ($pkg.Rid) { foreach ($e in (Get-RuntimeEntries $pkg.Hash $pkg.Rid)) { $sources["runtime\$($e.Rel)"] = $e.Key } }
+    $sources = Get-StageSources $pkg
     if (Test-Path -LiteralPath $dest) {
-        $intact = $true
-        foreach ($k in $sources.Keys) { $p = Join-Path $dest $k; if (-not (Test-Path -LiteralPath $p) -or (Get-Sha256 $p) -ne $pkg.Hash[$sources[$k]]) { $intact = $false } }
-        if ($intact) { Log "versions\$($pkg.Version) already staged and intact"; return $dest }
+        if (-not (Test-StageReplaces $pkg)) { Log "versions\$($pkg.Version) already staged and intact"; return $dest }
         Remove-Item -LiteralPath $dest -Recurse -Force
     }
     $tmp = "$dest.staging-" + [guid]::NewGuid().ToString('N').Substring(0, 6)
@@ -458,6 +470,21 @@ function Invoke-Install {
         Log "installed $($pkg.Version) needs repair: $($already.Err)"
     }
 
+    # Same-version repair that replaces versions\<v> while the task runs the helper from it: the running helper
+    # locks its files, so it is asked to close first (before the journal: a helper that does not close changes
+    # nothing) and is started again once the folder is replaced.
+    $helperStopped = $false
+    if ($cur.Task -and (Test-StageReplaces $pkg)) {
+        $vdirPath = Join-Path $PptkDir "versions\$($pkg.Version)"
+        $a0 = @($cur.Task.actions)[0]
+        $usesDir = (([string]$a0.execute) + ' ' + ([string]$a0.arguments)).IndexOf($vdirPath.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase) -ge 0
+        if ($usesDir) {
+            if (-not (Helper-Action 'stop')) { Stop-Install 1618 'HelperBusy' "the running helper uses versions\$($pkg.Version) and did not close; nothing was changed, retry later" }
+            $helperStopped = $true
+            Log "the helper runs from versions\$($pkg.Version), which is replaced: closed for the repair"
+        }
+    }
+
     Save-Journal 'install' $pkg.Version
     $vdir = Stage-Version $pkg; Step-Hook 'staged'
     $dll = Join-Path $vdir 'PPTKKeys\PPTKKeys.dll'
@@ -478,12 +505,15 @@ function Invoke-Install {
     # old add-in, the installed version stays complete (its task and helper are not touched) and the
     # new version waits in versions\ + pending\ until a run with PowerPoint closed applies all of it.
     $applied = Test-AddinReplaceable $pkg.Hash['payload/PPTK.ppam']
+    $helperStarted = $false
     if ($applied) {
-        [void](Set-HelperTask $dotnet $dll $keysChanged); Step-Hook 'task'
+        $helperStarted = (Set-HelperTask $dotnet $dll $keysChanged) -and $keysChanged; Step-Hook 'task'
         Set-Registration; Step-Hook 'registration'
         if (-not (Install-Addin (Join-Path $vdir 'PPTK.ppam') $pkg.Hash['payload/PPTK.ppam'])) { throw 'PowerPoint opened the add-in during the update' }
         Step-Hook 'addin'
     }
+    # The helper closed for the repair runs again from the replaced folder (also while the add-in update is pending).
+    if ($helperStopped -and -not $helperStarted) { [void](Helper-Action 'start') }
 
     $previous = if ($cur.Kind -eq 'Managed' -and $cur.Installed -and $cur.Installed -ne $pkg.Version) { $cur.Installed } elseif ($cur.State -and (Has $cur.State 'previous')) { $cur.State.previous } else { $null }
     $legacy = if ($cur.State -and (Has $cur.State 'legacyBackup')) { $cur.State.legacyBackup } else { $null }
