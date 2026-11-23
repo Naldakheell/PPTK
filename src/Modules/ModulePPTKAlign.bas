@@ -58,6 +58,8 @@ End Sub
 
 Public Sub PPTK_RibbonOnLoad(ByVal ribbon As IRibbonUI)
     Set PPTK_Ribbon = ribbon
+    ' PowerPoint loaded PPTK: start the keyboard-shortcut helper if it is not running (ModulePPTKHelperStart).
+    PPTK_EnsureHelper
 End Sub
 
 ' True once PowerPoint has loaded the PPTK ribbon (onLoad ran). Used by src\PPTK\tests\Test-Ribbon.ps1.
